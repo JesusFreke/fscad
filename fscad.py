@@ -467,50 +467,6 @@ def union(*entities, name=None):
     return _occurrence_union(entities, name)
 
 
-def _old_place(occurrence, x=None, y=None, z=None):
-    bounding_box = _get_exact_bounding_box(occurrence)
-
-    translation_x = 0
-    if x is not None:
-        if x[0] == "min":
-            translation_x = x[1] - _mm(bounding_box.minPoint.x)
-        elif x[0] == "max":
-            translation_x = x[1] - _mm(bounding_box.maxPoint.x)
-        elif x[0] == "mid":
-            translation_x = x[1] - _mm(bounding_box.maxPoint.x + bounding_box.minPoint.x) / 2.0
-        elif x[0] == "keep":
-            translation_x = 0
-        else:
-            raise ValueError("invalid x alignment type: %s" % x[0])
-
-    translation_y = 0
-    if y is not None:
-        if y[0] == "min":
-            translation_y = y[1] - _mm(bounding_box.minPoint.y)
-        elif y[0] == "max":
-            translation_y = y[1] - _mm(bounding_box.maxPoint.y)
-        elif y[0] == "mid":
-            translation_y = y[1] - _mm(bounding_box.maxPoint.y + bounding_box.minPoint.y) / 2.0
-        elif y[0] == "keep":
-            translation_y = 0
-        else:
-            raise ValueError("invalid y alignment type: %s" % y[0])
-
-    translation_z = 0
-    if z is not None:
-        if z[0] == "min":
-            translation_z = z[1] - _mm(bounding_box.minPoint.z)
-        elif z[0] == "max":
-            translation_z = z[1] - _mm(bounding_box.maxPoint.z)
-        elif z[0] == "mid":
-            translation_z = z[1] - _mm(bounding_box.maxPoint.z + bounding_box.minPoint.z) / 2.0
-        elif z[0] == "keep":
-            translation_z = 0
-        else:
-            raise ValueError("invalid z alignment type: %s" % z[0])
-
-    return translate((translation_x, translation_y, translation_z), occurrence)
-
 def minX(occurrence: adsk.fusion.Occurrence):
     return _mm(_get_exact_bounding_box(occurrence).minPoint.x)
 
