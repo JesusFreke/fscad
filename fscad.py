@@ -38,6 +38,10 @@ def root() -> adsk.fusion.Component:
     return design().rootComponent
 
 
+def ui():
+    return app().userInterface
+
+
 def design():
     return adsk.fusion.Design.cast(app().activeProduct)
 
