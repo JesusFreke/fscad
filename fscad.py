@@ -709,19 +709,40 @@ def place(occurrence, x=None, y=None, z=None) -> adsk.fusion.Occurrence:
     design().snapshots.add()
     return occurrence
 
+
 def run_design(design, message_box_on_error=True, document_name="fSCAD-Preview"):
+    """
+    Utility method to handle the common setup tasks for a script
+
+    :param design: The function that actually creates the design
+    :param message_box_on_error: Set true to pop up a dialog with a stack trace if an error occurs
+    :param document_name: The name of the document to create. If a document of the given name already exists, it will
+    be forcibly closed and recreated.
+    """
     try:
-        previewDoc = None
+        previewDoc = None  # type: adsk.fusion.FusionDocument
+        savedCamera = None
         for document in app().documents:
             if document.name == document_name:
                 previewDoc = document
                 break
         if previewDoc is not None:
+            previewDoc.activate()
+            adsk.doEvents()
+            savedCamera = app().activeViewport.camera
             previewDoc.close(False)
 
         previewDoc = app().documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
         previewDoc.name = document_name
         previewDoc.activate()
+        if savedCamera is not None:
+            previewDoc.activate()
+            adsk.doEvents()
+            isSmoothTransitionBak = savedCamera.isSmoothTransition
+            savedCamera.isSmoothTransition = False
+            app().activeViewport.camera = savedCamera
+            savedCamera.isSmoothTransition = isSmoothTransitionBak
+            app().activeViewport.camera = savedCamera
 
         design()
     except:
