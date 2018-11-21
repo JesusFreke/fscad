@@ -22,11 +22,11 @@ from typing import Iterable
 
 
 def _mm(cm_value):
-    return cm_value * 10
+    return cm_value if cm_value is None else cm_value * 10
 
 
 def _cm(mm_value):
-    return mm_value / 10.0
+    return mm_value if mm_value is None else mm_value / 10.0
 
 
 def app():
@@ -144,65 +144,44 @@ def _get_exact_bounding_box(occurrence):
     return bounding_box
 
 
+def _create_component(*bodies, name):
+    new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    new_occurrence.component.name = name
+    base_feature = new_occurrence.component.features.baseFeatures.add()
+    base_feature.startEdit()
+    for body in bodies:
+        new_occurrence.component.bRepBodies.add(body, base_feature)
+    base_feature.finishEdit()
+    return new_occurrence
+
+
 def sphere(radius, *, name="Sphere") -> adsk.fusion.Occurrence:
-    sketch = root().sketches.add(root().xYConstructionPlane)
-
-    center_point = adsk.core.Point3D.create(0, 0, 0)
-    start_point = adsk.core.Point3D.create(_cm(radius), 0, 0)
-    arc = sketch.sketchCurves.sketchArcs.addByCenterStartSweep(center_point, start_point, math.pi)
-    sketch.sketchCurves.sketchLines.addByTwoPoints(arc.startSketchPoint, arc.endSketchPoint)
-
-    revolves = root().features.revolveFeatures
-    revolve_input = revolves.createInput(sketch.profiles.item(0), root().xConstructionAxis,
-                                         adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
-
-    angle = adsk.core.ValueInput.createByReal(math.pi)
-    revolve_input.isSolid = True
-    revolve_input.setAngleExtent(True, angle)
-
-    feature = revolves.add(revolve_input)  # type: adsk.fusion.Feature
-    feature.parentComponent.name = name
-
-    return root().allOccurrencesByComponent(feature.parentComponent)[0]
+    brep = adsk.fusion.TemporaryBRepManager.get()
+    sphere_body = brep.createSphere(adsk.core.Point3D.create(0, 0, 0), _cm(radius))
+    return _create_component(sphere_body, name=name)
 
 
 def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Occurrence:
-    sketch = root().sketches.add(root().xZConstructionPlane)
-    origin = adsk.core.Point3D.create(0, 0, 0)
-    point1 = adsk.core.Point3D.create(0, _cm(-height), 0)
-    point2 = adsk.core.Point3D.create(_cm(radius2) if radius2 is not None else _cm(radius), _cm(-height), 0)
-    point3 = adsk.core.Point3D.create(_cm(radius), 0, 0)
-
-    sketch.sketchCurves.sketchLines.addByTwoPoints(origin, point1)
-    sketch.sketchCurves.sketchLines.addByTwoPoints(point1, point2)
-    sketch.sketchCurves.sketchLines.addByTwoPoints(point2, point3)
-    sketch.sketchCurves.sketchLines.addByTwoPoints(point3, origin)
-
-    revolve_input = root().features.revolveFeatures.createInput(
-        sketch.profiles.item(0), root().zConstructionAxis, adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
-    angle = adsk.core.ValueInput.createByReal(2 * math.pi)
-    revolve_input.isSolid = True
-    revolve_input.setAngleExtent(True, angle)
-
-    feature = root().features.revolveFeatures.add(revolve_input)
-    feature.parentComponent.name = name
-    return root().allOccurrencesByComponent(feature.parentComponent)[0]
+    (height, radius, radius2) = (_cm(height), _cm(radius), _cm(radius2))
+    brep = adsk.fusion.TemporaryBRepManager.get()
+    cylinder_body = brep.createCylinderOrCone(
+        adsk.core.Point3D.create(0, 0, 0),
+        radius,
+        adsk.core.Point3D.create(0, 0, height),
+        radius if radius2 is None else radius2
+    )
+    return _create_component(cylinder_body, name=name)
 
 
 def box(x, y, z, *, name="Box"):
     x, y, z = (_cm(x), _cm(y), _cm(z))
     brep = adsk.fusion.TemporaryBRepManager.get()
-    box = brep.createBox(adsk.core.OrientedBoundingBox3D.create(
+    box_body = brep.createBox(adsk.core.OrientedBoundingBox3D.create(
         adsk.core.Point3D.create(x/2, y/2, z/2),
         adsk.core.Vector3D.create(1, 0, 0),
         adsk.core.Vector3D.create(0, 1, 0),
         x, y, z))
-    new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
-    base_feature = new_occurrence.component.features.baseFeatures.add()
-    base_feature.startEdit()
-    new_occurrence.component.bRepBodies.add(box, base_feature)
-    base_feature.finishEdit()
-    return new_occurrence
+    return _create_component(box_body, name=name)
 
 
 def rect(dimensions, *, name="Rectangle"):
