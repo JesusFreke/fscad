@@ -434,10 +434,7 @@ def _sketch_union(sketches, name):
     return new_sketch
 
 
-def union(*occurrences, name=None) -> adsk.fusion.Occurrence:
-    if len(occurrences) > 0 and isinstance(occurrences[0], adsk.fusion.Sketch):
-        return _sketch_union(occurrences, name)
-
+def _occurrence_union(occurrences, name):
     bodies = adsk.core.ObjectCollection.create()
 
     first_body = None
@@ -462,6 +459,12 @@ def union(*occurrences, name=None) -> adsk.fusion.Occurrence:
     if name is not None:
         union_occurrence.component.name = name
     return union_occurrence
+
+
+def union(*entities, name=None):
+    if len(entities) > 0 and isinstance(entities[0], adsk.fusion.Sketch):
+        return _sketch_union(entities, name)
+    return _occurrence_union(entities, name)
 
 
 def _old_place(occurrence, x=None, y=None, z=None):
