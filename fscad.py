@@ -650,7 +650,7 @@ def rotate_duplicate(angles, occurrence, center=None):
     return ret
 
 
-def place(occurrence, x=None, y=None, z=None):
+def place(occurrence, x=None, y=None, z=None) -> adsk.fusion.Occurrence:
     transform = occurrence.transform
     transform.translation = adsk.core.Vector3D.create(0, 0, 0)
     occurrence.transform = transform
