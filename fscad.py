@@ -184,11 +184,11 @@ def box(x, y, z, *, name="Box"):
     return _create_component(box_body, name=name)
 
 
-def rect(dimensions, *, name="Rectangle"):
+def rect(x, y, *, name="Rectangle"):
     sketch = root().sketches.add(root().xYConstructionPlane)
     sketch.sketchCurves.sketchLines.addTwoPointRectangle(
         adsk.core.Point3D.create(0, 0, 0),
-        adsk.core.Point3D.create(_cm(dimensions[0]), _cm(dimensions[1]), 0))
+        adsk.core.Point3D.create(_cm(x), _cm(y), 0))
     return sketch
 
 
@@ -196,6 +196,7 @@ def offsetSketch(sketch, offset):
     construction_plane_input = root().constructionPlanes.createInput()
     construction_plane_input.setByOffset(sketch.referencePlane, adsk.core.ValueInput.createByReal(_cm(offset)))
     construction_plane = root().constructionPlanes.add(construction_plane_input)
+    construction_plane.isLightBulbOn = False
     sketch.redefine(construction_plane)
 
 
