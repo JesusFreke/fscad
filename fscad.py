@@ -519,20 +519,46 @@ def sizeZ(occurrence: adsk.fusion.Occurrence):
     return _mm(bounding_box.maxPoint.z - bounding_box.minPoint.z)
 
 
+def _get_placement_value(value, coordinate_index):
+    if callable(value):
+        return value(coordinate_index)
+    return _cm(value)
+
+
 def minAt(value):
-    return "min", value
+    return lambda coordinate_index, bounding_box:\
+        _get_placement_value(value, coordinate_index) - bounding_box.minPoint.asArray()[coordinate_index]
 
 
 def maxAt(value):
-    return "max", value
+    return lambda coordinate_index, bounding_box:\
+        _get_placement_value(value, coordinate_index) - bounding_box.maxPoint.asArray()[coordinate_index]
 
 
 def midAt(value):
-    return "mid", value
+    return lambda coordinate_index, bounding_box: \
+        _get_placement_value(value, coordinate_index) -\
+        (bounding_box.minPoint.asArray()[coordinate_index] + bounding_box.maxPoint.asArray()[coordinate_index]) / 2
+
+
+def atMin(entity):
+    bounding_box = _get_exact_bounding_box(entity)
+    return lambda coordinate_index: bounding_box.minPoint.asArray()[coordinate_index]
+
+
+def atMax(entity):
+    bounding_box = _get_exact_bounding_box(entity)
+    return lambda coordinate_index: bounding_box.maxPoint.asArray()[coordinate_index]
+
+
+def atMid(entity):
+    bounding_box = _get_exact_bounding_box(entity)
+    return lambda coordinate_index:\
+        (bounding_box.minPoint.asArray()[coordinate_index] + bounding_box.maxPoint.asArray()[coordinate_index]) / 2
 
 
 def keep():
-    return "keep",
+    return lambda *_: 0
 
 
 def touching(anchor_occurrence, target_occurrence):
@@ -585,7 +611,7 @@ def rotate_duplicate(angles, occurrence, center=None):
     return ret
 
 
-def place(occurrence, x=None, y=None, z=None) -> adsk.fusion.Occurrence:
+def place(occurrence, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
     transform = occurrence.transform
     transform.translation = adsk.core.Vector3D.create(0, 0, 0)
     occurrence.transform = transform
@@ -599,47 +625,11 @@ def place(occurrence, x=None, y=None, z=None) -> adsk.fusion.Occurrence:
             _oriented_bounding_box_to_bounding_box(
                 app().measureManager.getOrientedBoundingBox(body, vector1, vector2)))
 
-    translation_x = 0
-    if x is not None:
-        if x[0] == "min":
-            translation_x = x[1] - _mm(bounding_box.minPoint.x)
-        elif x[0] == "max":
-            translation_x = x[1] - _mm(bounding_box.maxPoint.x)
-        elif x[0] == "mid":
-            translation_x = x[1] - _mm(bounding_box.maxPoint.x + bounding_box.minPoint.x) / 2.0
-        elif x[0] == "keep":
-            translation_x = 0
-        else:
-            raise ValueError("invalid x alignment type: %s" % x[0])
-
-    translation_y = 0
-    if y is not None:
-        if y[0] == "min":
-            translation_y = y[1] - _mm(bounding_box.minPoint.y)
-        elif y[0] == "max":
-            translation_y = y[1] - _mm(bounding_box.maxPoint.y)
-        elif y[0] == "mid":
-            translation_y = y[1] - _mm(bounding_box.maxPoint.y + bounding_box.minPoint.y) / 2.0
-        elif y[0] == "keep":
-            translation_y = 0
-        else:
-            raise ValueError("invalid y alignment type: %s" % y[0])
-
-    translation_z = 0
-    if z is not None:
-        if z[0] == "min":
-            translation_z = z[1] - _mm(bounding_box.minPoint.z)
-        elif z[0] == "max":
-            translation_z = z[1] - _mm(bounding_box.maxPoint.z)
-        elif z[0] == "mid":
-            translation_z = z[1] - _mm(bounding_box.maxPoint.z + bounding_box.minPoint.z) / 2.0
-        elif z[0] == "keep":
-            translation_z = 0
-        else:
-            raise ValueError("invalid z alignment type: %s" % z[0])
-
     transform = occurrence.transform
-    transform.translation = adsk.core.Vector3D.create(_cm(translation_x), _cm(translation_y), _cm(translation_z))
+    transform.translation = adsk.core.Vector3D.create(
+        x_placement(0, bounding_box),
+        y_placement(1, bounding_box),
+        z_placement(2, bounding_box))
     occurrence.transform = transform
     design().snapshots.add()
     return occurrence
