@@ -473,58 +473,30 @@ def union(*entities, name=None):
     return _occurrence_union(entities, name)
 
 
-def minX(occurrence: adsk.fusion.Occurrence):
-    return _mm(_get_exact_bounding_box(occurrence).minPoint.x)
+def minOf(occurrence):
+    return _mm(_get_exact_bounding_box(occurrence).minPoint)
 
 
-def maxX(occurrence: adsk.fusion.Occurrence):
-    return _mm(_get_exact_bounding_box(occurrence).maxPoint.x)
+def maxOf(occurrence):
+    return _mm(_get_exact_bounding_box(occurrence).maxPoint)
 
 
-def midX(occurrence: adsk.fusion.Occurrence):
+def midOf(occurrence):
     bounding_box = _get_exact_bounding_box(occurrence)
-    return _mm(bounding_box.maxPoint.x + bounding_box.minPoint.x)/2.0
+    return _mm(adsk.core.Point3D.create(
+        (bounding_box.minPoint.x + bounding_box.maxPoint.x) / 2,
+        (bounding_box.minPoint.y + bounding_box.maxPoint.y) / 2,
+        (bounding_box.minPoint.z + bounding_box.maxPoint.z) / 2
+    ))
 
 
-def sizeX(occurrence: adsk.fusion.Occurrence):
+def sizeOf(occurrence):
     bounding_box = _get_exact_bounding_box(occurrence)
-    return _mm(bounding_box.maxPoint.x - bounding_box.minPoint.x)
-
-
-def minY(occurrence: adsk.fusion.Occurrence):
-    return _mm(_get_exact_bounding_box(occurrence).minPoint.y)
-
-
-def maxY(occurrence: adsk.fusion.Occurrence):
-    return _mm(_get_exact_bounding_box(occurrence).maxPoint.y)
-
-
-def midY(occurrence: adsk.fusion.Occurrence):
-    bounding_box = _get_exact_bounding_box(occurrence)
-    return _mm(bounding_box.maxPoint.y + bounding_box.minPoint.y)/2.0
-
-
-def sizeY(occurrence: adsk.fusion.Occurrence):
-    bounding_box = _get_exact_bounding_box(occurrence)
-    return _mm(bounding_box.maxPoint.y - bounding_box.minPoint.y)
-
-
-def minZ(occurrence: adsk.fusion.Occurrence):
-    return _mm(_get_exact_bounding_box(occurrence).minPoint.z)
-
-
-def maxZ(occurrence: adsk.fusion.Occurrence):
-    return _mm(_get_exact_bounding_box(occurrence).maxPoint.z)
-
-
-def midZ(occurrence: adsk.fusion.Occurrence):
-    bounding_box = _get_exact_bounding_box(occurrence)
-    return _mm(bounding_box.maxPoint.z + bounding_box.minPoint.z)/2.0
-
-
-def sizeZ(occurrence: adsk.fusion.Occurrence):
-    bounding_box = _get_exact_bounding_box(occurrence)
-    return _mm(bounding_box.maxPoint.z - bounding_box.minPoint.z)
+    return _mm(adsk.core.Point3D.create(
+        bounding_box.maxPoint.x - bounding_box.maxPoint.x,
+        bounding_box.maxPoint.y - bounding_box.maxPoint.y,
+        bounding_box.maxPoint.z - bounding_box.maxPoint.z
+    ))
 
 
 def _get_placement_value(value, coordinate_index):
