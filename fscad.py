@@ -189,6 +189,7 @@ def rect(x, y, *, name="Rectangle"):
     sketch.sketchCurves.sketchLines.addTwoPointRectangle(
         adsk.core.Point3D.create(0, 0, 0),
         adsk.core.Point3D.create(_cm(x), _cm(y), 0))
+    sketch.name = name
     return sketch
 
 
