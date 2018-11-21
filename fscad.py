@@ -189,22 +189,20 @@ def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Oc
     return root().allOccurrencesByComponent(feature.parentComponent)[0]
 
 
-def box(dimensions, *, name="Box") -> adsk.fusion.Occurrence:
-    sketch = root().sketches.add(root().xYConstructionPlane)
-    sketch.sketchCurves.sketchLines.addTwoPointRectangle(
-        adsk.core.Point3D.create(0, 0, 0),
-        adsk.core.Point3D.create(_cm(dimensions[0]), _cm(dimensions[1]), 0))
-
-    extrude_input = root().features.extrudeFeatures.createInput(
-        sketch.profiles.item(0),
-        adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
-    height_value = adsk.core.ValueInput.createByReal(_cm(dimensions[2]))
-    height_extent = adsk.fusion.DistanceExtentDefinition.create(height_value)
-
-    extrude_input.setOneSideExtent(height_extent, adsk.fusion.ExtentDirections.PositiveExtentDirection)
-    feature = root().features.extrudeFeatures.add(extrude_input)
-    feature.parentComponent.name = name
-    return root().allOccurrencesByComponent(feature.parentComponent)[0]
+def box(x, y, z, *, name="Box"):
+    x, y, z = (_cm(x), _cm(y), _cm(z))
+    brep = adsk.fusion.TemporaryBRepManager.get()
+    box = brep.createBox(adsk.core.OrientedBoundingBox3D.create(
+        adsk.core.Point3D.create(x/2, y/2, z/2),
+        adsk.core.Vector3D.create(1, 0, 0),
+        adsk.core.Vector3D.create(0, 1, 0),
+        x, y, z))
+    new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    base_feature = new_occurrence.component.features.baseFeatures.add()
+    base_feature.startEdit()
+    new_occurrence.component.bRepBodies.add(box, base_feature)
+    base_feature.finishEdit()
+    return new_occurrence
 
 
 def rect(dimensions, *, name="Rectangle"):
