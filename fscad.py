@@ -13,7 +13,6 @@
 # limitations under the License.
 import adsk.core
 import adsk.fusion
-import inspect
 import math
 import traceback
 import types
@@ -728,7 +727,6 @@ def run_design(design, message_box_on_error=True, document_name="fSCAD-Preview")
                 break
         if previewDoc is not None:
             previewDoc.activate()
-            adsk.doEvents()
             savedCamera = app().activeViewport.camera
             previewDoc.close(False)
 
@@ -736,8 +734,6 @@ def run_design(design, message_box_on_error=True, document_name="fSCAD-Preview")
         previewDoc.name = document_name
         previewDoc.activate()
         if savedCamera is not None:
-            previewDoc.activate()
-            adsk.doEvents()
             isSmoothTransitionBak = savedCamera.isSmoothTransition
             savedCamera.isSmoothTransition = False
             app().activeViewport.camera = savedCamera
