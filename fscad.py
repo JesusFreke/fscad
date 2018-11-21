@@ -22,11 +22,19 @@ from typing import Iterable
 
 
 def _mm(cm_value):
-    return cm_value if cm_value is None else cm_value * 10
+    if cm_value is None:
+        return None
+    if cm_value is adsk.core.Point3D:
+        return adsk.core.Point3D.create(_mm(cm_value.x), _mm(cm_value.y), _mm(cm_value.z))
+    return cm_value * 10
 
 
 def _cm(mm_value):
-    return mm_value if mm_value is None else mm_value / 10.0
+    if mm_value is None:
+        return None
+    if mm_value is adsk.core.Point3D:
+        return adsk.core.Point3D.create(_cm(mm_value.x), _cm(mm_value.y), _cm(mm_value.z))
+    return mm_value / 10
 
 
 def app():
