@@ -311,12 +311,10 @@ def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
 
 def translate(vector, *occurrences, name="Translate"):
     if len(occurrences) > 1:
-        print("here1")
         result_occurrence = component(*occurrences, name=name)
         for occurrence in occurrences:
             occurrence.moveToComponent(result_occurrence)
     else:
-        print("here2")
         result_occurrence = occurrences[0]
 
     if vector[0] == 0 and vector[1] == 0 and vector[2] == 0:
