@@ -473,6 +473,30 @@ def union(*entities, name=None):
     return _occurrence_union(entities, name)
 
 
+class Joiner(object):
+    def __init__(self, join_method, name=None):
+        self._entities = []
+        self._name = name
+        self._join_method = join_method
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, error_type, value, trace):
+        if error_type is None:
+            occurrence = self._join_method(*self._entities, name=self._name)
+            self._occurrence = occurrence
+
+    def __call__(self, entity):
+        # TODO: check that the type matches the existing entities
+        # also check that the context is still active
+        self._entities.append(entity)
+        return entity
+
+    def result(self):
+        return self._occurrence
+
+
 def minOf(occurrence):
     return _mm(_get_exact_bounding_box(occurrence).minPoint)
 
