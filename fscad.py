@@ -583,28 +583,28 @@ def distance_between(occurrence1, occurrence2):
         math.pow(_mm(measure_result.positionTwo.z - measure_result.positionOne.z), 2))
 
 
-def tx(value, *occurrences):
-    translate((value, 0, 0), *occurrences)
+def tx(value, *occurrences, name=None):
+    translate((value, 0, 0), *occurrences, name=name)
 
 
-def ty(value, *occurrences):
-    translate((0, value, 0), *occurrences)
+def ty(value, *occurrences, name=None):
+    translate((0, value, 0), *occurrences, name=name)
 
 
-def tz(value, *occurrences):
-    translate((0, 0, value), *occurrences)
+def tz(value, *occurrences, name=None):
+    translate((0, 0, value), *occurrences, name=name)
 
 
-def rx(value, *occurrences):
-    rotate((value, 0, 0), *occurrences)
+def rx(value, *occurrences, center=None, name=None):
+    rotate((value, 0, 0), *occurrences, center=center, name=name)
 
 
-def ry(value, *occurrences):
-    rotate((0, value, 0), *occurrences)
+def ry(value, *occurrences, center=None, name=None):
+    rotate((0, value, 0), *occurrences, center=center, name=name)
 
 
-def rz(value, *occurrences):
-    rotate((0, 0, value), *occurrences)
+def rz(value, *occurrences, center=None, name=None):
+    rotate((0, 0, value), *occurrences, center=center, name=name)
 
 
 def duplicate(func, values, occurrence, keep_original=False):
