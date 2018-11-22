@@ -69,7 +69,8 @@ def _immediate_occurrence_bodies(occurrence, collection):
         collection.add(body)
 
 
-def _occurrence_bodies(occurrence: adsk.fusion.Occurrence, only_visible=True, bodies=None) -> Iterable[adsk.fusion.BRepBody]:
+def _occurrence_bodies(occurrence: adsk.fusion.Occurrence, only_visible=True, bodies=None)\
+        -> Iterable[adsk.fusion.BRepBody]:
     if bodies is None:
         bodies = adsk.core.ObjectCollection.create()
 
@@ -144,7 +145,8 @@ def _get_exact_bounding_box(occurrence):
 
     bounding_box = None
     for body in _occurrence_bodies(occurrence):
-        body_bounding_box = _oriented_bounding_box_to_bounding_box(app().measureManager.getOrientedBoundingBox(body, vector1, vector2))
+        body_bounding_box = _oriented_bounding_box_to_bounding_box(
+            app().measureManager.getOrientedBoundingBox(body, vector1, vector2))
         if bounding_box is None:
             bounding_box = body_bounding_box
         else:
@@ -238,7 +240,6 @@ def placeSketch(sketch, origin, normal):
     third_point.translateBy(third_vector)
     third_sketch_point = sketch2.sketchPoints.add(third_point)
 
-
     construction_plane_input = root().constructionPlanes.createInput()
     construction_plane_input.setByThreePoints(first_sketch_point, second_sketch_point, third_sketch_point)
     construction_plane = root().constructionPlanes.add(construction_plane_input)
@@ -329,7 +330,6 @@ def translate(vector, *occurrences, name="Translate"):
         return result_occurrence
 
     bodies_to_move = adsk.core.ObjectCollection.create()
-    bodies = _occurrence_bodies(result_occurrence, only_visible=False)
     for body in _occurrence_bodies(result_occurrence, only_visible=False):
         bodies_to_move.add(body)
 
@@ -411,7 +411,7 @@ def _sketch_union(sketches, name):
             bodies.append(body)
 
     if len(bodies) > 1:
-        combine_input = root().features.combineFeatures.createInput(bodies[0], _collection_of(bodies[1:]))  # type: adsk.fusion.CombineFeatureInput
+        combine_input = root().features.combineFeatures.createInput(bodies[0], _collection_of(bodies[1:]))
         combine_input.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
         combine_input.isKeepToolBodies = True
         combine_input.isNewComponent = True
@@ -451,7 +451,7 @@ def _occurrence_union(occurrences, name):
             else:
                 bodies.add(body)
 
-    combine_input = root().features.combineFeatures.createInput(first_body, bodies)  # type: adsk.fusion.CombineFeatureInput
+    combine_input = root().features.combineFeatures.createInput(first_body, bodies)
     combine_input.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
     combine_input.isKeepToolBodies = True
     combine_input.isNewComponent = True
