@@ -318,44 +318,32 @@ def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
     return difference_occurrence
 
 
-def translate(vector, *occurrences, name="Translate"):
-    if len(occurrences) > 1:
-        result_occurrence = component(*occurrences, name=name)
-        for occurrence in occurrences:
-            occurrence.moveToComponent(result_occurrence)
-    else:
-        result_occurrence = occurrences[0]
-
+def translate(vector, occurrence):
     if vector[0] == 0 and vector[1] == 0 and vector[2] == 0:
-        return result_occurrence
+        return occurrence
 
     bodies_to_move = adsk.core.ObjectCollection.create()
-    for body in _occurrence_bodies(result_occurrence, only_visible=False):
+    for body in _occurrence_bodies(occurrence, only_visible=False):
         bodies_to_move.add(body)
 
     transform = adsk.core.Matrix3D.create()
     transform.translation = adsk.core.Vector3D.create(_cm(vector[0]), _cm(vector[1]), _cm(vector[2]))
-    move_input = result_occurrence.component.features.moveFeatures.createInput(bodies_to_move, transform)
-    result_occurrence.component.features.moveFeatures.add(move_input)
-    return result_occurrence
+    move_input = occurrence.component.features.moveFeatures.createInput(bodies_to_move, transform)
+    occurrence.component.features.moveFeatures.add(move_input)
+    return occurrence
 
 
-def rotate(angles, *occurrences, center=None, name="Rotate"):
+def rotate(angles, occurrence, center=None):
     if center is None:
         center = adsk.core.Point3D.create(0, 0, 0)
     else:
         center = adsk.core.Point3D.create(_cm(center[0]), _cm(center[1]), _cm(center[2]))
 
-    if len(occurrences) > 1:
-        result_occurrence = component(*occurrences, name=name)
-    else:
-        result_occurrence = occurrences[0]
-
     if angles[0] == 0 and angles[1] == 0 and angles[2] == 0:
-        return result_occurrence
+        return occurrence
 
     bodies_to_rotate = adsk.core.ObjectCollection.create()
-    for body in _occurrence_bodies(result_occurrence):
+    for body in _occurrence_bodies(occurrence):
         bodies_to_rotate.add(body)
 
     transform1 = adsk.core.Matrix3D.create()
@@ -371,9 +359,9 @@ def rotate(angles, *occurrences, center=None, name="Rotate"):
     transform1.transformBy(transform2)
     transform1.transformBy(transform3)
 
-    move_input = result_occurrence.component.features.moveFeatures.createInput(bodies_to_rotate, transform1)
-    result_occurrence.component.features.moveFeatures.add(move_input)
-    return result_occurrence
+    move_input = occurrence.component.features.moveFeatures.createInput(bodies_to_rotate, transform1)
+    occurrence.component.features.moveFeatures.add(move_input)
+    return occurrence
 
 
 def component(*occurrences, name="Component") -> adsk.fusion.Occurrence:
@@ -583,28 +571,28 @@ def distance_between(occurrence1, occurrence2):
         math.pow(_mm(measure_result.positionTwo.z - measure_result.positionOne.z), 2))
 
 
-def tx(value, *occurrences, name=None):
-    translate((value, 0, 0), *occurrences, name=name)
+def tx(value, *occurrences):
+    translate((value, 0, 0), *occurrences)
 
 
-def ty(value, *occurrences, name=None):
-    translate((0, value, 0), *occurrences, name=name)
+def ty(value, *occurrences):
+    translate((0, value, 0), *occurrences)
 
 
-def tz(value, *occurrences, name=None):
-    translate((0, 0, value), *occurrences, name=name)
+def tz(value, *occurrences):
+    translate((0, 0, value), *occurrences)
 
 
-def rx(value, *occurrences, center=None, name=None):
-    rotate((value, 0, 0), *occurrences, center=center, name=name)
+def rx(value, *occurrences, center=None):
+    rotate((value, 0, 0), *occurrences, center=center)
 
 
-def ry(value, *occurrences, center=None, name=None):
-    rotate((0, value, 0), *occurrences, center=center, name=name)
+def ry(value, *occurrences, center=None):
+    rotate((0, value, 0), *occurrences, center=center)
 
 
-def rz(value, *occurrences, center=None, name=None):
-    rotate((0, 0, value), *occurrences, center=center, name=name)
+def rz(value, *occurrences, center=None):
+    rotate((0, 0, value), *occurrences, center=center)
 
 
 def duplicate(func, values, occurrence, keep_original=False):
