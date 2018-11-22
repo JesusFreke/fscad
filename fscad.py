@@ -503,40 +503,40 @@ def sizeOf(occurrence):
 
 def _get_placement_value(value, coordinate_index):
     if callable(value):
-        return value(coordinate_index)
+        return _cm(value(coordinate_index))
     return _cm(value)
 
 
 def minAt(value):
-    return lambda coordinate_index, bounding_box:\
-        _get_placement_value(value, coordinate_index) - bounding_box.minPoint.asArray()[coordinate_index]
+    return lambda coordinate_index, bounding_box: _mm(
+        _get_placement_value(value, coordinate_index) - bounding_box.minPoint.asArray()[coordinate_index])
 
 
 def maxAt(value):
-    return lambda coordinate_index, bounding_box:\
-        _get_placement_value(value, coordinate_index) - bounding_box.maxPoint.asArray()[coordinate_index]
+    return lambda coordinate_index, bounding_box: _mm(
+        _get_placement_value(value, coordinate_index) - bounding_box.maxPoint.asArray()[coordinate_index])
 
 
 def midAt(value):
-    return lambda coordinate_index, bounding_box: \
-        _get_placement_value(value, coordinate_index) -\
-        (bounding_box.minPoint.asArray()[coordinate_index] + bounding_box.maxPoint.asArray()[coordinate_index]) / 2
+    return lambda coordinate_index, bounding_box: _mm(
+        _get_placement_value(value, coordinate_index) -
+        (bounding_box.minPoint.asArray()[coordinate_index] + bounding_box.maxPoint.asArray()[coordinate_index]) / 2)
 
 
 def atMin(entity):
     bounding_box = _get_exact_bounding_box(entity)
-    return lambda coordinate_index: bounding_box.minPoint.asArray()[coordinate_index]
+    return lambda coordinate_index: _mm(bounding_box.minPoint.asArray()[coordinate_index])
 
 
 def atMax(entity):
     bounding_box = _get_exact_bounding_box(entity)
-    return lambda coordinate_index: bounding_box.maxPoint.asArray()[coordinate_index]
+    return lambda coordinate_index: _mm(bounding_box.maxPoint.asArray()[coordinate_index])
 
 
 def atMid(entity):
     bounding_box = _get_exact_bounding_box(entity)
-    return lambda coordinate_index:\
-        (bounding_box.minPoint.asArray()[coordinate_index] + bounding_box.maxPoint.asArray()[coordinate_index]) / 2
+    return lambda coordinate_index: _mm(
+        (bounding_box.minPoint.asArray()[coordinate_index] + bounding_box.maxPoint.asArray()[coordinate_index]) / 2)
 
 
 def keep():
@@ -610,9 +610,9 @@ def _place_occurrence(occurrence, x_placement=None, y_placement=None, z_placemen
 
     transform = occurrence.transform
     transform.translation = adsk.core.Vector3D.create(
-        x_placement(0, bounding_box),
-        y_placement(1, bounding_box),
-        z_placement(2, bounding_box))
+        _cm(x_placement(0, bounding_box)),
+        _cm(y_placement(1, bounding_box)),
+        _cm(z_placement(2, bounding_box)))
     occurrence.transform = transform
     design().snapshots.add()
     return occurrence
@@ -621,9 +621,9 @@ def _place_occurrence(occurrence, x_placement=None, y_placement=None, z_placemen
 def _place_sketch(sketch, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
     bounding_box = _get_exact_bounding_box(sketch)
     translate((
-        _mm(x_placement(0, bounding_box)),
-        _mm(y_placement(1, bounding_box)),
-        _mm(z_placement(2, bounding_box))),
+        x_placement(0, bounding_box),
+        y_placement(1, bounding_box),
+        z_placement(2, bounding_box)),
         sketch
     )
     return sketch
