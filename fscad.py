@@ -607,12 +607,13 @@ def rz(value, *occurrences):
     rotate((0, 0, value), *occurrences)
 
 
-def rotate_duplicate(angles, occurrence, center=None):
-    ret = []
-    for angle in angles[0:-1]:
-        ret.append(rotate((0, 0, angle), _duplicate_occurrence(occurrence), center=center))
-    ret.append(rotate((0, 0, angles[-1]), occurrence, center=center))
-    return ret
+def duplicate(func, values, occurrence, keep_original=False):
+    for value in values[0:-1]:
+        func(value, _duplicate_occurrence(occurrence))
+    if keep_original:
+        func(values[-1], _duplicate_occurrence(occurrence))
+    else:
+        func(values[-1], occurrence)
 
 
 def place(occurrence, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
