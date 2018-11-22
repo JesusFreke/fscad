@@ -139,12 +139,28 @@ def _oriented_bounding_box_to_bounding_box(oriented: adsk.core.OrientedBoundingB
     )
 
 
-def _get_exact_bounding_box(occurrence):
+def _sketch_to_wire_body(sketch):
+    brep = adsk.fusion.TemporaryBRepManager.get()
+
+    curves = []
+    for curve in sketch.sketchCurves:
+        curves.append(curve.geometry)
+
+    wire, edge_map = brep.createWireFromCurves(curves)
+    return wire
+
+
+def _get_exact_bounding_box(entity):
     vector1 = adsk.core.Vector3D.create(1.0, 0.0, 0.0)
     vector2 = adsk.core.Vector3D.create(0.0, 1.0, 0.0)
 
+    if isinstance(entity, adsk.fusion.Sketch):
+        bodies = [_sketch_to_wire_body(entity)]
+    else:
+        bodies = _occurrence_bodies(entity)
+
     bounding_box = None
-    for body in _occurrence_bodies(occurrence):
+    for body in bodies:
         body_bounding_box = _oriented_bounding_box_to_bounding_box(
             app().measureManager.getOrientedBoundingBox(body, vector1, vector2))
         if bounding_box is None:
@@ -200,21 +216,6 @@ def rect(x, y, *, name="Rectangle"):
         adsk.core.Point3D.create(0, 0, 0),
         adsk.core.Point3D.create(_cm(x), _cm(y), 0))
     sketch.name = name
-    return sketch
-
-
-def offsetSketch(sketch, offset):
-    construction_plane_input = root().constructionPlanes.createInput()
-    construction_plane_input.setByOffset(sketch.referencePlane, adsk.core.ValueInput.createByReal(_cm(offset)))
-    construction_plane = root().constructionPlanes.add(construction_plane_input)
-    construction_plane.isLightBulbOn = False
-    sketch.redefine(construction_plane)
-
-
-def translateSketch(sketch, translation):
-    transform = adsk.core.Matrix3D.create()
-    transform.translation = adsk.core.Vector3D.create(_cm(translation[0]), _cm(translation[1]), 0)
-    sketch.move(_collection_of(sketch.sketchCurves), transform)
     return sketch
 
 
@@ -318,7 +319,7 @@ def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
     return difference_occurrence
 
 
-def translate(vector, occurrence):
+def _translate_occurrence(vector, occurrence):
     if vector[0] == 0 and vector[1] == 0 and vector[2] == 0:
         return occurrence
 
@@ -331,6 +332,26 @@ def translate(vector, occurrence):
     move_input = occurrence.component.features.moveFeatures.createInput(bodies_to_move, transform)
     occurrence.component.features.moveFeatures.add(move_input)
     return occurrence
+
+
+def _translate_sketch(vector, sketch):
+    if vector[2]:
+        construction_plane_input = root().constructionPlanes.createInput()
+        construction_plane_input.setByOffset(sketch.referencePlane, adsk.core.ValueInput.createByReal(_cm(vector[2])))
+        construction_plane = root().constructionPlanes.add(construction_plane_input)
+        construction_plane.isLightBulbOn = False
+        sketch.redefine(construction_plane)
+    matrix = adsk.core.Matrix3D.create()
+    matrix.translation = adsk.core.Vector3D.create(_cm(vector[0]), _cm(vector[1]))
+    sketch.move(_collection_of(sketch.sketchCurves), matrix)
+    return sketch
+
+
+def translate(vector, entity):
+    if isinstance(entity, adsk.fusion.Sketch):
+        _translate_sketch(vector, entity)
+    else:
+        _translate_occurrence(vector, entity)
 
 
 def rotate(angles, occurrence, center=None):
