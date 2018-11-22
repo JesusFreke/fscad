@@ -219,37 +219,6 @@ def rect(x, y, *, name="Rectangle"):
     return sketch
 
 
-def placeSketch(sketch, origin, normal):
-    # TODO: move the sketch around so that the origin of the original sketch is positioned at origin
-    normal_vector = adsk.core.Vector3D.create(_cm(normal[0]), _cm(normal[1]), _cm(normal[2]))
-    arbitrary_vector = adsk.core.Vector3D.create(0, 0, 1)
-
-    if normal_vector.isParallelTo(arbitrary_vector):
-        arbitrary_vector = adsk.core.Vector3D.create(0, 1, 0)
-
-    second_vector = normal_vector.crossProduct(arbitrary_vector)
-    third_vector = normal_vector.crossProduct(second_vector)
-
-    sketch2 = root().sketches.add(root().xYConstructionPlane)
-
-    first_point = adsk.core.Point3D.create(_cm(origin[0]), _cm(origin[1]), _cm(origin[2]))
-    first_sketch_point = sketch2.sketchPoints.add(first_point)
-    second_point = first_point.copy()
-    second_point.translateBy(second_vector)
-    second_sketch_point = sketch2.sketchPoints.add(second_point)
-    third_point = first_point.copy()
-    third_point.translateBy(third_vector)
-    third_sketch_point = sketch2.sketchPoints.add(third_point)
-
-    construction_plane_input = root().constructionPlanes.createInput()
-    construction_plane_input.setByThreePoints(first_sketch_point, second_sketch_point, third_sketch_point)
-    construction_plane = root().constructionPlanes.add(construction_plane_input)
-
-    sketch.redefine(construction_plane)
-
-    sketch2.deleteMe()
-
-
 def loft(*sketches):
     loft_input = root().features.loftFeatures.createInput(adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
     for sketch in sketches:
@@ -625,7 +594,7 @@ def duplicate(func, values, occurrence, keep_original=False):
         func(values[-1], occurrence)
 
 
-def place(occurrence, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
+def _place_occurrence(occurrence, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
     transform = occurrence.transform
     transform.translation = adsk.core.Vector3D.create(0, 0, 0)
     occurrence.transform = transform
@@ -647,6 +616,24 @@ def place(occurrence, x_placement=None, y_placement=None, z_placement=None) -> a
     occurrence.transform = transform
     design().snapshots.add()
     return occurrence
+
+
+def _place_sketch(sketch, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
+    bounding_box = _get_exact_bounding_box(sketch)
+    translate((
+        _mm(x_placement(0, bounding_box)),
+        _mm(y_placement(1, bounding_box)),
+        _mm(z_placement(2, bounding_box))),
+        sketch
+    )
+    return sketch
+
+
+def place(entity, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
+    if isinstance(entity, adsk.fusion.Sketch):
+        return _place_sketch(entity, x_placement, y_placement, z_placement)
+    else:
+        return _place_occurrence(entity, x_placement, y_placement, z_placement)
 
 
 def run_design(design, message_box_on_error=True, document_name="fSCAD-Preview"):
