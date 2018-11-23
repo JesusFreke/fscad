@@ -332,6 +332,8 @@ def rotate(occurrence, x, y, z, center=None):
     if x == 0 and y == 0 and z == 0:
         return occurrence
 
+    new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
+
     if center is None:
         center = adsk.core.Point3D.create(0, 0, 0)
     else:
@@ -339,7 +341,7 @@ def rotate(occurrence, x, y, z, center=None):
 
     bodies_to_rotate = adsk.core.ObjectCollection.create()
     for body in _occurrence_bodies(occurrence):
-        bodies_to_rotate.add(body)
+        bodies_to_rotate.add(body.copyToComponent(new_occurrence))
 
     transform1 = adsk.core.Matrix3D.create()
     transform1.setToRotation(math.radians(x), adsk.core.Vector3D.create(1, 0, 0), center)
@@ -354,9 +356,12 @@ def rotate(occurrence, x, y, z, center=None):
     transform1.transformBy(transform2)
     transform1.transformBy(transform3)
 
-    move_input = occurrence.component.features.moveFeatures.createInput(bodies_to_rotate, transform1)
-    occurrence.component.features.moveFeatures.add(move_input)
-    return occurrence
+    move_input = new_occurrence.component.features.moveFeatures.createInput(bodies_to_rotate, transform1)
+    new_occurrence.component.features.moveFeatures.add(move_input)
+    occurrence.moveToComponent(new_occurrence)
+    _hide_occurrence(occurrence)
+    new_occurrence.component.name = occurrence.name
+    return new_occurrence
 
 
 def component(*occurrences, name="Component") -> adsk.fusion.Occurrence:
