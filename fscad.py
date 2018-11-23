@@ -113,7 +113,6 @@ def _find_profiles(contained_curve):
 def _duplicate_occurrence(occurrence: adsk.fusion.Occurrence, only_visible_bodies=False):
     new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
     new_occurrence.component.name = occurrence.name
-    new_occurrence.isLightBulbOn = occurrence.isLightBulbOn
 
     if only_visible_bodies:
         for body in _occurrence_bodies(occurrence):
@@ -123,7 +122,15 @@ def _duplicate_occurrence(occurrence: adsk.fusion.Occurrence, only_visible_bodie
             body.copyToComponent(new_occurrence)
         for childOccurrence in occurrence.childOccurrences:
             _duplicate_occurrence(childOccurrence).moveToComponent(new_occurrence)
+
+    if not occurrence.isLightBulbOn:
+        _hide_occurrence(new_occurrence)
     return new_occurrence
+
+
+def _hide_occurrence(occurrence):
+    occurrence.isLightBulbOn = False
+    occurrence.component.isBodiesFolderLightBulbOn = False
 
 
 def _oriented_bounding_box_to_bounding_box(oriented: adsk.core.OrientedBoundingBox3D):
@@ -254,7 +261,7 @@ def intersection(*occurrences, name="Intersection") -> adsk.fusion.Occurrence:
 
     for occurrence in occurrences:
         occurrence.moveToComponent(intersection_occurrence)
-        occurrence.isLightBulbOn = False
+        _hide_occurrence(occurrence)
     return intersection_occurrence
 
 
@@ -281,7 +288,7 @@ def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
 
     for occurrence in occurrences:
         occurrence.moveToComponent(difference_occurrence)
-        occurrence.isLightBulbOn = False
+        _hide_occurrence(occurrence)
     return difference_occurrence
 
 
@@ -436,7 +443,7 @@ def _occurrence_union(occurrences, name):
 
     for occurrence in occurrences:
         occurrence.moveToComponent(union_occurrence)
-        occurrence.isLightBulbOn = False
+        _hide_occurrence(occurrence)
     if name is not None:
         union_occurrence.component.name = name
     return union_occurrence
@@ -597,7 +604,7 @@ def duplicate(func, values, occurrence, keep_original=True):
     if keep_original:
         handle_result(_duplicate_occurrence(occurrence))
     occurrence.moveToComponent(result_occurrence)
-    occurrence.isLightBulbOn = False
+    _hide_occurrence(occurrence)
     return result_occurrence
 
 
