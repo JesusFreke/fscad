@@ -328,25 +328,25 @@ def translate(entity, x=0, y=0, z=0):
         _translate_occurrence(entity, x, y, z)
 
 
-def rotate(angles, occurrence, center=None):
+def rotate(occurrence, x, y, z, center=None):
+    if x == 0 and y == 0 and z == 0:
+        return occurrence
+
     if center is None:
         center = adsk.core.Point3D.create(0, 0, 0)
     else:
         center = _cm(adsk.core.Point3D.create(*center))
-
-    if angles[0] == 0 and angles[1] == 0 and angles[2] == 0:
-        return occurrence
 
     bodies_to_rotate = adsk.core.ObjectCollection.create()
     for body in _occurrence_bodies(occurrence):
         bodies_to_rotate.add(body)
 
     transform1 = adsk.core.Matrix3D.create()
-    transform1.setToRotation(math.radians(angles[0]), adsk.core.Vector3D.create(1, 0, 0), center)
+    transform1.setToRotation(math.radians(x), adsk.core.Vector3D.create(1, 0, 0), center)
     transform2 = adsk.core.Matrix3D.create()
-    transform2.setToRotation(math.radians(angles[1]), adsk.core.Vector3D.create(0, 1, 0), center)
+    transform2.setToRotation(math.radians(y), adsk.core.Vector3D.create(0, 1, 0), center)
     transform3 = adsk.core.Matrix3D.create()
-    transform3.setToRotation(math.radians(angles[2]), adsk.core.Vector3D.create(0, 0, 1), center)
+    transform3.setToRotation(math.radians(z), adsk.core.Vector3D.create(0, 0, 1), center)
 
     transform2.invert()
     transform3.invert()
@@ -577,16 +577,16 @@ def tz(occurrence, translation):
     return translate(occurrence, 0, 0, translation)
 
 
-def rx(value, *occurrences, center=None):
-    return rotate((value, 0, 0), *occurrences, center=center)
+def rx(occurrence, angle, center=None):
+    return rotate(occurrence, angle, 0, 0, center=center)
 
 
-def ry(value, *occurrences, center=None):
-    return rotate((0, value, 0), *occurrences, center=center)
+def ry(occurrence, angle, center=None):
+    return rotate(occurrence, 0, angle, 0, center=center)
 
 
-def rz(value, *occurrences, center=None):
-    return rotate((0, 0, value), *occurrences, center=center)
+def rz(occurrence, angle, center=None):
+    return rotate(occurrence, 0, 0, angle, center=center)
 
 
 def duplicate(func, values, occurrence, keep_original=True):
@@ -599,7 +599,7 @@ def duplicate(func, values, occurrence, keep_original=True):
         result.deleteMe()
 
     for value in values:
-        handle_result(func(value, _duplicate_occurrence(occurrence)))
+        handle_result(func(_duplicate_occurrence(occurrence), value))
 
     if keep_original:
         handle_result(_duplicate_occurrence(occurrence))
