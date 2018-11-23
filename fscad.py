@@ -176,8 +176,11 @@ def _get_exact_bounding_box(entity):
 def _create_component(*bodies, name):
     new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
     new_occurrence.component.name = name
+    base_feature = new_occurrence.component.features.baseFeatures.add()
+    base_feature.startEdit()
     for body in bodies:
-        new_occurrence.component.bRepBodies.add(body)
+        new_occurrence.component.bRepBodies.add(body, base_feature)
+    base_feature.finishEdit()
     return new_occurrence
 
 
@@ -655,6 +658,7 @@ def _place_occurrence(occurrence, x_placement=None, y_placement=None, z_placemen
         y_placement(1, bounding_box),
         z_placement(2, bounding_box)))
     occurrence.transform = transform
+    design().snapshots.add()
     return occurrence
 
 
@@ -700,7 +704,6 @@ def run_design(design_func, message_box_on_error=True, document_name="fSCAD-Prev
         previewDoc = app().documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
         previewDoc.name = document_name
         previewDoc.activate()
-        design().designType = adsk.fusion.DesignTypes.DirectDesignType
         if savedCamera is not None:
             isSmoothTransitionBak = savedCamera.isSmoothTransition
             savedCamera.isSmoothTransition = False
