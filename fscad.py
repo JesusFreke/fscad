@@ -559,27 +559,27 @@ def distance_between(occurrence1, occurrence2):
 
 
 def tx(value, *occurrences):
-    translate((value, 0, 0), *occurrences)
+    return translate((value, 0, 0), *occurrences)
 
 
 def ty(value, *occurrences):
-    translate((0, value, 0), *occurrences)
+    return translate((0, value, 0), *occurrences)
 
 
 def tz(value, *occurrences):
-    translate((0, 0, value), *occurrences)
+    return translate((0, 0, value), *occurrences)
 
 
 def rx(value, *occurrences, center=None):
-    rotate((value, 0, 0), *occurrences, center=center)
+    return rotate((value, 0, 0), *occurrences, center=center)
 
 
 def ry(value, *occurrences, center=None):
-    rotate((0, value, 0), *occurrences, center=center)
+    return rotate((0, value, 0), *occurrences, center=center)
 
 
 def rz(value, *occurrences, center=None):
-    rotate((0, 0, value), *occurrences, center=center)
+    return rotate((0, 0, value), *occurrences, center=center)
 
 
 def duplicate(func, values, occurrence, keep_original=False):
