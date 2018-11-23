@@ -64,22 +64,12 @@ def _collection_of(collection):
     return object_collection
 
 
-def _immediate_occurrence_bodies(occurrence, collection):
-    for body in occurrence.bRepBodies:
-        collection.add(body)
-
-
-def _occurrence_bodies(occurrence: adsk.fusion.Occurrence, only_visible=True, bodies=None)\
+def _occurrence_bodies(occurrence: adsk.fusion.Occurrence, bodies=None)\
         -> Iterable[adsk.fusion.BRepBody]:
     if bodies is None:
         bodies = adsk.core.ObjectCollection.create()
-
-    _immediate_occurrence_bodies(occurrence, bodies)
-
-    for childOcc in occurrence.childOccurrences:
-        if not only_visible or childOcc.isLightBulbOn:
-            _occurrence_bodies(childOcc, only_visible, bodies)
-
+    for body in occurrence.bRepBodies:
+        bodies.add(body)
     return bodies
 
 
@@ -296,15 +286,20 @@ def _translate_occurrence(vector, occurrence):
     if vector[0] == 0 and vector[1] == 0 and vector[2] == 0:
         return occurrence
 
+    new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
+
     bodies_to_move = adsk.core.ObjectCollection.create()
-    for body in _occurrence_bodies(occurrence, only_visible=False):
-        bodies_to_move.add(body)
+    for body in _occurrence_bodies(occurrence):
+        bodies_to_move.add(body.copyToComponent(new_occurrence))
 
     transform = adsk.core.Matrix3D.create()
     transform.translation = adsk.core.Vector3D.create(_cm(vector[0]), _cm(vector[1]), _cm(vector[2]))
-    move_input = occurrence.component.features.moveFeatures.createInput(bodies_to_move, transform)
-    occurrence.component.features.moveFeatures.add(move_input)
-    return occurrence
+    move_input = new_occurrence.component.features.moveFeatures.createInput(bodies_to_move, transform)
+    new_occurrence.component.features.moveFeatures.add(move_input)
+    occurrence.moveToComponent(new_occurrence)
+    _hide_occurrence(occurrence)
+    new_occurrence.component.name = occurrence.name
+    return new_occurrence
 
 
 def _translate_sketch(vector, sketch):
