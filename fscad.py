@@ -272,7 +272,7 @@ def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
 
     for occurrence in occurrences:
         occurrence.moveToComponent(difference_occurrence)
-        _hide_occurrence(occurrence)
+        occurrence.isLightBulbOn = False
     return difference_occurrence
 
 
