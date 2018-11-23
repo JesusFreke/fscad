@@ -264,16 +264,13 @@ def _do_difference(target_occurrence, tool_occurrence):
 def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
     base_occurrence = occurrences[0]
 
-    difference_occurrence = _duplicate_occurrence(base_occurrence, True)
-    difference_occurrence.component.name = name or base_occurrence.name
-
     for tool_occurrence in occurrences[1:]:
-        _do_difference(difference_occurrence, tool_occurrence)
+        _do_difference(base_occurrence, tool_occurrence)
 
-    for occurrence in occurrences:
-        occurrence.moveToComponent(difference_occurrence)
+    for occurrence in occurrences[1:]:
+        occurrence.moveToComponent(base_occurrence)
         occurrence.isLightBulbOn = False
-    return difference_occurrence
+    return base_occurrence
 
 
 def _translate_occurrence(occurrence, x, y, z):
