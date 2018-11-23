@@ -106,24 +106,6 @@ def _find_profiles(contained_curve):
     return ret
 
 
-def _duplicate_occurrence(occurrence: adsk.fusion.Occurrence, only_visible_bodies=False):
-    new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
-    new_occurrence.component.name = occurrence.name
-
-    if only_visible_bodies:
-        for body in _occurrence_bodies(occurrence):
-            body.copyToComponent(new_occurrence)
-    else:
-        for body in occurrence.bRepBodies:
-            body.copyToComponent(new_occurrence)
-        for childOccurrence in occurrence.childOccurrences:
-            _duplicate_occurrence(childOccurrence).moveToComponent(new_occurrence)
-
-    if not occurrence.isLightBulbOn:
-        _hide_occurrence(new_occurrence)
-    return new_occurrence
-
-
 def _hide_occurrence(occurrence):
     occurrence.isLightBulbOn = False
     occurrence.component.isBodiesFolderLightBulbOn = False
@@ -619,22 +601,18 @@ def rz(occurrence, angle, center=None):
     return rotate(occurrence, 0, 0, angle, center=center)
 
 
-def duplicate(func, values, occurrence, keep_original=True):
+def duplicate(func, values, occurrence):
     result_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
     result_occurrence.component.name = occurrence.name
 
-    def handle_result(result):
-        for body in result.bRepBodies:
-            body.copyToComponent(result_occurrence)
-        result.deleteMe()
-
-    for value in values:
-        handle_result(func(_duplicate_occurrence(occurrence), value))
-
-    if keep_original:
-        handle_result(_duplicate_occurrence(occurrence))
     occurrence.moveToComponent(result_occurrence)
-    _hide_occurrence(occurrence)
+    func(occurrence, values[0])
+    for value in values[1:]:
+        duplicate_occurrence = result_occurrence.component.occurrences.addExistingComponent(
+            occurrence.component, adsk.core.Matrix3D.create())
+        func(duplicate_occurrence, value)
+
+
     return result_occurrence
 
 
