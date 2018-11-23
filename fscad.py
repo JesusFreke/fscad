@@ -582,13 +582,23 @@ def rz(value, *occurrences, center=None):
     return rotate((0, 0, value), *occurrences, center=center)
 
 
-def duplicate(func, values, occurrence, keep_original=False):
-    for value in values[0:-1]:
-        func(value, _duplicate_occurrence(occurrence))
+def duplicate(func, values, occurrence, keep_original=True):
+    result_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    result_occurrence.component.name = occurrence.name
+
+    def handle_result(result):
+        for body in result.bRepBodies:
+            body.copyToComponent(result_occurrence)
+        result.deleteMe()
+
+    for value in values:
+        handle_result(func(value, _duplicate_occurrence(occurrence)))
+
     if keep_original:
-        func(values[-1], _duplicate_occurrence(occurrence))
-    else:
-        func(values[-1], occurrence)
+        handle_result(_duplicate_occurrence(occurrence))
+    occurrence.moveToComponent(result_occurrence)
+    occurrence.isLightBulbOn = False
+    return result_occurrence
 
 
 def _place_occurrence(occurrence, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
