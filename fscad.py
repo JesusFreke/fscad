@@ -173,11 +173,8 @@ def _get_exact_bounding_box(entity):
 def _create_component(*bodies, name):
     new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
     new_occurrence.component.name = name
-    base_feature = new_occurrence.component.features.baseFeatures.add()
-    base_feature.startEdit()
     for body in bodies:
-        new_occurrence.component.bRepBodies.add(body, base_feature)
-    base_feature.finishEdit()
+        new_occurrence.component.bRepBodies.add(body)
     return new_occurrence
 
 
@@ -614,7 +611,6 @@ def _place_occurrence(occurrence, x_placement=None, y_placement=None, z_placemen
         _cm(y_placement(1, bounding_box)),
         _cm(z_placement(2, bounding_box)))
     occurrence.transform = transform
-    design().snapshots.add()
     return occurrence
 
 
@@ -636,11 +632,11 @@ def place(entity, x_placement=None, y_placement=None, z_placement=None) -> adsk.
         return _place_occurrence(entity, x_placement, y_placement, z_placement)
 
 
-def run_design(design, message_box_on_error=True, document_name="fSCAD-Preview"):
+def run_design(design_func, message_box_on_error=True, document_name="fSCAD-Preview"):
     """
     Utility method to handle the common setup tasks for a script
 
-    :param design: The function that actually creates the design
+    :param design_func: The function that actually creates the design
     :param message_box_on_error: Set true to pop up a dialog with a stack trace if an error occurs
     :param document_name: The name of the document to create. If a document of the given name already exists, it will
     be forcibly closed and recreated.
@@ -660,6 +656,7 @@ def run_design(design, message_box_on_error=True, document_name="fSCAD-Preview")
         previewDoc = app().documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
         previewDoc.name = document_name
         previewDoc.activate()
+        design().designType = adsk.fusion.DesignTypes.DirectDesignType
         if savedCamera is not None:
             isSmoothTransitionBak = savedCamera.isSmoothTransition
             savedCamera.isSmoothTransition = False
@@ -667,7 +664,7 @@ def run_design(design, message_box_on_error=True, document_name="fSCAD-Preview")
             savedCamera.isSmoothTransition = isSmoothTransitionBak
             app().activeViewport.camera = savedCamera
 
-        design()
+        design_func()
     except:
         print(traceback.format_exc())
         if message_box_on_error:
