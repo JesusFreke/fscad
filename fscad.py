@@ -323,9 +323,9 @@ def _translate_sketch(sketch, x, y, z):
 
 def translate(entity, x=0, y=0, z=0):
     if isinstance(entity, adsk.fusion.Sketch):
-        _translate_sketch(entity, x, y, z)
+        return _translate_sketch(entity, x, y, z)
     else:
-        _translate_occurrence(entity, x, y, z)
+        return _translate_occurrence(entity, x, y, z)
 
 
 def rotate(occurrence, x, y, z, center=None):
