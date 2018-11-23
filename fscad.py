@@ -292,20 +292,31 @@ def _translate_occurrence(occurrence, x, y, z):
     if x == 0 and y == 0 and z == 0:
         return occurrence
 
-    new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    is_transform_attr = occurrence.attributes.itemByName("fscad", "is_transform")
+    if is_transform_attr and is_transform_attr.value == "1":
+        result_occurrence = occurrence
+        copy = False
+    else:
+        result_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
+        copy = True
 
     bodies_to_move = adsk.core.ObjectCollection.create()
     for body in _occurrence_bodies(occurrence):
-        bodies_to_move.add(body.copyToComponent(new_occurrence))
+        if copy:
+            bodies_to_move.add(body.copyToComponent(result_occurrence))
+        else:
+            bodies_to_move.add(body)
 
     transform = adsk.core.Matrix3D.create()
     transform.translation = _cm(adsk.core.Vector3D.create(x, y, z))
-    move_input = new_occurrence.component.features.moveFeatures.createInput(bodies_to_move, transform)
-    new_occurrence.component.features.moveFeatures.add(move_input)
-    occurrence.moveToComponent(new_occurrence)
-    _hide_occurrence(occurrence)
-    new_occurrence.component.name = occurrence.name
-    return new_occurrence
+    move_input = result_occurrence.component.features.moveFeatures.createInput(bodies_to_move, transform)
+    result_occurrence.component.features.moveFeatures.add(move_input)
+    if copy:
+        occurrence.moveToComponent(result_occurrence)
+        _hide_occurrence(occurrence)
+        result_occurrence.component.name = occurrence.name
+        result_occurrence.attributes.add("fscad", "is_transform", "1")
+    return result_occurrence
 
 
 def _translate_sketch(sketch, x, y, z):
@@ -332,7 +343,13 @@ def rotate(occurrence, x, y, z, center=None):
     if x == 0 and y == 0 and z == 0:
         return occurrence
 
-    new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    is_transform_attr = occurrence.attributes.itemByName("fscad", "is_transform")
+    if is_transform_attr and is_transform_attr.value == "1":
+        result_occurrence = occurrence
+        copy = False
+    else:
+        result_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
+        copy = True
 
     if center is None:
         center = adsk.core.Point3D.create(0, 0, 0)
@@ -341,7 +358,10 @@ def rotate(occurrence, x, y, z, center=None):
 
     bodies_to_rotate = adsk.core.ObjectCollection.create()
     for body in _occurrence_bodies(occurrence):
-        bodies_to_rotate.add(body.copyToComponent(new_occurrence))
+        if copy:
+            bodies_to_rotate.add(body.copyToComponent(result_occurrence))
+        else:
+            bodies_to_rotate.add(body)
 
     transform1 = adsk.core.Matrix3D.create()
     transform1.setToRotation(math.radians(x), adsk.core.Vector3D.create(1, 0, 0), center)
@@ -356,12 +376,14 @@ def rotate(occurrence, x, y, z, center=None):
     transform1.transformBy(transform2)
     transform1.transformBy(transform3)
 
-    move_input = new_occurrence.component.features.moveFeatures.createInput(bodies_to_rotate, transform1)
-    new_occurrence.component.features.moveFeatures.add(move_input)
-    occurrence.moveToComponent(new_occurrence)
-    _hide_occurrence(occurrence)
-    new_occurrence.component.name = occurrence.name
-    return new_occurrence
+    move_input = result_occurrence.component.features.moveFeatures.createInput(bodies_to_rotate, transform1)
+    result_occurrence.component.features.moveFeatures.add(move_input)
+    if copy:
+        occurrence.moveToComponent(result_occurrence)
+        _hide_occurrence(occurrence)
+        result_occurrence.component.name = occurrence.name
+        result_occurrence.attributes.add("fscad", "is_transform", "1")
+    return result_occurrence
 
 
 def component(*occurrences, name="Component") -> adsk.fusion.Occurrence:
