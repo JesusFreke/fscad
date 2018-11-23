@@ -240,6 +240,7 @@ def intersection(*occurrences, name="Intersection") -> adsk.fusion.Occurrence:
 
     for occurrence in occurrences:
         occurrence.moveToComponent(intersection_occurrence)
+        occurrence = occurrence.createForAssemblyContext(intersection_occurrence)
         occurrence.isLightBulbOn = False
     return intersection_occurrence
 
@@ -264,6 +265,7 @@ def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
 
     for occurrence in occurrences[1:]:
         occurrence.moveToComponent(base_occurrence)
+        occurrence = occurrence.createForAssemblyContext(base_occurrence)
         occurrence.isLightBulbOn = False
     return base_occurrence
 
@@ -424,6 +426,7 @@ def _occurrence_union(occurrences, name):
 
     for occurrence in occurrences:
         occurrence.moveToComponent(union_occurrence)
+        occurrence = occurrence.createForAssemblyContext(union_occurrence)
         occurrence.isLightBulbOn = False
     if name is not None:
         union_occurrence.component.name = name
@@ -574,12 +577,12 @@ def duplicate(func, values, occurrence):
     result_occurrence.component.name = occurrence.name
 
     occurrence.moveToComponent(result_occurrence)
+    occurrence = occurrence.createForAssemblyContext(result_occurrence)
     func(occurrence, values[0])
     for value in values[1:]:
         duplicate_occurrence = result_occurrence.component.occurrences.addExistingComponent(
             occurrence.component, adsk.core.Matrix3D.create())
         func(duplicate_occurrence, value)
-
 
     return result_occurrence
 
