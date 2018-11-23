@@ -559,16 +559,16 @@ def distance_between(occurrence1, occurrence2):
         math.pow(_mm(measure_result.positionTwo.z - measure_result.positionOne.z), 2))
 
 
-def tx(value, *occurrences):
-    return translate((value, 0, 0), *occurrences)
+def tx(occurrence, translation):
+    return translate(occurrence, translation, 0, 0)
 
 
-def ty(value, *occurrences):
-    return translate((0, value, 0), *occurrences)
+def ty(occurrence, translation):
+    return translate(occurrence, 0, translation, 0)
 
 
-def tz(value, *occurrences):
-    return translate((0, 0, value), *occurrences)
+def tz(occurrence, translation):
+    return translate(occurrence, 0, 0, translation)
 
 
 def rx(value, *occurrences, center=None):
