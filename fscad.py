@@ -109,11 +109,6 @@ def _find_profiles(contained_curve):
     return ret
 
 
-def _hide_occurrence(occurrence):
-    occurrence.isLightBulbOn = False
-    occurrence.component.isBodiesFolderLightBulbOn = False
-
-
 def _oriented_bounding_box_to_bounding_box(oriented: adsk.core.OrientedBoundingBox3D):
     return adsk.core.BoundingBox3D.create(
         adsk.core.Point3D.create(
@@ -245,7 +240,7 @@ def intersection(*occurrences, name="Intersection") -> adsk.fusion.Occurrence:
 
     for occurrence in occurrences:
         occurrence.moveToComponent(intersection_occurrence)
-        _hide_occurrence(occurrence)
+        occurrence.isLightBulbOn = False
     return intersection_occurrence
 
 
@@ -429,7 +424,7 @@ def _occurrence_union(occurrences, name):
 
     for occurrence in occurrences:
         occurrence.moveToComponent(union_occurrence)
-        _hide_occurrence(occurrence)
+        occurrence.isLightBulbOn = False
     if name is not None:
         union_occurrence.component.name = name
     return union_occurrence
