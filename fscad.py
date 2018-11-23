@@ -21,20 +21,26 @@ import sys
 from typing import Iterable
 
 
-def _mm(cm_value):
-    if cm_value is None:
+def _convert_units(value, convert):
+    if value is None:
         return None
-    if cm_value is adsk.core.Point3D:
-        return adsk.core.Point3D.create(_mm(cm_value.x), _mm(cm_value.y), _mm(cm_value.z))
-    return cm_value * 10
+    if isinstance(value, adsk.core.Point3D):
+        return adsk.core.Point3D.create(convert(value.x), convert(value.y), convert(value.z))
+    if isinstance(value, adsk.core.Vector3D):
+        return adsk.core.Vector3D.create(convert(value.x), convert(value.y), convert(value.z))
+    if isinstance(value, tuple):
+        return tuple(map(convert, value))
+    if isinstance(value, list):
+        return list(map(convert, value))
+    return convert(value)
+
+
+def _mm(cm_value):
+    return _convert_units(cm_value, lambda value: value * 10)
 
 
 def _cm(mm_value):
-    if mm_value is None:
-        return None
-    if mm_value is adsk.core.Point3D:
-        return adsk.core.Point3D.create(_cm(mm_value.x), _cm(mm_value.y), _cm(mm_value.z))
-    return mm_value / 10
+    return _convert_units(mm_value, lambda value: value / 10)
 
 
 def app():
@@ -182,7 +188,7 @@ def sphere(radius, *, name="Sphere") -> adsk.fusion.Occurrence:
 
 
 def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Occurrence:
-    (height, radius, radius2) = (_cm(height), _cm(radius), _cm(radius2))
+    (height, radius, radius2) = _cm((height, radius, radius2))
     brep = adsk.fusion.TemporaryBRepManager.get()
     cylinder_body = brep.createCylinderOrCone(
         adsk.core.Point3D.create(0, 0, 0),
@@ -194,7 +200,7 @@ def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Oc
 
 
 def box(x, y, z, *, name="Box"):
-    x, y, z = (_cm(x), _cm(y), _cm(z))
+    x, y, z = _cm((x, y, z))
     brep = adsk.fusion.TemporaryBRepManager.get()
     box_body = brep.createBox(adsk.core.OrientedBoundingBox3D.create(
         adsk.core.Point3D.create(x/2, y/2, z/2),
@@ -208,7 +214,7 @@ def rect(x, y, *, name="Rectangle"):
     sketch = root().sketches.add(root().xYConstructionPlane)
     sketch.sketchCurves.sketchLines.addTwoPointRectangle(
         adsk.core.Point3D.create(0, 0, 0),
-        adsk.core.Point3D.create(_cm(x), _cm(y), 0))
+        _cm(adsk.core.Point3D.create(x, y, 0)))
     sketch.name = name
     return sketch
 
@@ -293,7 +299,7 @@ def _translate_occurrence(occurrence, x, y, z):
         bodies_to_move.add(body.copyToComponent(new_occurrence))
 
     transform = adsk.core.Matrix3D.create()
-    transform.translation = adsk.core.Vector3D.create(_cm(x), _cm(y), _cm(z))
+    transform.translation = _cm(adsk.core.Vector3D.create(x, y, z))
     move_input = new_occurrence.component.features.moveFeatures.createInput(bodies_to_move, transform)
     new_occurrence.component.features.moveFeatures.add(move_input)
     occurrence.moveToComponent(new_occurrence)
@@ -310,7 +316,7 @@ def _translate_sketch(sketch, x, y, z):
         construction_plane.isLightBulbOn = False
         sketch.redefine(construction_plane)
     matrix = adsk.core.Matrix3D.create()
-    matrix.translation = adsk.core.Vector3D.create(_cm(x), _cm(y), 0)
+    matrix.translation = _cm(adsk.core.Vector3D.create(x, y, 0))
     sketch.move(_collection_of(sketch.sketchCurves), matrix)
     return sketch
 
@@ -326,7 +332,7 @@ def rotate(angles, occurrence, center=None):
     if center is None:
         center = adsk.core.Point3D.create(0, 0, 0)
     else:
-        center = adsk.core.Point3D.create(_cm(center[0]), _cm(center[1]), _cm(center[2]))
+        center = _cm(adsk.core.Point3D.create(*center))
 
     if angles[0] == 0 and angles[1] == 0 and angles[2] == 0:
         return occurrence
@@ -545,10 +551,10 @@ def keep():
 def touching(anchor_occurrence, target_occurrence):
     measure_result = app().measureManager.measureMinimumDistance(target_occurrence, anchor_occurrence)
 
-    translate(target_occurrence,
+    translate(target_occurrence,  *_mm((
         _mm(measure_result.positionTwo.x - measure_result.positionOne.x),
         _mm(measure_result.positionTwo.y - measure_result.positionOne.y),
-        _mm(measure_result.positionTwo.z - measure_result.positionOne.z))
+        _mm(measure_result.positionTwo.z - measure_result.positionOne.z))))
 
 
 def distance_between(occurrence1, occurrence2):
@@ -617,10 +623,10 @@ def _place_occurrence(occurrence, x_placement=None, y_placement=None, z_placemen
                 app().measureManager.getOrientedBoundingBox(body, vector1, vector2)))
 
     transform = occurrence.transform
-    transform.translation = adsk.core.Vector3D.create(
-        _cm(x_placement(0, bounding_box)),
-        _cm(y_placement(1, bounding_box)),
-        _cm(z_placement(2, bounding_box)))
+    transform.translation = _cm(adsk.core.Vector3D.create(
+        x_placement(0, bounding_box),
+        y_placement(1, bounding_box),
+        z_placement(2, bounding_box)))
     occurrence.transform = transform
     return occurrence
 
