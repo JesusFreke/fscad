@@ -278,6 +278,7 @@ def _translate_occurrence(occurrence, x, y, z):
     original_transform = occurrence.transform  # type: adsk.core.Matrix3D
     original_transform.transformBy(transform)
     occurrence.transform = original_transform
+    design().snapshots.add()
     return occurrence
 
 
