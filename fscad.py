@@ -282,8 +282,8 @@ def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
     return difference_occurrence
 
 
-def _translate_occurrence(vector, occurrence):
-    if vector[0] == 0 and vector[1] == 0 and vector[2] == 0:
+def _translate_occurrence(occurrence, x, y, z):
+    if x == 0 and y == 0 and z == 0:
         return occurrence
 
     new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
@@ -293,7 +293,7 @@ def _translate_occurrence(vector, occurrence):
         bodies_to_move.add(body.copyToComponent(new_occurrence))
 
     transform = adsk.core.Matrix3D.create()
-    transform.translation = adsk.core.Vector3D.create(_cm(vector[0]), _cm(vector[1]), _cm(vector[2]))
+    transform.translation = adsk.core.Vector3D.create(_cm(x), _cm(y), _cm(z))
     move_input = new_occurrence.component.features.moveFeatures.createInput(bodies_to_move, transform)
     new_occurrence.component.features.moveFeatures.add(move_input)
     occurrence.moveToComponent(new_occurrence)
@@ -302,24 +302,24 @@ def _translate_occurrence(vector, occurrence):
     return new_occurrence
 
 
-def _translate_sketch(vector, sketch):
-    if vector[2]:
+def _translate_sketch(sketch, x, y, z):
+    if z:
         construction_plane_input = root().constructionPlanes.createInput()
-        construction_plane_input.setByOffset(sketch.referencePlane, adsk.core.ValueInput.createByReal(_cm(vector[2])))
+        construction_plane_input.setByOffset(sketch.referencePlane, adsk.core.ValueInput.createByReal(_cm(z)))
         construction_plane = root().constructionPlanes.add(construction_plane_input)
         construction_plane.isLightBulbOn = False
         sketch.redefine(construction_plane)
     matrix = adsk.core.Matrix3D.create()
-    matrix.translation = adsk.core.Vector3D.create(_cm(vector[0]), _cm(vector[1]))
+    matrix.translation = adsk.core.Vector3D.create(_cm(x), _cm(y), 0)
     sketch.move(_collection_of(sketch.sketchCurves), matrix)
     return sketch
 
 
-def translate(vector, entity):
+def translate(entity, x=0, y=0, z=0):
     if isinstance(entity, adsk.fusion.Sketch):
-        _translate_sketch(vector, entity)
+        _translate_sketch(entity, x, y, z)
     else:
-        _translate_occurrence(vector, entity)
+        _translate_occurrence(entity, x, y, z)
 
 
 def rotate(angles, occurrence, center=None):
@@ -545,11 +545,10 @@ def keep():
 def touching(anchor_occurrence, target_occurrence):
     measure_result = app().measureManager.measureMinimumDistance(target_occurrence, anchor_occurrence)
 
-    translate((
+    translate(target_occurrence,
         _mm(measure_result.positionTwo.x - measure_result.positionOne.x),
         _mm(measure_result.positionTwo.y - measure_result.positionOne.y),
-        _mm(measure_result.positionTwo.z - measure_result.positionOne.z)),
-        target_occurrence)
+        _mm(measure_result.positionTwo.z - measure_result.positionOne.z))
 
 
 def distance_between(occurrence1, occurrence2):
