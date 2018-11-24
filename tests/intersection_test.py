@@ -13,55 +13,50 @@
 # limitations under the License.
 
 import adsk.fusion
-import test
+import unittest
+import test_utils
 import importlib
-importlib.reload(test)
-from test import *
+importlib.reload(test_utils)
+import test_utils
+
 from fscad import *
 
 
-@test("simple_intersection_test")
-def simple_intersection_test():
-    first = box(1, 1, 1, name="first")
-    second = translate(box(1, 1, 1, name="second"), x=.5)
-    intersection(first, second, name="intersection")
+class IntersectionTest(test_utils.FscadTestCase):
+    def test_simple_intersection(self):
+        first = box(1, 1, 1, name="first")
+        second = translate(box(1, 1, 1, name="second"), x=.5)
+        intersection(first, second, name="intersection")
 
+    def test_disjoint_intersection(self):
+        first = box(1, 1, 1, name="first")
+        second = translate(box(1, 1, 1, name="second"), x=2)
+        intersection(first, second, name="intersection")
 
-@test("disjoint_intersection_test")
-def disjoint_intersection_test():
-    first = box(1, 1, 1, name="first")
-    second = translate(box(1, 1, 1, name="second"), x=2)
-    intersection(first, second, name="intersection")
+    def test_adjoining_intersection(self):
+        first = box(1, 1, 1, name="first")
+        second = translate(box(1, 1, 1, name="second"), x=1)
+        intersection(first, second, name="intersection")
 
+    def test_complete_intersection(self):
+        first = box(1, 1, 1, name="first")
+        second = box(1, 1, 1, name="second")
+        intersection(first, second, name="intersection")
 
-@test("adjoining_intersection_test")
-def adjoining_intersection_test():
-    first = box(1, 1, 1, name="first")
-    second = translate(box(1, 1, 1, name="second"), x=1)
-    intersection(first, second, name="intersection")
+    def test_complex_intersection(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, 10, 10, name="second"),
+                       midAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+        difference1 = difference(first, second, name="difference1")
 
+        third = first = box(1, 1, 1, name="third")
+        fourth = place(box(10, 10, .5, name="fourth"),
+                       midAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+        difference2 = difference(third, fourth, name="difference2")
 
-@test("complete_intersection_test")
-def complete_intersection_test():
-    first = box(1, 1, 1, name="first")
-    second = box(1, 1, 1, name="second")
-    intersection(first, second, name="intersection")
-
-
-@test("complex_intersection_test")
-def complete_intersection_test():
-    first = box(1, 1, 1, name="first")
-    second = place(box(.5, 10, 10, name="second"),
-                   midAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
-    difference1 = difference(first, second, name="difference1")
-
-    third = first = box(1, 1, 1, name="third")
-    fourth = place(box(10, 10, .5, name="fourth"),
-                   midAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
-    difference2 = difference(third, fourth, name="difference2")
-
-    intersection1 = intersection(difference1, difference2, name="intersection")
+        intersection1 = intersection(difference1, difference2, name="intersection")
 
 
 def run(context):
-    run_tests()
+    test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(IntersectionTest)
+    unittest.TextTestRunner(failfast=True).run(test_suite)

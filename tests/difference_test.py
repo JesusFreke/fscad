@@ -13,55 +13,50 @@
 # limitations under the License.
 
 import adsk.fusion
-import test
+import unittest
+import test_utils
 import importlib
-importlib.reload(test)
-from test import *
+importlib.reload(test_utils)
+import test_utils
+
 from fscad import *
 
 
-@test("simple_difference_test")
-def simple_difference_test():
-    first = box(1, 1, 1, name="first")
-    second = translate(box(1, 1, 1, name="second"), x=.5)
-    difference(first, second, name="difference")
+class DifferenceTest(test_utils.FscadTestCase):
+    def test_simple_difference(self):
+        first = box(1, 1, 1, name="first")
+        second = translate(box(1, 1, 1, name="second"), x=.5)
+        difference(first, second, name="difference")
 
+    def test_disjoint_difference(self):
+        first = box(1, 1, 1, name="first")
+        second = translate(box(1, 1, 1, name="second"), x=2)
+        difference(first, second, name="difference")
 
-@test("disjoint_difference_test")
-def disjoint_difference_test():
-    first = box(1, 1, 1, name="first")
-    second = translate(box(1, 1, 1, name="second"), x=2)
-    difference(first, second, name="difference")
+    def test_adjoining_difference(self):
+        first = box(1, 1, 1, name="first")
+        second = translate(box(1, 1, 1, name="second"), x=1)
+        difference(first, second, name="difference")
 
+    def test_complete_difference(self):
+        first = box(1, 1, 1, name="first")
+        second = box(1, 1, 1, name="second")
+        difference(first, second, name="difference")
 
-@test("adjoining_difference_test")
-def adjoining_difference_test():
-    first = box(1, 1, 1, name="first")
-    second = translate(box(1, 1, 1, name="second"), x=1)
-    difference(first, second, name="difference")
+    def test_complex_difference(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, 10, 10, name="second"),
+                       midAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+        difference1 = difference(first, second, name="difference1")
 
+        third = first = box(1, 1, 1, name="third")
+        fourth = place(box(10, 10, .5, name="fourth"),
+                       midAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+        difference2 = difference(third, fourth, name="difference2")
 
-@test("complete_difference_test")
-def complete_difference_test():
-    first = box(1, 1, 1, name="first")
-    second = box(1, 1, 1, name="second")
-    difference(first, second, name="difference")
-
-
-@test("complex_difference_test")
-def complete_difference_test():
-    first = box(1, 1, 1, name="first")
-    second = place(box(.5, 10, 10, name="second"),
-                   midAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
-    difference1 = difference(first, second, name="difference1")
-
-    third = first = box(1, 1, 1, name="third")
-    fourth = place(box(10, 10, .5, name="fourth"),
-                   midAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
-    difference2 = difference(third, fourth, name="difference2")
-
-    difference3 = difference(difference1, difference2, name="difference3")
+        difference3 = difference(difference1, difference2, name="difference3")
 
 
 def run(context):
-    run_tests()
+    test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(DifferenceTest)
+    unittest.TextTestRunner(failfast=True).run(test_suite)
