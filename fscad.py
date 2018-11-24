@@ -17,6 +17,7 @@ import math
 import traceback
 import types
 import sys
+import uuid
 
 from typing import Iterable
 
@@ -190,7 +191,27 @@ def box(x, y, z, *, name="Box"):
         adsk.core.Vector3D.create(1, 0, 0),
         adsk.core.Vector3D.create(0, 1, 0),
         x, y, z))
-    return _create_component(box_body, name=name)
+    occurrence = _create_component(box_body, name=name)
+    box_body = occurrence.component.bRepBodies.item(0)
+
+    def mark_face(face_name, _x, _y, _z):
+        face = occurrence.component.findBRepUsingPoint(
+            adsk.core.Point3D.create(_x, _y, _z),
+            adsk.fusion.BRepEntityTypes.BRepFaceEntityType)
+        face = face.item(0)
+        face_uuid = uuid.uuid4()
+        face.attributes.add("fscad", "id", str(face_uuid))
+        face.attributes.add("fscad", str(face_uuid), str(face_uuid))
+        box_body.attributes.add("fscad", face_name, str(face_uuid))
+
+    mark_face("bottom", x/2, y/2, 0)
+    mark_face("top", x/2, y/2, z)
+    mark_face("left", 0, y/2, z/2)
+    mark_face("right", x, y/2, z/2)
+    mark_face("front", x/2, 0, z/2)
+    mark_face("back", x/2, y, z/2)
+
+    return occurrence
 
 
 def rect(x, y, *, name="Rectangle"):
