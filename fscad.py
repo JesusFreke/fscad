@@ -71,6 +71,12 @@ def _collection_of(collection):
     return object_collection
 
 
+def _get_parent_component(occurrence):
+    if occurrence.assemblyContext is None:
+        return root()
+    return occurrence.assemblyContext.component
+
+
 def _occurrence_bodies(occurrence: adsk.fusion.Occurrence, bodies=None)\
         -> Iterable[adsk.fusion.BRepBody]:
     if bodies is None:
@@ -287,14 +293,21 @@ def _do_difference(target_occurrence, tool_occurrence):
 def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
     base_occurrence = occurrences[0]
 
-    for tool_occurrence in occurrences[1:]:
-        _do_difference(base_occurrence, tool_occurrence)
+    result_occurrence = _get_parent_component(base_occurrence).occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    result_occurrence.component.name = name or base_occurrence.component.name
+    for body in _occurrence_bodies(base_occurrence):
+        body.copyToComponent(result_occurrence)
 
-    for occurrence in occurrences[1:]:
-        occurrence.moveToComponent(base_occurrence)
-        occurrence = occurrence.createForAssemblyContext(base_occurrence)
+    for tool_occurrence in occurrences[1:]:
+        _do_difference(result_occurrence, tool_occurrence)
+
+    for occurrence in occurrences:
+        occurrence.moveToComponent(result_occurrence)
+        occurrence = occurrence.createForAssemblyContext(result_occurrence)
         occurrence.isLightBulbOn = False
-    return base_occurrence
+    if base_occurrence.assemblyContext is not None:
+        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
+    return result_occurrence
 
 
 def _translate_occurrence(occurrence, x, y, z):
