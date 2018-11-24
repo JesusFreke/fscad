@@ -165,10 +165,18 @@ def _create_component(*bodies, name):
     return new_occurrence
 
 
+def _mark_face(face, face_name):
+    face_uuid = uuid.uuid4()
+    face.attributes.add("fscad", "id", str(face_uuid))
+    face.attributes.add("fscad", str(face_uuid), str(face_uuid))
+    face.body.attributes.add("fscad", face_name, str(face_uuid))
+
+
 def sphere(radius, *, name="Sphere") -> adsk.fusion.Occurrence:
     brep = adsk.fusion.TemporaryBRepManager.get()
     sphere_body = brep.createSphere(adsk.core.Point3D.create(0, 0, 0), _cm(radius))
-    return _create_component(sphere_body, name=name)
+    occurrence = _create_component(sphere_body, name=name)
+    _mark_face(occurrence.bRepBodies.item(0).faces.item(0), "surface")
 
 
 def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Occurrence:
@@ -180,7 +188,15 @@ def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Oc
         adsk.core.Point3D.create(0, 0, height),
         radius if radius2 is None else radius2
     )
-    return _create_component(cylinder_body, name=name)
+    occurrence = _create_component(cylinder_body, name=name)
+    for face in occurrence.bRepBodies.item(0).faces:
+        if face.geometry.surfaceType == adsk.core.SurfaceTypes.CylinderSurfaceType or \
+                face.geometry.surfaceType == adsk.core.SurfaceTypes.ConeSurfaceType:
+            _mark_face(face, "side")
+        elif face.geometry.origin.z == 0:
+            _mark_face(face, "bottom")
+        else:
+            _mark_face(face, "top")
 
 
 def box(x, y, z, *, name="Box"):
@@ -192,24 +208,20 @@ def box(x, y, z, *, name="Box"):
         adsk.core.Vector3D.create(0, 1, 0),
         x, y, z))
     occurrence = _create_component(box_body, name=name)
-    box_body = occurrence.component.bRepBodies.item(0)
 
-    def mark_face(face_name, _x, _y, _z):
+    def _find_and_mark_face(face_name, _x, _y, _z):
         face = occurrence.component.findBRepUsingPoint(
             adsk.core.Point3D.create(_x, _y, _z),
             adsk.fusion.BRepEntityTypes.BRepFaceEntityType)
         face = face.item(0)
-        face_uuid = uuid.uuid4()
-        face.attributes.add("fscad", "id", str(face_uuid))
-        face.attributes.add("fscad", str(face_uuid), str(face_uuid))
-        box_body.attributes.add("fscad", face_name, str(face_uuid))
+        _mark_face(face, face_name)
 
-    mark_face("bottom", x/2, y/2, 0)
-    mark_face("top", x/2, y/2, z)
-    mark_face("left", 0, y/2, z/2)
-    mark_face("right", x, y/2, z/2)
-    mark_face("front", x/2, 0, z/2)
-    mark_face("back", x/2, y, z/2)
+    _find_and_mark_face("bottom", x/2, y/2, 0)
+    _find_and_mark_face("top", x/2, y/2, z)
+    _find_and_mark_face("left", 0, y/2, z/2)
+    _find_and_mark_face("right", x, y/2, z/2)
+    _find_and_mark_face("front", x/2, 0, z/2)
+    _find_and_mark_face("back", x/2, y, z/2)
 
     return occurrence
 
