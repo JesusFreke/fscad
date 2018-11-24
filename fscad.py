@@ -233,12 +233,14 @@ def box(x, y, z, *, name="Box"):
 
 
 def rect(x, y, *, name="Rectangle"):
-    sketch = root().sketches.add(root().xYConstructionPlane)
+    new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    new_occurrence.component.name = name
+    sketch = new_occurrence.component.sketches.add(root().xYConstructionPlane)
     sketch.sketchCurves.sketchLines.addTwoPointRectangle(
         adsk.core.Point3D.create(0, 0, 0),
         _cm(adsk.core.Point3D.create(x, y, 0)))
     sketch.name = name
-    return sketch
+    return new_occurrence
 
 
 def loft(*sketches):
