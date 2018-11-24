@@ -87,6 +87,19 @@ def _occurrence_bodies(occurrence: adsk.fusion.Occurrence):
     return bodies
 
 
+def _occurrence_sketches(occurrence):
+    sketches = []
+    for sketch in occurrence.component.sketches:
+        if occurrence.assemblyContext:
+            sketches.append(sketch.createForAssemblyContext(occurrence.assemblyContext))
+        else:
+            sketches.append(sketch)
+    for child in occurrence.childOccurrences:
+        if child.isLightBulbOn:
+            sketches.extend(_occurrence_sketches(child))
+    return sketches
+
+
 def _feature_bodies(feature):
     bodies = adsk.core.ObjectCollection.create()
     for body in feature.bodies:
@@ -132,20 +145,20 @@ def _sketch_to_wire_body(sketch):
 
     curves = []
     for curve in sketch.sketchCurves:
-        curves.append(curve.geometry)
+        curves.append(curve.worldGeometry)
 
     wire, edge_map = brep.createWireFromCurves(curves)
     return wire
 
 
-def _get_exact_bounding_box(entity):
+def _get_exact_bounding_box(occurrence):
     vector1 = adsk.core.Vector3D.create(1.0, 0.0, 0.0)
     vector2 = adsk.core.Vector3D.create(0.0, 1.0, 0.0)
 
-    if isinstance(entity, adsk.fusion.Sketch):
-        bodies = [_sketch_to_wire_body(entity)]
-    else:
-        bodies = _occurrence_bodies(entity)
+    bodies = _occurrence_bodies(occurrence)
+
+    for sketch in _occurrence_sketches(occurrence):
+        bodies.append(_sketch_to_wire_body(sketch.createForAssemblyContext(occurrence)))
 
     bounding_box = None
     for body in bodies:
@@ -391,7 +404,6 @@ def _extrude(sketch, amount):
 def _sketch_union(sketches, name):
     intermediate_features = []
 
-    # TODO: project any sketches or occurrences onto the first sketches' plane
     bodies = []
     result_bodies = []
     for sketch in sketches:
@@ -612,46 +624,13 @@ def duplicate(func, values, occurrence):
     return result_occurrence
 
 
-def _place_occurrence(occurrence, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
-    transform = occurrence.transform
-    transform.translation = adsk.core.Vector3D.create(0, 0, 0)
-    occurrence.transform = transform
-
-    vector1 = adsk.core.Vector3D.create(1.0, 0.0, 0.0)
-    vector2 = adsk.core.Vector3D.create(0.0, 1.0, 0.0)
-
-    bounding_box = adsk.core.BoundingBox3D.create(adsk.core.Point3D.create(0, 0, 0), adsk.core.Point3D.create(0, 0, 0))
-    for body in _occurrence_bodies(occurrence):
-        bounding_box.combine(
-            _oriented_bounding_box_to_bounding_box(
-                app().measureManager.getOrientedBoundingBox(body, vector1, vector2)))
-
-    transform = occurrence.transform
-    transform.translation = _cm(adsk.core.Vector3D.create(
+def place(occurrence, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
+    bounding_box = _get_exact_bounding_box(occurrence)
+    translate(occurrence,
         x_placement(0, bounding_box),
         y_placement(1, bounding_box),
-        z_placement(2, bounding_box)))
-    occurrence.transform = transform
-    design().snapshots.add()
+        z_placement(2, bounding_box))
     return occurrence
-
-
-def _place_sketch(sketch, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
-    bounding_box = _get_exact_bounding_box(sketch)
-    translate((
-        x_placement(0, bounding_box),
-        y_placement(1, bounding_box),
-        z_placement(2, bounding_box)),
-        sketch
-    )
-    return sketch
-
-
-def place(entity, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
-    if isinstance(entity, adsk.fusion.Sketch):
-        return _place_sketch(entity, x_placement, y_placement, z_placement)
-    else:
-        return _place_occurrence(entity, x_placement, y_placement, z_placement)
 
 
 def run_design(design_func, message_box_on_error=True, document_name="fSCAD-Preview"):
