@@ -108,56 +108,6 @@ def equivalent_bodies(body1, body2):
     return body2_copy.vertices.count == 0
 
 
-@test("simple_union_test")
-def simple_union_test():
-    first = box(1, 1, 1, name="first")
-    second = translate(box(1, 1, 1, name="second"), x=1)
-    union(first, second, name="union")
-
-
-@test("overlapping_union_test")
-def overlapping_union_test():
-    first = box(1, 1, 1, name="first")
-    second = translate(box(1, 1, 1, name="second"), x=.5)
-    union(first, second, name="union")
-
-
-@test("disjoint_union_test")
-def disjoint_union_test():
-    first = box(1, 1, 1, name="first")
-    second = translate(box(1, 1, 1, name="second"), x=2)
-    union(first, second, name="union")
-
-
-@test("overlapping_disjoint_union_test")
-def overlapping_disjoint_union_test():
-    first = box(1, 1, 1, name="first")
-    second = translate(box(1, 1, 1, name="second"), x=2)
-    first_union = union(first, second, name="first_union")
-
-    third = translate(box(1, 1, 1, name="third"), y=.5)
-    fourth = translate(box(1, 1, 1, name="fourth"), x=2, y=.5)
-    second_union = union(third, fourth, name="second_union")
-
-    union(first_union, second_union, name="final_union")
-
-
-@test("joined_overlapping_disjoint_union_test")
-def joined_overlapping_disjoint_union_test():
-    first = box(1, 1, 1, name="first")
-    second = translate(box(1, 1, 1, name="second"), x=2)
-    first_union = union(first, second, name="first_union")
-
-    third = translate(box(1, 1, 1, name="third"), y=.5)
-    fourth = translate(box(1, 1, 1, name="fourth"), x=2, y=.5)
-    second_union = union(third, fourth, name="second_union")
-
-    third_union = union(first_union, second_union, name="third_union")
-
-    fifth = box(3, .1, .1, name="fifth")
-    union(fifth, third_union, name="fourth_union")
-
-
 def close_document(name):
     for document in app().documents:
         if document.name == name:
@@ -165,7 +115,7 @@ def close_document(name):
             return
 
 
-def run(context):
+def run_tests():
     for name, test_func in tests.items():
         run_design(test_func, message_box_on_error=False, document_name=name)
         ret = validate_test(name)
