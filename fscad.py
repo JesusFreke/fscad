@@ -77,15 +77,13 @@ def _get_parent_component(occurrence):
     return occurrence.assemblyContext.component
 
 
-def _occurrence_bodies(occurrence: adsk.fusion.Occurrence, bodies=None)\
-        -> Iterable[adsk.fusion.BRepBody]:
-    if bodies is None:
-        bodies = adsk.core.ObjectCollection.create()
+def _occurrence_bodies(occurrence: adsk.fusion.Occurrence):
+    bodies = []
     for body in occurrence.bRepBodies:
-        bodies.add(body)
+        bodies.append(body)
     for child in occurrence.childOccurrences:
         if child.isLightBulbOn:
-            _occurrence_bodies(child, bodies)
+            bodies.extend(_occurrence_bodies(child))
     return bodies
 
 
@@ -254,10 +252,7 @@ def loft(*sketches):
 
 
 def _do_intersection(target_occurrence, tool_occurrence):
-
-    tool_bodies = adsk.core.ObjectCollection.create()  # type: adsk.core.ObjectCollection
-    for tool_body in _occurrence_bodies(tool_occurrence):
-        tool_bodies.add(tool_body)
+    tool_bodies = _collection_of(_occurrence_bodies(tool_occurrence))
 
     for target_body in _occurrence_bodies(target_occurrence):
         combine_input = target_occurrence.component.features.combineFeatures.createInput(target_body, tool_bodies)
