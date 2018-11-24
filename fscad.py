@@ -251,31 +251,38 @@ def loft(*sketches):
     return root().allOccurrencesByComponent(feature.parentComponent)[0]
 
 
-def _do_intersection(base_occurrence, tool_occurrence):
+def _do_intersection(target_occurrence, tool_occurrence):
 
     tool_bodies = adsk.core.ObjectCollection.create()  # type: adsk.core.ObjectCollection
     for tool_body in _occurrence_bodies(tool_occurrence):
         tool_bodies.add(tool_body)
 
-    for target_body in _occurrence_bodies(base_occurrence):
-        combine_input = base_occurrence.component.features.combineFeatures.createInput(target_body, tool_bodies)
+    for target_body in _occurrence_bodies(target_occurrence):
+        combine_input = target_occurrence.component.features.combineFeatures.createInput(target_body, tool_bodies)
         combine_input.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
         combine_input.isKeepToolBodies = True
-        base_occurrence.component.features.combineFeatures.add(combine_input)
+        target_occurrence.component.features.combineFeatures.add(combine_input)
 
 
-def intersection(*occurrences, name="Intersection") -> adsk.fusion.Occurrence:
-
+def intersection(*occurrences, name=None) -> adsk.fusion.Occurrence:
     base_occurrence = occurrences[0]
 
-    for tool_occurrence in occurrences[1:]:
-        _do_intersection(base_occurrence, tool_occurrence)
+    result_occurrence = _get_parent_component(base_occurrence).occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    result_occurrence.component.name = name or base_occurrence.component.name
 
-    for occurrence in occurrences[1:]:
-        occurrence.moveToComponent(base_occurrence)
-        occurrence = occurrence.createForAssemblyContext(base_occurrence)
+    for body in _occurrence_bodies(base_occurrence):
+        body.copyToComponent(result_occurrence)
+
+    for tool_occurrence in occurrences[1:]:
+        _do_intersection(result_occurrence, tool_occurrence)
+
+    for occurrence in occurrences:
+        occurrence.moveToComponent(result_occurrence)
+        occurrence = occurrence.createForAssemblyContext(result_occurrence)
         occurrence.isLightBulbOn = False
-    return base_occurrence
+    if base_occurrence.assemblyContext is not None:
+        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
+    return result_occurrence
 
 
 def _do_difference(target_occurrence, tool_occurrence):
