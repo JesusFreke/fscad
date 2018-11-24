@@ -389,91 +389,112 @@ def component(*occurrences, name="Component") -> adsk.fusion.Occurrence:
     return new_occurrence
 
 
-def _extrude(sketch, amount):
+def _extrude_sketch(sketch, amount):
     profiles = _collection_of(sketch.profiles)
-    extrude_input = root().features.extrudeFeatures.createInput(
+    extrude_input = sketch.parentComponent.features.extrudeFeatures.createInput(
         profiles, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
 
     height_value = adsk.core.ValueInput.createByReal(_cm(amount))
     height_extent = adsk.fusion.DistanceExtentDefinition.create(height_value)
     extrude_input.setOneSideExtent(height_extent, adsk.fusion.ExtentDirections.PositiveExtentDirection)
 
-    return root().features.extrudeFeatures.add(extrude_input)
+    return sketch.parentComponent.features.extrudeFeatures.add(extrude_input)
 
 
-def _sketch_union(sketches, name):
+def _union_sketch(occurrences, sketches, name):
+    base_occurrence = occurrences[0]
+    parent_component = _get_parent_component(base_occurrence)
     intermediate_features = []
 
     bodies = []
     result_bodies = []
     for sketch in sketches:
-        extrude_feature = _extrude(sketch, 1)
+        # TODO: ensure coplanarity
+        extrude_feature = _extrude_sketch(sketch, 1)
         intermediate_features.append(extrude_feature)
-        for body in extrude_feature.bodies:
-            bodies.append(body)
+        bodies.extend(extrude_feature.bodies)
 
+    combine_feature = None
     if len(bodies) > 1:
-        combine_input = root().features.combineFeatures.createInput(bodies[0], _collection_of(bodies[1:]))
+        combine_input = parent_component.features.combineFeatures.createInput(bodies[0], _collection_of(bodies[1:]))
         combine_input.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
         combine_input.isKeepToolBodies = True
         combine_input.isNewComponent = True
-        combine_feature = root().features.combineFeatures.add(combine_input)
-        for body in combine_feature.parentComponent.bRepBodies:
-            result_bodies.append(body)
+        combine_feature = parent_component.features.combineFeatures.add(combine_input)
+        result_bodies.extend(combine_feature.parentComponent.bRepBodies)
+        result_occurrence = parent_component.allOccurrencesByComponent(combine_feature.parentComponent)[0]
     else:
-        result_bodies.append(bodies[0])
+        result_occurrence = parent_component.occurrences.addNewComponent(
+            adsk.core.Matrix3D.create())
+        result_bodies.append(bodies[0].copyToComponent(result_occurrence))
+        # add the new body back to bodies, so it gets deleted
+        bodies.append(result_bodies[0])
+    result_occurrence.component.name = name or base_occurrence.name
 
-    temp_sketch = combine_feature.parentComponent.sketches.add(sketches[0].referencePlane)
-    new_sketch = root().sketches.add(sketches[0].referencePlane)
+    intermediate_sketch = result_occurrence.component.sketches.add(sketches[0].referencePlane)
+    intermediate_sketch.intersectWithSketchPlane(result_bodies)
 
-    temp_sketch.intersectWithSketchPlane(result_bodies)
-    temp_sketch.copy(_collection_of(temp_sketch.sketchCurves), adsk.core.Matrix3D.create(), new_sketch)
+    # In order to prevent reference issues after we delete the extrude feature/bodies, we'll make a copy of the
+    # sketch that doesn't reference the bodies, and delete the one above that does
+    result_sketch = result_occurrence.component.sketches.add(sketches[0].referencePlane)
+    result_sketch.name = name or base_occurrence.component.name
+    intermediate_sketch.copy(
+        _collection_of(intermediate_sketch.sketchCurves), adsk.core.Matrix3D.create(), result_sketch)
+    intermediate_sketch.deleteMe()
 
-    combine_feature.deleteMe()
-    root().allOccurrencesByComponent(combine_feature.parentComponent)[0].deleteMe()
+    if combine_feature is not None:
+        combine_feature.deleteMe()
     for feature in intermediate_features:
         feature.dissolve()
     for body in bodies:
         body.deleteMe()
 
-    if name is not None:
-        new_sketch.name = name
-
-    return new_sketch
-
-
-def _occurrence_union(occurrences, name):
-    bodies = adsk.core.ObjectCollection.create()
-
-    first_body = None
     for occurrence in occurrences:
-        for body in _occurrence_bodies(occurrence):
-            if first_body is None:
-                first_body = body
-            else:
-                bodies.add(body)
+        occurrence.moveToComponent(result_occurrence)
+        occurrence = occurrence.createForAssemblyContext(result_occurrence)
+        occurrence.isLightBulbOn = False
 
-    combine_input = root().features.combineFeatures.createInput(first_body, bodies)
+    # TODO: assembly context, if needed
+    return result_occurrence
+
+
+def _union_bodies(occurrences, bodies, name):
+    base_occurrence = occurrences[0]
+
+    parent_component = _get_parent_component(base_occurrence)
+    combine_input = parent_component.features.combineFeatures.createInput(
+        bodies[0], _collection_of(bodies[1:]))
     combine_input.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
     combine_input.isKeepToolBodies = True
     combine_input.isNewComponent = True
-    feature = root().features.combineFeatures.add(combine_input)
-
-    union_occurrence = root().allOccurrencesByComponent(feature.parentComponent)[0]
+    feature = parent_component.features.combineFeatures.add(combine_input)
+    result_occurrence = parent_component.allOccurrencesByComponent(feature.parentComponent)[0]
+    result_occurrence.component.name = name or base_occurrence.component.name
 
     for occurrence in occurrences:
-        occurrence.moveToComponent(union_occurrence)
-        occurrence = occurrence.createForAssemblyContext(union_occurrence)
+        occurrence.moveToComponent(result_occurrence)
+        occurrence = occurrence.createForAssemblyContext(result_occurrence)
         occurrence.isLightBulbOn = False
-    if name is not None:
-        union_occurrence.component.name = name
-    return union_occurrence
+
+    if base_occurrence.assemblyContext is not None:
+        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
+    return result_occurrence
 
 
-def union(*entities, name=None):
-    if len(entities) > 0 and isinstance(entities[0], adsk.fusion.Sketch):
-        return _sketch_union(entities, name)
-    return _occurrence_union(entities, name)
+def union(*occurrences, name=None):
+    sketches = []
+    bodies = []
+    for occurrence in occurrences:
+        bodies.extend(_occurrence_bodies(occurrence))
+        sketches.extend(_occurrence_sketches(occurrence))
+
+    if len(sketches) > 0 and len(bodies) > 0:
+        raise ValueError("Can't union 2D objects with 3D objects")
+
+    if len(sketches) > 0:
+        return _union_sketch(occurrences, sketches, name)
+    else:
+        return _union_bodies(occurrences, bodies, name)
 
 
 class Joiner(object):
@@ -679,8 +700,6 @@ def run(context):
 
     for key, value in globals().items():
         if not callable(value):
-            continue
-        if key.startswith('_'):
             continue
         if key == "run" or key == "stop":
             continue

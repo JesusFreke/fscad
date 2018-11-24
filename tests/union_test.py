@@ -63,6 +63,26 @@ class UnionTest(test_utils.FscadTestCase):
         fifth = box(3, .1, .1, name="fifth")
         union(fifth, third_union, name="fourth_union")
 
+    def test_simple_sketch_union(self):
+        first = rect(1, 1, name="first")
+        second = translate(rect(1, 1, name="second"), x=1)
+        union(first, second, name="union")
+
+    def test_overlaping_sketch_union(self):
+        first = rect(1, 1, name="first")
+        second = translate(rect(1, 1, name="second"), x=.5)
+        union(first, second, name="union")
+
+    def test_disjoint_sketch_union(self):
+        first = rect(1, 1, name="first")
+        second = translate(rect(1, 1, name="second"), x=2)
+        union(first, second, name="union")
+
+    def test_single_sketch_union(self):
+        first = rect(1, 1, name="first")
+        union(first, name="union")
+
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(UnionTest)
