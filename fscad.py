@@ -319,7 +319,7 @@ def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
     return result_occurrence
 
 
-def _translate_occurrence(occurrence, x, y, z):
+def translate(occurrence, x=0, y=0, z=0):
     if x == 0 and y == 0 and z == 0:
         return occurrence
 
@@ -335,26 +335,6 @@ def _translate_occurrence(occurrence, x, y, z):
     occurrence.transform = original_transform
     design().snapshots.add()
     return occurrence
-
-
-def _translate_sketch(sketch, x, y, z):
-    if z:
-        construction_plane_input = root().constructionPlanes.createInput()
-        construction_plane_input.setByOffset(sketch.referencePlane, adsk.core.ValueInput.createByReal(_cm(z)))
-        construction_plane = root().constructionPlanes.add(construction_plane_input)
-        construction_plane.isLightBulbOn = False
-        sketch.redefine(construction_plane)
-    matrix = adsk.core.Matrix3D.create()
-    matrix.translation = _cm(adsk.core.Vector3D.create(x, y, 0))
-    sketch.move(_collection_of(sketch.sketchCurves), matrix)
-    return sketch
-
-
-def translate(entity, x=0, y=0, z=0):
-    if isinstance(entity, adsk.fusion.Sketch):
-        return _translate_sketch(entity, x, y, z)
-    else:
-        return _translate_occurrence(entity, x, y, z)
 
 
 def rotate(occurrence, x=0, y=0, z=0, center=None):
