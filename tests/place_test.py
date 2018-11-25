@@ -31,8 +31,8 @@ class PlaceTest(test_utils.FscadTestCase):
                        maxAt(atMid(first)))
 
     def test_rotated_place(self):
-        first = rz(box(1, 1, 1, name="first"), 45)
-        second = place(rz(box(1, 1, 1, name="second"), 45),
+        first = rz(box(1, 1, 1, name="first"), -45)
+        second = place(rz(box(1, 1, 1, name="second"), -45),
                        minAt(atMax(first)), keep(), keep())
 
     def test_modified_constraint_place(self):
@@ -51,7 +51,7 @@ class PlaceTest(test_utils.FscadTestCase):
 
     def test_place_tilted_sketch(self):
         first = rotate(rect(1, 1, name="first"), x=45)
-        second = place(rotate(rect(1, 1, name="second"), x=45, z=180),
+        second = place(rotate(rect(1, 1, name="second"), x=45, z=-180),
                        minAt(atMin(first)),
                        minAt(atMax(first)),
                        keep())

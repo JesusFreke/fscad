@@ -60,7 +60,7 @@ class DifferenceTest(test_utils.FscadTestCase):
         first = box(1, 3, 1, name="first")
         firsts = duplicate(tx, (0, 2, 4, 6, 8), first)
 
-        second = ty(rz(box(1, 9, 1, name="second"), 90), 1)
+        second = ty(rz(box(1, 9, 1, name="second"), -90), 1)
         seconds = duplicate(ty, (0, 2), second)
 
         difference(firsts, seconds, name="difference")
@@ -114,7 +114,7 @@ class DifferenceTest(test_utils.FscadTestCase):
         first = rect(1, 3, name="first")
         firsts = duplicate(tx, (0, 2, 4, 6, 8), first)
 
-        second = ty(rz(rect(1, 9, name="second"), 90), 1)
+        second = ty(rz(rect(1, 9, name="second"), -90), 1)
         seconds = duplicate(ty, (0, 2), second)
 
         difference(firsts, seconds, name="difference")

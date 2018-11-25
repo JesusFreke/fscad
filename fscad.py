@@ -574,9 +574,6 @@ def rotate(occurrence, x=0, y=0, z=0, center=None):
     transform3 = adsk.core.Matrix3D.create()
     transform3.setToRotation(math.radians(z), adsk.core.Vector3D.create(0, 0, 1), center)
 
-    transform2.invert()
-    transform3.invert()
-
     transform1.transformBy(transform2)
     transform1.transformBy(transform3)
 

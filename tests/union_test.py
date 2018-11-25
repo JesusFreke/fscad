@@ -112,7 +112,7 @@ class UnionTest(test_utils.FscadTestCase):
         first = rect(1, 3, name="first")
         firsts = duplicate(tx, (0, 2, 4, 6, 8), first)
 
-        second = ty(rz(rect(1, 9, name="second"), 90), 1)
+        second = ty(rz(rect(1, 9, name="second"), -90), 1)
         seconds = duplicate(ty, (0, 2), second)
 
         union(firsts, seconds, name="union")
