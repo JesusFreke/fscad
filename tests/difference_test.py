@@ -56,6 +56,22 @@ class DifferenceTest(test_utils.FscadTestCase):
 
         difference3 = difference(difference1, difference2, name="difference3")
 
+    def test_duplicated_difference(self):
+        first = box(1, 3, 1, name="first")
+        firsts = duplicate(tx, (0, 2, 4, 6, 8), first)
+
+        second = ty(rz(box(1, 9, 1, name="second"), 90), 1)
+        seconds = duplicate(ty, (0, 2), second)
+
+        difference(firsts, seconds, name="difference")
+
+    def test_empty_difference(self):
+        first = box(1, 1, 1, name="first")
+        second = box(1, 1, 1, name="second")
+        difference1 = difference(first, second, name="difference1")
+        third = box(1, 1, 1, name="third")
+        difference2 = difference(difference1, third, name="difference2")
+
     def test_simple_sketch_difference(self):
         first = rect(1, 1, name="first")
         second = tx(rect(1, 1, name="second"), .5)
