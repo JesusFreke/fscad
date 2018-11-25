@@ -90,10 +90,7 @@ def _occurrence_bodies(occurrence: adsk.fusion.Occurrence):
 def _occurrence_sketches(occurrence):
     sketches = []
     for sketch in occurrence.component.sketches:
-        if occurrence.assemblyContext:
-            sketches.append(sketch.createForAssemblyContext(occurrence.assemblyContext))
-        else:
-            sketches.append(sketch)
+        sketches.append(sketch.createForAssemblyContext(occurrence))
     for child in occurrence.childOccurrences:
         if child.isLightBulbOn:
             sketches.extend(_occurrence_sketches(child))
@@ -158,7 +155,10 @@ def _get_exact_bounding_box(occurrence):
     bodies = _occurrence_bodies(occurrence)
 
     for sketch in _occurrence_sketches(occurrence):
-        bodies.append(_sketch_to_wire_body(sketch.createForAssemblyContext(occurrence)))
+        if not sketch.nativeObject:
+            bodies.append(_sketch_to_wire_body(sketch.nativeObject.createForAssemblyContext(occurrence)))
+        else:
+            bodies.append(_sketch_to_wire_body(sketch))
 
     bounding_box = None
     for body in bodies:
@@ -401,18 +401,42 @@ def _extrude_sketch(sketch, amount):
     return sketch.parentComponent.features.extrudeFeatures.add(extrude_input)
 
 
-def _union_sketch(occurrences, sketches, name):
+def _get_sketch_plane(sketch):
+    transient_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
+        adsk.core.Point3D.create(0, 0, 0),
+        1
+    )
+    sketch_plane = adsk.core.Plane.create(
+        transient_circle.worldGeometry.center,
+        transient_circle.worldGeometry.normal)
+    transient_circle.deleteMe()
+    return sketch_plane
+
+
+def _union_sketches(occurrences, sketches, name):
     base_occurrence = occurrences[0]
     parent_component = _get_parent_component(base_occurrence)
     intermediate_features = []
 
+    sketch_plane = _get_sketch_plane(sketches[0])
     bodies = []
     result_bodies = []
-    for sketch in sketches:
-        # TODO: ensure coplanarity
-        extrude_feature = _extrude_sketch(sketch, 1)
-        intermediate_features.append(extrude_feature)
-        bodies.extend(extrude_feature.bodies)
+    try:
+        for sketch in sketches:
+            if not sketch_plane.isCoPlanarTo(_get_sketch_plane(sketch)):
+                raise ValueError("Can't union sketches that are not coplanar")
+
+            extrude_feature = _extrude_sketch(sketch, 1)
+            intermediate_features.append(extrude_feature)
+            bodies.extend(extrude_feature.bodies)
+    except ValueError:
+        for feature in intermediate_features:
+            feature.dissolve()
+        for body in bodies:
+            body.deleteMe()
+        for sketch in sketches:
+            sketch.isLightBulbOn = True
+        raise
 
     combine_feature = None
     if len(bodies) > 1:
@@ -454,7 +478,8 @@ def _union_sketch(occurrences, sketches, name):
         occurrence = occurrence.createForAssemblyContext(result_occurrence)
         occurrence.isLightBulbOn = False
 
-    # TODO: assembly context, if needed
+    if base_occurrence.assemblyContext is not None:
+        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
     return result_occurrence
 
 
@@ -496,7 +521,7 @@ def union(*occurrences, name=None):
         raise ValueError("Can't union 2D objects with 3D objects")
 
     if len(sketches) > 0:
-        return _union_sketch(occurrences, sketches, name)
+        return _union_sketches(occurrences, sketches, name)
     else:
         return _union_bodies(occurrences, bodies, name)
 

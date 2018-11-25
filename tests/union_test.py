@@ -86,6 +86,18 @@ class UnionTest(test_utils.FscadTestCase):
         first = rect(1, 1, name="first")
         union(first, name="union")
 
+    def test_non_coplanar_sketch_union(self):
+        first = rotate(rect(1, 1, name="first"), x=45)
+        second = place(rotate(rect(1, 1, name="second"), x=45, z=180),
+                       minAt(atMin(first)),
+                       minAt(atMax(first)),
+                       keep())
+        got_exception = False
+        try:
+            union(first, second, name="union")
+        except ValueError as ex:
+            got_exception = True
+        self.assertTrue(got_exception, "No error when unioning non-coplanar sketches")
 
 
 def run(context):
