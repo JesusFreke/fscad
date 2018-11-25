@@ -56,7 +56,62 @@ class DifferenceTest(test_utils.FscadTestCase):
 
         difference3 = difference(difference1, difference2, name="difference3")
 
+    def test_simple_sketch_difference(self):
+        first = rect(1, 1, name="first")
+        second = tx(rect(1, 1, name="second"), .5)
+        difference(first, second, name="difference")
+
+    def test_disjoint_sketch_difference(self):
+        first = rect(1, 1, name="first")
+        second = tx(rect(1, 1, name="second"), 2)
+        difference(first, second, name="difference")
+
+    def test_adjoining_sketch_difference(self):
+        first = rect(1, 1, name="first")
+        second = tx(rect(1, 1, name="second"), 1)
+        difference(first, second, name="difference")
+
+    def test_complete_sketch_difference(self):
+        first = rect(1, 1, name="first")
+        second = rect(1, 1, name="second")
+        difference(first, second, name="difference")
+
+    def test_empty_sketch_difference(self):
+        first = rect(1, 1, name="first")
+        second = rect(1, 1, name="second")
+        difference1 = difference(first, second, name="difference1")
+        third = rect(1, 1, name="third")
+        difference2 = difference(difference1, third, name="difference2")
+
+    def test_complex_sketch_difference(self):
+        first = rect(1, 1, name="first")
+        second = tx(rect(.5, 1, name="second"), .25)
+        difference1 = difference(first, second, name="difference1")
+
+        third = rect(1, 1, name="third")
+        fourth = ty(rect(1, .5, name="fourth"), .25)
+        difference2 = difference(third, fourth, name="difference2")
+
+        difference3 = difference(difference1, difference2, name="difference3")
+
+    def test_duplicated_sketch_difference(self):
+        first = rect(1, 3, name="first")
+        firsts = duplicate(tx, (0, 2, 4, 6, 8), first)
+
+        second = ty(rz(rect(1, 9, name="second"), 90), 1)
+        seconds = duplicate(ty, (0, 2), second)
+
+        difference(firsts, seconds, name="difference")
+
+    def test_sketch_body_difference(self):
+        first = rect(1, 1, name="first")
+        second = translate(box(1, 1, 1, name="second"), x=.5)
+        difference(first, second, name="difference")
+
 
 def run(context):
+    #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
+    #    "difference_test.DifferenceTest.test_complex_sketch_difference")
+
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(DifferenceTest)
     unittest.TextTestRunner(failfast=True).run(test_suite)

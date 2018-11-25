@@ -97,6 +97,16 @@ def _occurrence_sketches(occurrence):
     return sketches
 
 
+def _has_sketch(occurrence):
+    for _ in occurrence.component.sketches:
+        return True
+    for child in occurrence.childOccurrences:
+        if child.isLightBulbOn:
+            if _has_sketch(child):
+                return True
+    return False
+
+
 def _feature_bodies(feature):
     bodies = adsk.core.ObjectCollection.create()
     for body in feature.bodies:
@@ -342,7 +352,7 @@ def _intersection_sketches_and_bodies(*occurrences, name):
     intermediate_sketch = result_occurrence.component.sketches.add(first_sketch.referencePlane)
     intermediate_sketch.intersectWithSketchPlane(list(result_occurrence.bRepBodies))
 
-    # In order to prevent reference issues after we delete the extrude feature/bodies, we'll make a copy of the
+    # In order to prevent reference issues after we delete the temporary bodies, we'll make a copy of the
     # sketch that doesn't reference the bodies, and delete the one above that does
     result_sketch = result_occurrence.component.sketches.add(first_sketch.referencePlane)
     result_sketch.name = name or base_occurrence.component.name
@@ -391,7 +401,7 @@ def _intersection_bodies(*occurrences, name=None) -> adsk.fusion.Occurrence:
 def intersection(*occurrences, name=None):
     has_sketch = False
     for occurrence in occurrences:
-        if len(_occurrence_sketches(occurrence)) > 0:
+        if _has_sketch(occurrence):
             has_sketch = True
             break
 
@@ -413,7 +423,88 @@ def _do_difference(target_occurrence, tool_occurrence):
         target_occurrence.component.features.combineFeatures.add(combine_input)
 
 
-def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
+def _difference_sketch(*occurrences, name=None):
+    base_occurrence = occurrences[0]
+    parent_component = _get_parent_component(base_occurrence)
+
+    brep = adsk.fusion.TemporaryBRepManager.get()
+
+    result_bodies = None
+
+    sketch_plane = None
+    first_sketch = None
+    extruded_sketches = []
+
+    try:
+        for occurrence in occurrences:
+            extruded_bodies = []
+            for sketch in _occurrence_sketches(occurrence):
+                extruded_sketches.append(sketch)
+                if sketch_plane is None:
+                    first_sketch = sketch
+                    sketch_plane = _get_sketch_plane(sketch)
+                else:
+                    if not sketch_plane.isCoPlanarTo(_get_sketch_plane(sketch)):
+                        raise ValueError("Can't intersect sketches that are not coplanar")
+
+                extrude_feature = _extrude_sketch(sketch, 1)
+                for body in extrude_feature.bodies:
+                    extruded_bodies.append(brep.copy(body))
+                extrude_feature.deleteMe()
+
+            body_copies = []
+            for body in _occurrence_bodies(occurrence):
+                body_copies.append(brep.copy(body))
+
+            if extruded_bodies and body_copies:
+                raise ValueError("Occurrence %s has both 2D and 3D geometry")
+
+            occurrence_bodies = extruded_bodies or body_copies
+
+            # None means uninitialized, while an empty list means the result of the difference is nothing
+            if result_bodies is None:
+                result_bodies = occurrence_bodies
+            elif occurrence_bodies:
+                for result_body in result_bodies:
+                    for tool_body in occurrence_bodies:
+                        brep.booleanOperation(result_body, tool_body,
+                                              adsk.fusion.BooleanTypes.DifferenceBooleanType)
+    except ValueError:
+        for sketch in extruded_sketches:
+            sketch.isLightBulbOn = True
+        raise
+
+    result_occurrence = _create_component(parent_component, *result_bodies, name=name or base_occurrence.name)
+    result_occurrence.component.name = name or base_occurrence.name
+
+    for occurrence in occurrences:
+        occurrence.moveToComponent(result_occurrence)
+        occurrence = occurrence.createForAssemblyContext(result_occurrence)
+        occurrence.isLightBulbOn = False
+    if base_occurrence.assemblyContext is not None:
+        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
+
+    intermediate_sketch = result_occurrence.component.sketches.add(first_sketch.referencePlane)
+    intermediate_sketch.intersectWithSketchPlane(list(result_occurrence.bRepBodies))
+
+    # In order to prevent reference issues after we delete the temporary bodies, we'll make a copy of the
+    # sketch that doesn't reference the bodies, and delete the one above that does
+    result_sketch = result_occurrence.component.sketches.add(first_sketch.referencePlane)
+    result_sketch.name = name or base_occurrence.component.name
+    if intermediate_sketch.sketchCurves.count > 0:
+        intermediate_sketch.copy(
+            _collection_of(intermediate_sketch.sketchCurves), adsk.core.Matrix3D.create(), result_sketch)
+    intermediate_sketch.deleteMe()
+
+    for body in result_occurrence.component.bRepBodies:
+        body.deleteMe()
+
+    if base_occurrence.assemblyContext is not None:
+        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
+    return result_occurrence
+
+
+def _difference_body(*occurrences, name=None) -> adsk.fusion.Occurrence:
     base_occurrence = occurrences[0]
 
     result_occurrence = _get_parent_component(base_occurrence).occurrences.addNewComponent(adsk.core.Matrix3D.create())
@@ -431,6 +522,12 @@ def difference(*occurrences, name=None) -> adsk.fusion.Occurrence:
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
     return result_occurrence
+
+
+def difference(*occurrences, name=None):
+    if _has_sketch(occurrences[0]):
+        return _difference_sketch(*occurrences, name=name)
+    return _difference_body(*occurrences, name=name)
 
 
 def translate(occurrence, x=0, y=0, z=0):
