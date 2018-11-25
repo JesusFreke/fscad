@@ -20,6 +20,8 @@ test_modules = [
     "difference_test",
     "intersection_test",
     "place_test",
+    "rotate_test",
+    "translate_test",
     "union_test"
 ]
 
