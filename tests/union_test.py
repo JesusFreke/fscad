@@ -99,6 +99,23 @@ class UnionTest(test_utils.FscadTestCase):
             got_exception = True
         self.assertTrue(got_exception, "No error when unioning non-coplanar sketches")
 
+    def test_empty_sketch_union(self):
+        first = rect(1, 1, name="first")
+        second = rect(1, 1, name="second")
+        empty = difference(first, second, name="empty")
+
+        third = tx(rect(1, 1, name="third"), 5)
+
+        union(third, empty, name="union")
+
+    def test_duplicated_sketch_union(self):
+        first = rect(1, 3, name="first")
+        firsts = duplicate(tx, (0, 2, 4, 6, 8), first)
+
+        second = ty(rz(rect(1, 9, name="second"), 90), 1)
+        seconds = duplicate(ty, (0, 2), second)
+
+        union(firsts, seconds, name="union")
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(UnionTest)

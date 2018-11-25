@@ -512,8 +512,14 @@ def _difference_body(*occurrences, name=None) -> adsk.fusion.Occurrence:
     for body in _occurrence_bodies(base_occurrence):
         body.copyToComponent(result_occurrence)
 
-    for tool_occurrence in occurrences[1:]:
-        _do_difference(result_occurrence, tool_occurrence)
+    try:
+        for tool_occurrence in occurrences[1:]:
+            if _has_sketch(tool_occurrence):
+                raise ValueError("Can't subtract 2D geometry from 3D geometry")
+            _do_difference(result_occurrence, tool_occurrence)
+    except ValueError:
+        result_occurrence.deleteMe()
+        raise
 
     for occurrence in occurrences:
         occurrence.moveToComponent(result_occurrence)

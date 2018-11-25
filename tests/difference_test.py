@@ -124,6 +124,35 @@ class DifferenceTest(test_utils.FscadTestCase):
         second = translate(box(1, 1, 1, name="second"), x=.5)
         difference(first, second, name="difference")
 
+    def test_body_sketch_difference(self):
+        first = rect(1, 1, name="first")
+        second = translate(box(1, 1, 1, name="second"), x=.5)
+        got_exception = False
+        try:
+            difference(second, first, name="difference")
+        except ValueError:
+            got_exception = True
+        self.assertTrue(got_exception, "No error when subtracting a sketch from a body")
+
+    def test_inside_hole_skech_difference(self):
+        outer = rect(1, 1, name="outer")
+        inner = place(rect(.5, .5, name="inner"),
+                      midAt(atMid(outer)), midAt(atMid(outer)), keep())
+        difference(outer, inner)
+
+    def test_non_coplanar_sketch_difference(self):
+        first = rotate(rect(1, 1, name="first"), x=45)
+        second = place(rotate(rect(1, 1, name="second"), x=45, z=180),
+                       minAt(atMin(first)),
+                       minAt(atMax(first)),
+                       keep())
+        got_exception = False
+        try:
+            difference(first, second, name="difference")
+        except ValueError:
+            got_exception = True
+        self.assertTrue(got_exception, "No error when subtracting non-coplanar sketches")
+
 
 def run(context):
     #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(

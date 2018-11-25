@@ -118,6 +118,19 @@ class IntersectionTest(test_utils.FscadTestCase):
         third = rect(1, 1, name="third")
         intersection(third, empty_intersection, name="intersection")
 
+    def test_non_coplanar_sketch_intersection(self):
+        first = rotate(rect(1, 1, name="first"), x=45)
+        second = place(rotate(rect(1, 1, name="second"), x=45, z=180),
+                       minAt(atMin(first)),
+                       minAt(atMax(first)),
+                       keep())
+        got_exception = False
+        try:
+            intersection(first, second, name="intersection")
+        except ValueError as ex:
+            got_exception = True
+        self.assertTrue(got_exception, "No error when intersecting non-coplanar sketches")
+
 
 def run(context):
     #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
