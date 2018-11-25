@@ -38,6 +38,10 @@ class UnionTest(test_utils.FscadTestCase):
         second = translate(box(1, 1, 1, name="second"), x=2)
         union(first, second, name="union")
 
+    def test_single_union(self):
+        first = box(1, 1, 1, name="first")
+        union(first, name="union")
+
     def test_overlapping_disjoint_union(self):
         first = box(1, 1, 1, name="first")
         second = translate(box(1, 1, 1, name="second"), x=2)

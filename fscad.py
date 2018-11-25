@@ -462,19 +462,23 @@ def _union_bodies(occurrences, bodies, name):
     base_occurrence = occurrences[0]
 
     parent_component = _get_parent_component(base_occurrence)
-    combine_input = parent_component.features.combineFeatures.createInput(
-        bodies[0], _collection_of(bodies[1:]))
-    combine_input.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
-    combine_input.isKeepToolBodies = True
-    combine_input.isNewComponent = True
-    feature = parent_component.features.combineFeatures.add(combine_input)
-    result_occurrence = parent_component.allOccurrencesByComponent(feature.parentComponent)[0]
+    if len(bodies) > 1:
+        combine_input = parent_component.features.combineFeatures.createInput(
+            bodies[0], _collection_of(bodies[1:]))
+        combine_input.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
+        combine_input.isKeepToolBodies = True
+        combine_input.isNewComponent = True
+        feature = parent_component.features.combineFeatures.add(combine_input)
+        result_occurrence = parent_component.allOccurrencesByComponent(feature.parentComponent)[0]
+        for occurrence in occurrences:
+            occurrence.moveToComponent(result_occurrence)
+            occurrence = occurrence.createForAssemblyContext(result_occurrence)
+            occurrence.isLightBulbOn = False
+    else:
+        result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+        for occurrence in occurrences:
+            occurrence.moveToComponent(result_occurrence)
     result_occurrence.component.name = name or base_occurrence.component.name
-
-    for occurrence in occurrences:
-        occurrence.moveToComponent(result_occurrence)
-        occurrence = occurrence.createForAssemblyContext(result_occurrence)
-        occurrence.isLightBulbOn = False
 
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
