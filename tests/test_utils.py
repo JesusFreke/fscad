@@ -149,6 +149,10 @@ def equivalent_bodies(body1, body2):
 def equivalent_sketches(sketch1, sketch2):
     wire1 = fscad._sketch_to_wire_body(sketch1)
     wire2 = fscad._sketch_to_wire_body(sketch2)
+    if wire1 is None and wire2 is None:
+        return True
+    if wire1 is None or wire2 is None:
+        return False
     return equivalent_bodies(wire1, wire2)
 
 

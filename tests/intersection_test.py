@@ -56,7 +56,72 @@ class IntersectionTest(test_utils.FscadTestCase):
 
         intersection1 = intersection(difference1, difference2, name="intersection")
 
+    def test_intersection_with_empty(self):
+        first = box(1, 1, 1, name="first")
+        second = translate(box(1, 1, 1, name="second"), x=10)
+        empty_intersection = intersection(first, second, name="empty_intersection")
+        third = box(1, 1, 1, name="third")
+        intersection(third, empty_intersection, name="intersection")
+
+    def test_basic_sketch_intersection(self):
+        first = rect(1, 1, name="first")
+        second = translate(rect(1, 1, name="second"), x=.5)
+        intersection(first, second, name="intersection")
+
+    def test_disjoint_sketch_intersection(self):
+        first = rect(1, 1, name="first")
+        second = translate(rect(1, 1, name="second"), x=2)
+        intersection(first, second, name="intersection")
+
+    def test_adjoining_sketch_intersection(self):
+        first = rect(1, 1, name="first")
+        second = translate(rect(1, 1, name="second"), x=1)
+        intersection(first, second, name="intersection")
+
+    def test_complete_sketch_intersection(self):
+        first = rect(1, 1, name="first")
+        second = rect(1, 1, name="second")
+        intersection(first, second, name="intersection")
+
+    def test_complex_sketch_intersection(self):
+        first = rect(1, 3, name="first")
+        second = translate(rect(1, 3, name="second"), x=2)
+        union1 = union(first, second, name="union1")
+        third = ty(rz(rect(1, 3, name="third"), 90), 1)
+        fourth = ty(rz(rect(1, 3, name="fourth"), 90), 3)
+        union2 = union(third, fourth, name="union2")
+        intersection(union1, union2, name="intersection")
+
+    def test_duplicated_sketch_intersection(self):
+        first = rect(1, 3, name="first")
+        firsts = duplicate(tx, (0, 2, 4, 6, 8), first)
+
+        second = ty(rz(rect(1, 9, name="second"), 90), 1)
+        seconds = duplicate(ty, (0, 2), second)
+
+        intersection(firsts, seconds, name="intersection")
+
+    def test_sketch_body_intersection(self):
+        first = rect(1, 1, name="first")
+        second = translate(box(1, 1, 1, name="second"), x=.5)
+        intersection(first, second, name="intersection")
+
+    def test_body_sketch_intersection(self):
+        first = rect(1, 1, name="first")
+        second = translate(box(1, 1, 1, name="second"), x=.5)
+        intersection(second, first, name="intersection")
+
+    def test_sketch_intersection_with_empty(self):
+        first = rect(1, 1, name="first")
+        second = translate(rect(1, 1, name="second"), x=10)
+        empty_intersection = intersection(first, second, name="empty_intersection")
+        third = rect(1, 1, name="third")
+        intersection(third, empty_intersection, name="intersection")
+
 
 def run(context):
+    #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
+    #    "intersection_test.IntersectionTest.test_duplicated_sketch_intersection")
+
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(IntersectionTest)
     unittest.TextTestRunner(failfast=True).run(test_suite)
