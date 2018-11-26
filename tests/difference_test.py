@@ -134,7 +134,7 @@ class DifferenceTest(test_utils.FscadTestCase):
             got_exception = True
         self.assertTrue(got_exception, "No error when subtracting a sketch from a body")
 
-    def test_inside_hole_skech_difference(self):
+    def test_inside_hole_sketch_difference(self):
         outer = rect(1, 1, name="outer")
         inner = place(rect(.5, .5, name="inner"),
                       midAt(atMid(outer)), midAt(atMid(outer)), keep())
