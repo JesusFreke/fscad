@@ -270,6 +270,17 @@ def rect(x, y, *, name="Rectangle"):
     return new_occurrence
 
 
+def circle(r, *, name="Circle"):
+    result_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    result_occurrence.component.name = name
+    sketch = result_occurrence.component.sketches.add(root().xYConstructionPlane)
+    sketch.sketchCurves.sketchCircles.addByCenterRadius(
+        _cm(adsk.core.Point3D.create(0, 0, 0)),
+        _cm(r))
+    sketch.name = name
+    return result_occurrence
+
+
 def loft(*sketches):
     loft_input = root().features.loftFeatures.createInput(adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
     for sketch in sketches:
