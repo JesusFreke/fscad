@@ -248,6 +248,29 @@ def circle(r, *, name="Circle"):
     return _create_component(root(), face, name=name)
 
 
+def extrude(occurrence, height, angle=0, name="Extrude"):
+    if not _check_2D(occurrence):
+        raise ValueError("Can't use 3D geometry with extrude")
+    if not _check_coplanarity(None, occurrence):
+        raise ValueError("Can't use non-coplanar 2D geometry with extrude")
+    faces = []
+    for body in _occurrence_bodies(occurrence):
+        faces.extend(body.faces)
+    extrude_input = root().features.extrudeFeatures.createInput(
+        _collection_of(faces), adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
+    extrude_input.setOneSideExtent(
+        adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(_cm(height))),
+        adsk.fusion.ExtentDirections.PositiveExtentDirection,
+        adsk.core.ValueInput.createByReal(math.radians(angle)))
+    feature = root().features.extrudeFeatures.add(extrude_input)
+    result_occurrence = root().allOccurrencesByComponent(feature.parentComponent)[0]
+
+    occurrence.moveToComponent(result_occurrence)
+    occurrence.createForAssemblyContext(result_occurrence).isLightBulbOn = False
+    result_occurrence.component.name = name
+    return result_occurrence
+
+
 def loft(*occurrences, name="Loft"):
     loft_input = root().features.loftFeatures.createInput(adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
     for occurrence in occurrences:
