@@ -19,6 +19,7 @@ import unittest
 test_modules = [
     "difference_test",
     "intersection_test",
+    "loft_test",
     "place_test",
     "rotate_test",
     "translate_test",

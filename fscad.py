@@ -248,14 +248,26 @@ def circle(r, *, name="Circle"):
     return _create_component(root(), face, name=name)
 
 
-def loft(*sketches):
+def loft(*occurrences, name="Loft"):
     loft_input = root().features.loftFeatures.createInput(adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
-    for sketch in sketches:
-        if sketch.profiles.count > 1:
-            raise ValueError("Sketch %s contains multiple profiles" % sketch.name)
-        loft_input.loftSections.add(sketch.profiles.item(0))
+    for occurrence in occurrences:
+        if not _check_2D(occurrence):
+            raise ValueError("Can't use 3D geometry with loft")
+
+        for body in _occurrence_bodies(occurrence):
+            faces = list(body.faces)
+            if len(faces) > 1:
+                raise ValueError("A 2D geometry used for loft must only contain a single face")
+            loft_input.loftSections.add(faces[0])
+
     feature = root().features.loftFeatures.add(loft_input)
-    return root().allOccurrencesByComponent(feature.parentComponent)[0]
+    result_occurrence = root().allOccurrencesByComponent(feature.parentComponent)[0]
+
+    for occurrence in occurrences:
+        occurrence.moveToComponent(result_occurrence)
+        occurrence.createForAssemblyContext(result_occurrence).isLightBulbOn = False
+    result_occurrence.component.name = name
+    return result_occurrence
 
 
 def _do_intersection(target_occurrence, tool_bodies):
