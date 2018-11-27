@@ -87,51 +87,25 @@ def _occurrence_bodies(occurrence: adsk.fusion.Occurrence):
     return bodies
 
 
-def _occurrence_sketches(occurrence):
-    sketches = []
-    for sketch in occurrence.component.sketches:
-        sketches.append(sketch.createForAssemblyContext(occurrence))
-    for child in occurrence.childOccurrences:
-        if child.isLightBulbOn:
-            sketches.extend(_occurrence_sketches(child))
-    return sketches
+def _check_2D(occurrence):
+    has2D = False
+    has3D = False
+    for body in _occurrence_bodies(occurrence):
+        if body.isSolid:
+            has3D = True
+        else:
+            has2D = True
+        if has2D and has3D:
+            raise ValueError("Occurrence %s contains both 2D and 3D geometry" % occurrence.name)
+    return has2D
 
 
-def _has_sketch(occurrence):
-    for _ in occurrence.component.sketches:
-        return True
-    for child in occurrence.childOccurrences:
-        if child.isLightBulbOn:
-            if _has_sketch(child):
-                return True
-    return False
-
-
-def _feature_bodies(feature):
-    bodies = adsk.core.ObjectCollection.create()
-    for body in feature.bodies:
-        bodies.add(body)
-    return bodies
-
-
-def _find_profiles(contained_curve):
-    sketch_curve = adsk.fusion.SketchCurve.cast(contained_curve)
-    sketch = sketch_curve.parentSketch
-    profiles = sketch.profiles
-    ret = []
-
-    for profile in profiles:
-        loops = profile.profileLoops
-        for loop in loops:
-            profile_curves = loop.profileCurves
-            for profileCurve in profile_curves:
-                if profileCurve.sketchEntity == contained_curve:
-                    ret.append(profile)
-                    break
-            else:
-                continue
-            break
-    return ret
+def _check_coplanarity(plane1, plane2):
+    if plane1 is None or plane2 is None:
+        return plane1 or plane2
+    if not plane1.isCoPlanarTo(plane2):
+        raise ValueError("Cannot perform operation on non-coplanar 2D geometery")
+    return plane1 or plane2
 
 
 def _oriented_bounding_box_to_bounding_box(oriented: adsk.core.OrientedBoundingBox3D):
@@ -147,34 +121,11 @@ def _oriented_bounding_box_to_bounding_box(oriented: adsk.core.OrientedBoundingB
     )
 
 
-def _sketch_to_wire_body(sketch):
-    brep = adsk.fusion.TemporaryBRepManager.get()
-
-    curves = []
-    for curve in sketch.sketchCurves:
-        curves.append(curve.worldGeometry)
-
-    if len(curves) > 0:
-        wire, edge_map = brep.createWireFromCurves(curves)
-        return wire
-    return None
-
-
 def _get_exact_bounding_box(occurrence):
     vector1 = adsk.core.Vector3D.create(1.0, 0.0, 0.0)
     vector2 = adsk.core.Vector3D.create(0.0, 1.0, 0.0)
 
     bodies = _occurrence_bodies(occurrence)
-
-    for sketch in _occurrence_sketches(occurrence):
-        if not sketch.nativeObject:
-            wire = _sketch_to_wire_body(sketch.nativeObject.createForAssemblyContext(occurrence))
-            if wire:
-                bodies.append(wire)
-        else:
-            wire = _sketch_to_wire_body(sketch)
-            if wire:
-                bodies.append(wire)
 
     bounding_box = None
     for body in bodies:
@@ -260,25 +211,41 @@ def box(x, y, z, *, name="Box"):
 
 
 def rect(x, y, *, name="Rectangle"):
-    new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
-    new_occurrence.component.name = name
-    sketch = new_occurrence.component.sketches.add(root().xYConstructionPlane)
-    sketch.sketchCurves.sketchLines.addTwoPointRectangle(
-        adsk.core.Point3D.create(0, 0, 0),
-        _cm(adsk.core.Point3D.create(x, y, 0)))
-    sketch.name = name
-    return new_occurrence
+    (x, y) = _cm((x, y))
+    brep = adsk.fusion.TemporaryBRepManager.get()
+    curves = [
+        adsk.core.Line3D.create(
+            adsk.core.Point3D.create(0, 0, 0),
+            adsk.core.Point3D.create(x, 0, 0)
+        ),
+        adsk.core.Line3D.create(
+            adsk.core.Point3D.create(x, 0, 0),
+            adsk.core.Point3D.create(x, y, 0)
+        ),
+        adsk.core.Line3D.create(
+            adsk.core.Point3D.create(x, y, 0),
+            adsk.core.Point3D.create(0, y, 0)
+        ),
+        adsk.core.Line3D.create(
+            adsk.core.Point3D.create(0, y, 0),
+            adsk.core.Point3D.create(0, 0, 0)
+        )
+    ]
+    wire, _ = brep.createWireFromCurves(curves)
+    face = brep.createFaceFromPlanarWires([wire])
+    return _create_component(root(), face, name=name)
 
 
 def circle(r, *, name="Circle"):
-    result_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
-    result_occurrence.component.name = name
-    sketch = result_occurrence.component.sketches.add(root().xYConstructionPlane)
-    sketch.sketchCurves.sketchCircles.addByCenterRadius(
-        _cm(adsk.core.Point3D.create(0, 0, 0)),
-        _cm(r))
-    sketch.name = name
-    return result_occurrence
+    brep = adsk.fusion.TemporaryBRepManager.get()
+    circle = adsk.core.Circle3D.createByCenter(
+        adsk.core.Point3D.create(0, 0, 0),
+        adsk.core.Vector3D.create(0, 0, 1),
+        _cm(r)
+    )
+    wire, _ = brep.createWireFromCurves([circle])
+    face = brep.createFaceFromPlanarWires([wire])
+    return _create_component(root(), face, name=name)
 
 
 def loft(*sketches):
@@ -291,95 +258,6 @@ def loft(*sketches):
     return root().allOccurrencesByComponent(feature.parentComponent)[0]
 
 
-def _intersection_sketches_and_bodies(*occurrences, name):
-    base_occurrence = occurrences[0]
-    parent_component = _get_parent_component(base_occurrence)
-
-    brep = adsk.fusion.TemporaryBRepManager.get()
-
-    result_bodies = None
-
-    sketch_plane = None
-    first_sketch = None
-    extruded_sketches = []
-    try:
-        for occurrence in occurrences:
-            extruded_bodies = []
-            for sketch in _occurrence_sketches(occurrence):
-                extruded_sketches.append(sketch)
-                if sketch_plane is None:
-                    first_sketch = sketch
-                    sketch_plane = _get_sketch_plane(sketch)
-                else:
-                    if not sketch_plane.isCoPlanarTo(_get_sketch_plane(sketch)):
-                        raise ValueError("Can't intersect sketches that are not coplanar")
-
-                extrude_feature = _extrude_sketch(sketch, 1)
-                for body in extrude_feature.bodies:
-                    extruded_bodies.append(brep.copy(body))
-                extrude_feature.deleteMe()
-
-            body_copies = []
-            for body in _occurrence_bodies(occurrence):
-                body_copies.append(brep.copy(body))
-
-            if extruded_bodies and body_copies:
-                raise ValueError("Occurrence %s has both 2D and 3D geometry")
-
-            occurrence_bodies = extruded_bodies or body_copies
-
-            # None means uninitialized, while an empty list means the result of the intersection is nothing
-            if result_bodies is None:
-                result_bodies = occurrence_bodies
-            else:
-                # The intersection of something and nothing is nothing
-                if not occurrence_bodies:
-                    result_bodies = []
-                else:
-                    new_result_bodies = []
-                    for result_body in result_bodies:
-                        for tool_body in occurrence_bodies:
-                            result_body_copy = brep.copy(result_body)
-                            brep.booleanOperation(result_body_copy, tool_body,
-                                                  adsk.fusion.BooleanTypes.IntersectionBooleanType)
-                            if result_body_copy.volume > 0:
-                                new_result_bodies.append(result_body_copy)
-                    result_bodies = new_result_bodies
-    except ValueError:
-        for sketch in extruded_sketches:
-            sketch.isLightBulbOn = True
-        raise
-
-    result_occurrence = _create_component(parent_component, *result_bodies, name=name or base_occurrence.name)
-    result_occurrence.component.name = name or base_occurrence.name
-
-    for occurrence in occurrences:
-        occurrence.moveToComponent(result_occurrence)
-        occurrence = occurrence.createForAssemblyContext(result_occurrence)
-        occurrence.isLightBulbOn = False
-    if base_occurrence.assemblyContext is not None:
-        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
-
-    intermediate_sketch = result_occurrence.component.sketches.add(first_sketch.referencePlane)
-    intermediate_sketch.intersectWithSketchPlane(list(result_occurrence.bRepBodies))
-
-    # In order to prevent reference issues after we delete the temporary bodies, we'll make a copy of the
-    # sketch that doesn't reference the bodies, and delete the one above that does
-    result_sketch = result_occurrence.component.sketches.add(first_sketch.referencePlane)
-    result_sketch.name = name or base_occurrence.component.name
-    if intermediate_sketch.sketchCurves.count > 0:
-        intermediate_sketch.copy(
-            _collection_of(intermediate_sketch.sketchCurves), adsk.core.Matrix3D.create(), result_sketch)
-    intermediate_sketch.deleteMe()
-
-    for body in result_occurrence.component.bRepBodies:
-        body.deleteMe()
-
-    if base_occurrence.assemblyContext is not None:
-        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
-    return result_occurrence
-
-
 def _do_intersection(target_occurrence, tool_bodies):
     for target_body in _occurrence_bodies(target_occurrence):
         combine_input = target_occurrence.component.features.combineFeatures.createInput(target_body, tool_bodies)
@@ -388,8 +266,12 @@ def _do_intersection(target_occurrence, tool_bodies):
         target_occurrence.component.features.combineFeatures.add(combine_input)
 
 
-def _intersection_bodies(*occurrences, name=None) -> adsk.fusion.Occurrence:
+def intersection(*occurrences, name=None):
     base_occurrence = occurrences[0]
+
+    plane = None
+    if _check_2D(base_occurrence):
+        plane = _get_plane(base_occurrence)
 
     result_occurrence = _get_parent_component(base_occurrence).occurrences.addNewComponent(adsk.core.Matrix3D.create())
     result_occurrence.component.name = name or base_occurrence.component.name
@@ -398,6 +280,8 @@ def _intersection_bodies(*occurrences, name=None) -> adsk.fusion.Occurrence:
         body.copyToComponent(result_occurrence)
 
     for tool_occurrence in occurrences[1:]:
+        if _check_2D(tool_occurrence):
+            plane = _check_coplanarity(plane, _get_plane(tool_occurrence))
         _do_intersection(result_occurrence, _collection_of(_occurrence_bodies(tool_occurrence)))
 
     for occurrence in occurrences:
@@ -407,19 +291,6 @@ def _intersection_bodies(*occurrences, name=None) -> adsk.fusion.Occurrence:
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
     return result_occurrence
-
-
-def intersection(*occurrences, name=None):
-    has_sketch = False
-    for occurrence in occurrences:
-        if _has_sketch(occurrence):
-            has_sketch = True
-            break
-
-    if has_sketch:
-        return _intersection_sketches_and_bodies(*occurrences, name=name)
-    else:
-        return _intersection_bodies(*occurrences, name=name)
 
 
 def _do_difference(target_occurrence, tool_occurrence):
@@ -434,99 +305,28 @@ def _do_difference(target_occurrence, tool_occurrence):
         target_occurrence.component.features.combineFeatures.add(combine_input)
 
 
-def _difference_sketch(*occurrences, name=None):
+def difference(*occurrences, name=None):
     base_occurrence = occurrences[0]
-    parent_component = _get_parent_component(base_occurrence)
 
-    brep = adsk.fusion.TemporaryBRepManager.get()
-
-    result_bodies = None
-
-    sketch_plane = None
-    first_sketch = None
-    extruded_sketches = []
-
-    try:
-        for occurrence in occurrences:
-            extruded_bodies = []
-            for sketch in _occurrence_sketches(occurrence):
-                extruded_sketches.append(sketch)
-                if sketch_plane is None:
-                    first_sketch = sketch
-                    sketch_plane = _get_sketch_plane(sketch)
-                else:
-                    if not sketch_plane.isCoPlanarTo(_get_sketch_plane(sketch)):
-                        raise ValueError("Can't intersect sketches that are not coplanar")
-
-                extrude_feature = _extrude_sketch(sketch, 1)
-                for body in extrude_feature.bodies:
-                    extruded_bodies.append(brep.copy(body))
-                extrude_feature.deleteMe()
-
-            body_copies = []
-            for body in _occurrence_bodies(occurrence):
-                body_copies.append(brep.copy(body))
-
-            if extruded_bodies and body_copies:
-                raise ValueError("Occurrence %s has both 2D and 3D geometry")
-
-            occurrence_bodies = extruded_bodies or body_copies
-
-            # None means uninitialized, while an empty list means the result of the difference is nothing
-            if result_bodies is None:
-                result_bodies = occurrence_bodies
-            elif occurrence_bodies:
-                for result_body in result_bodies:
-                    for tool_body in occurrence_bodies:
-                        brep.booleanOperation(result_body, tool_body,
-                                              adsk.fusion.BooleanTypes.DifferenceBooleanType)
-    except ValueError:
-        for sketch in extruded_sketches:
-            sketch.isLightBulbOn = True
-        raise
-
-    result_occurrence = _create_component(parent_component, *result_bodies, name=name or base_occurrence.name)
-    result_occurrence.component.name = name or base_occurrence.name
-
-    for occurrence in occurrences:
-        occurrence.moveToComponent(result_occurrence)
-        occurrence = occurrence.createForAssemblyContext(result_occurrence)
-        occurrence.isLightBulbOn = False
-    if base_occurrence.assemblyContext is not None:
-        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
-
-    intermediate_sketch = result_occurrence.component.sketches.add(first_sketch.referencePlane)
-    intermediate_sketch.intersectWithSketchPlane(list(result_occurrence.bRepBodies))
-
-    # In order to prevent reference issues after we delete the temporary bodies, we'll make a copy of the
-    # sketch that doesn't reference the bodies, and delete the one above that does
-    result_sketch = result_occurrence.component.sketches.add(first_sketch.referencePlane)
-    result_sketch.name = name or base_occurrence.component.name
-    if intermediate_sketch.sketchCurves.count > 0:
-        intermediate_sketch.copy(
-            _collection_of(intermediate_sketch.sketchCurves), adsk.core.Matrix3D.create(), result_sketch)
-    intermediate_sketch.deleteMe()
-
-    for body in result_occurrence.component.bRepBodies:
-        body.deleteMe()
-
-    if base_occurrence.assemblyContext is not None:
-        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
-    return result_occurrence
-
-
-def _difference_body(*occurrences, name=None) -> adsk.fusion.Occurrence:
-    base_occurrence = occurrences[0]
+    is2D = _check_2D(base_occurrence)
+    plane = None
 
     result_occurrence = _get_parent_component(base_occurrence).occurrences.addNewComponent(adsk.core.Matrix3D.create())
     result_occurrence.component.name = name or base_occurrence.component.name
     for body in _occurrence_bodies(base_occurrence):
+        if is2D:
+            plane = _check_coplanarity(plane, _get_plane(body))
         body.copyToComponent(result_occurrence)
 
     try:
         for tool_occurrence in occurrences[1:]:
-            if _has_sketch(tool_occurrence):
-                raise ValueError("Can't subtract 2D geometry from 3D geometry")
+            if is2D:
+                if _check_2D(tool_occurrence):
+                    for body in _occurrence_bodies(tool_occurrence):
+                        _check_coplanarity(plane, _get_plane(body))
+            else:
+                if _check_2D(tool_occurrence):
+                    raise ValueError("Can't subtract 2D geometry from 3D geometry")
             _do_difference(result_occurrence, tool_occurrence)
     except ValueError:
         result_occurrence.deleteMe()
@@ -539,12 +339,6 @@ def _difference_body(*occurrences, name=None) -> adsk.fusion.Occurrence:
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
     return result_occurrence
-
-
-def difference(*occurrences, name=None):
-    if _has_sketch(occurrences[0]):
-        return _difference_sketch(*occurrences, name=name)
-    return _difference_body(*occurrences, name=name)
 
 
 def translate(occurrence, x=0, y=0, z=0):
@@ -606,118 +400,66 @@ def component(*occurrences, name="Component") -> adsk.fusion.Occurrence:
     return new_occurrence
 
 
-def _extrude_sketch(sketch, amount):
-    profiles = _collection_of(sketch.profiles)
-    extrude_input = root().features.extrudeFeatures.createInput(
-        profiles, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-
-    height_value = adsk.core.ValueInput.createByReal(_cm(amount))
-    height_extent = adsk.fusion.DistanceExtentDefinition.create(height_value)
-    extrude_input.setOneSideExtent(height_extent, adsk.fusion.ExtentDirections.PositiveExtentDirection)
-
-    return root().features.extrudeFeatures.add(extrude_input)
-
-
-def _get_sketch_plane(sketch):
-    transient_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
-        adsk.core.Point3D.create(0, 0, 0),
-        1
-    )
-    sketch_plane = adsk.core.Plane.create(
-        transient_circle.worldGeometry.center,
-        transient_circle.worldGeometry.normal)
-    transient_circle.deleteMe()
-    return sketch_plane
-
-
-def _union_sketches(occurrences, sketches, name):
-    base_occurrence = occurrences[0]
-    parent_component = _get_parent_component(base_occurrence)
-    intermediate_features = []
-
-    sketch_plane = _get_sketch_plane(sketches[0])
-    bodies = []
-    result_bodies = []
-    try:
-        for sketch in sketches:
-            if not sketch_plane.isCoPlanarTo(_get_sketch_plane(sketch)):
-                raise ValueError("Can't union sketches that are not coplanar")
-
-            extrude_feature = _extrude_sketch(sketch, 1)
-            intermediate_features.append(extrude_feature)
-            bodies.extend(extrude_feature.bodies)
-    except ValueError:
-        for feature in intermediate_features:
-            feature.dissolve()
-        for body in bodies:
-            body.deleteMe()
-        for sketch in sketches:
-            sketch.isLightBulbOn = True
-        raise
-
-    combine_feature = None
-    if len(bodies) > 1:
-        combine_input = parent_component.features.combineFeatures.createInput(bodies[0], _collection_of(bodies[1:]))
-        combine_input.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
-        combine_input.isKeepToolBodies = True
-        combine_input.isNewComponent = True
-        combine_feature = parent_component.features.combineFeatures.add(combine_input)
-        result_bodies.extend(combine_feature.parentComponent.bRepBodies)
-        result_occurrence = parent_component.allOccurrencesByComponent(combine_feature.parentComponent)[0]
+def _get_plane(entity):
+    if isinstance(entity, adsk.fusion.BRepBody):
+        body = entity
+        if body.isSolid:
+            raise ValueError("Can't get the plane of a 3D object")
+        plane = None
+        for face in body.faces:
+            if not isinstance(face.geometry, adsk.core.Plane):
+                raise ValueError("Can't get the plane of a non-planar face")
+            if plane is None:
+                plane = face.geometry
+            else:
+                _check_coplanarity(plane, face.geometry)
+        return plane
     else:
-        result_occurrence = parent_component.occurrences.addNewComponent(
-            adsk.core.Matrix3D.create())
-        result_bodies.append(bodies[0].copyToComponent(result_occurrence))
-        # add the new body back to bodies, so it gets deleted
-        bodies.append(result_bodies[0])
-    result_occurrence.component.name = name or base_occurrence.name
+        plane = None
+        for body in _occurrence_bodies(entity):
+            if plane is None:
+                plane = _get_plane(body)
+            else:
+                _check_coplanarity(plane, _get_plane(body))
+        return plane
 
-    intermediate_sketch = result_occurrence.component.sketches.add(sketches[0].referencePlane)
-    intermediate_sketch.intersectWithSketchPlane(result_bodies)
 
-    # In order to prevent reference issues after we delete the extrude feature/bodies, we'll make a copy of the
-    # sketch that doesn't reference the bodies, and delete the one above that does
-    result_sketch = result_occurrence.component.sketches.add(sketches[0].referencePlane)
-    result_sketch.name = name or base_occurrence.component.name
-    intermediate_sketch.copy(
-        _collection_of(intermediate_sketch.sketchCurves), adsk.core.Matrix3D.create(), result_sketch)
-    intermediate_sketch.deleteMe()
-
-    if combine_feature is not None:
-        combine_feature.deleteMe()
-    for feature in intermediate_features:
-        feature.dissolve()
-    for body in bodies:
-        body.deleteMe()
-
+def union(*occurrences, name=None):
+    is2D = None
+    plane = None
+    bodies = []
     for occurrence in occurrences:
-        occurrence.moveToComponent(result_occurrence)
-        occurrence = occurrence.createForAssemblyContext(result_occurrence)
-        occurrence.isLightBulbOn = False
+        if is2D is None:
+            is2D = _check_2D(occurrence)
+        elif is2D != _check_2D(occurrence):
+            raise ValueError("Can't union 2D and 3D geometry")
 
-    if base_occurrence.assemblyContext is not None:
-        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
-    return result_occurrence
+        if is2D:
+            plane = _check_coplanarity(plane, _get_plane(occurrence))
 
+        bodies.extend(_occurrence_bodies(occurrence))
 
-def _union_bodies(occurrences, bodies, name):
     base_occurrence = occurrences[0]
 
     parent_component = _get_parent_component(base_occurrence)
+    result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+
     if len(bodies) > 1:
+        body_copies = []
+        for body in bodies:
+            body_copies.append(body.copyToComponent(result_occurrence))
+
         combine_input = parent_component.features.combineFeatures.createInput(
-            bodies[0], _collection_of(bodies[1:]))
+            body_copies[0], _collection_of(body_copies[1:]))
         combine_input.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
-        combine_input.isKeepToolBodies = True
-        combine_input.isNewComponent = True
-        feature = parent_component.features.combineFeatures.add(combine_input)
-        result_occurrence = parent_component.allOccurrencesByComponent(feature.parentComponent)[0]
+        combine_input.isKeepToolBodies = False
+        combine_input.isNewComponent = False
+        parent_component.features.combineFeatures.add(combine_input)
         for occurrence in occurrences:
             occurrence.moveToComponent(result_occurrence)
             occurrence = occurrence.createForAssemblyContext(result_occurrence)
             occurrence.isLightBulbOn = False
     else:
-        result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
         for occurrence in occurrences:
             occurrence.moveToComponent(result_occurrence)
     result_occurrence.component.name = name or base_occurrence.component.name
@@ -725,22 +467,6 @@ def _union_bodies(occurrences, bodies, name):
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
     return result_occurrence
-
-
-def union(*occurrences, name=None):
-    sketches = []
-    bodies = []
-    for occurrence in occurrences:
-        bodies.extend(_occurrence_bodies(occurrence))
-        sketches.extend(_occurrence_sketches(occurrence))
-
-    if len(sketches) > 0 and len(bodies) > 0:
-        raise ValueError("Can't union 2D objects with 3D objects")
-
-    if len(sketches) > 0:
-        return _union_sketches(occurrences, sketches, name)
-    else:
-        return _union_bodies(occurrences, bodies, name)
 
 
 class Joiner(object):
@@ -838,7 +564,7 @@ def keep():
 def touching(anchor_occurrence, target_occurrence):
     measure_result = app().measureManager.measureMinimumDistance(target_occurrence, anchor_occurrence)
 
-    translate(target_occurrence,  *_mm((
+    translate(target_occurrence, *_mm((
         _mm(measure_result.positionTwo.x - measure_result.positionOne.x),
         _mm(measure_result.positionTwo.y - measure_result.positionOne.y),
         _mm(measure_result.positionTwo.z - measure_result.positionOne.z))))
@@ -891,12 +617,12 @@ def duplicate(func, values, occurrence):
     return result_occurrence
 
 
-def place(occurrence, x_placement=None, y_placement=None, z_placement=None) -> adsk.fusion.Occurrence:
+def place(occurrence, x_placement=keep(), y_placement=keep(), z_placement=keep()) -> adsk.fusion.Occurrence:
     bounding_box = _get_exact_bounding_box(occurrence)
     translate(occurrence,
-        x_placement(0, bounding_box),
-        y_placement(1, bounding_box),
-        z_placement(2, bounding_box))
+              x_placement(0, bounding_box),
+              y_placement(1, bounding_box),
+              z_placement(2, bounding_box))
     return occurrence
 
 
@@ -954,5 +680,3 @@ def run(context):
 
 def stop(context):
     del sys.modules['fscad']
-
-

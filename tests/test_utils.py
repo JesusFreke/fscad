@@ -77,19 +77,6 @@ class FscadTestCase(unittest.TestCase, metaclass=FscadWrapperMeta):
                     break
             self.assertTrue(found_match, "%s: Couldn't find matching body for %s" % (mycontext, body1.name))
 
-        sketches1 = list(occurrence1.component.sketches)
-        sketches2 = list(occurrence2.component.sketches)
-        for sketch1 in sketches1:
-            sketch1 = sketch1.createForAssemblyContext(occurrence1)
-            found_match = False
-            for sketch2 in sketches2:
-                sketch_assembly2 = sketch2.createForAssemblyContext(occurrence2)
-                if equivalent_sketches(sketch1, sketch_assembly2):
-                    sketches2.remove(sketch2)
-                    found_match = True
-                    break
-            self.assertTrue(found_match, "%s: Couldn't find matching sketch for %s" % (mycontext, sketch1.name))
-
         self.assertEqual(occurrence1.childOccurrences.count, occurrence2.childOccurrences.count,
                          "%s: Child occurrence count doesn't match: %d != %d" % (
                              mycontext, occurrence1.childOccurrences.count, occurrence2.childOccurrences.count))
@@ -144,16 +131,6 @@ def equivalent_bodies(body1, body2):
         return False
     brep.booleanOperation(body2_copy, body1, adsk.fusion.BooleanTypes.DifferenceBooleanType)
     return body2_copy.vertices.count == 0
-
-
-def equivalent_sketches(sketch1, sketch2):
-    wire1 = fscad._sketch_to_wire_body(sketch1)
-    wire2 = fscad._sketch_to_wire_body(sketch2)
-    if wire1 is None and wire2 is None:
-        return True
-    if wire1 is None or wire2 is None:
-        return False
-    return equivalent_bodies(wire1, wire2)
 
 
 def close_document(name):

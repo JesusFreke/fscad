@@ -109,7 +109,7 @@ class IntersectionTest(test_utils.FscadTestCase):
     def test_body_sketch_intersection(self):
         first = rect(1, 1, name="first")
         second = translate(box(1, 1, 1, name="second"), x=.5)
-        intersection(second, first, name="intersection")
+        result = intersection(second, first, name="intersection")
 
     def test_sketch_intersection_with_empty(self):
         first = rect(1, 1, name="first")
@@ -134,7 +134,7 @@ class IntersectionTest(test_utils.FscadTestCase):
 
 def run(context):
     #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
-    #    "intersection_test.IntersectionTest.test_duplicated_sketch_intersection")
+    #    "intersection_test.IntersectionTest.test_non_coplanar_sketch_intersection")
 
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(IntersectionTest)
     unittest.TextTestRunner(failfast=True).run(test_suite)

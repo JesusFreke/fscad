@@ -67,6 +67,17 @@ class UnionTest(test_utils.FscadTestCase):
         fifth = box(3, .1, .1, name="fifth")
         union(fifth, third_union, name="fourth_union")
 
+    def test_duplicated_union(self):
+        first = box(1, 3, 1, name="first")
+        firsts = duplicate(tx, (0, 2, 4, 6, 8), first)
+
+        #union(*firsts.childOccurrences)
+
+        second = ty(rz(box(1, 9, 1, name="second"), -90), 1)
+        seconds = duplicate(ty, (0, 2), second)
+
+        union(firsts, seconds, name="union")
+
     def test_simple_sketch_union(self):
         first = rect(1, 1, name="first")
         second = translate(rect(1, 1, name="second"), x=1)
@@ -118,5 +129,8 @@ class UnionTest(test_utils.FscadTestCase):
         union(firsts, seconds, name="union")
 
 def run(context):
+    #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
+    #    "union_test.UnionTest.test_duplicated_union")
+
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(UnionTest)
     unittest.TextTestRunner(failfast=True).run(test_suite)

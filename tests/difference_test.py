@@ -153,6 +153,16 @@ class DifferenceTest(test_utils.FscadTestCase):
             got_exception = True
         self.assertTrue(got_exception, "No error when subtracting non-coplanar sketches")
 
+    def test_difference_with_inside_hole(self):
+        outer = rect(1, 1, name="outer")
+        inner = place(rect(.5, .5, name="inner"),
+                      midAt(atMid(outer)), midAt(atMid(outer)), keep())
+        diff1 = difference(outer, inner, name="difference1")
+
+        outerouter = place(rect(2, 2, name="outerouter"),
+                           midAt(atMid(outer)), midAt(atMid(outer)))
+        difference(outerouter, diff1, name="difference2")
+
 
 def run(context):
     #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
