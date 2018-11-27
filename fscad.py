@@ -317,6 +317,40 @@ def get_face(entity, name=None):
     return faces[0]
 
 
+def _check_face_intersection(face1, face2):
+    brep = adsk.fusion.TemporaryBRepManager.get()
+    facebody1 = brep.copy(face1)
+    facebody2 = brep.copy(face2)
+    brep.booleanOperation(facebody1, facebody2, adsk.fusion.BooleanTypes.IntersectionBooleanType)
+    return facebody1.faces.count > 0
+
+
+def _check_face_coincidence(face1, face2):
+    if face1.geometry.surfaceType != face2.geometry.surfaceType:
+        return False
+    if face1.geometry.surfaceType == adsk.core.SurfaceTypes.PlaneSurfaceType:
+        if not face1.geometry.isCoPlanarTo(face2.geometry):
+            return False
+        return _check_face_intersection(face1, face2)
+    else:
+        if face1.geometry.getData() != face2.geometry.getData():
+            return False
+        return _check_face_intersection(face1, face2)
+
+
+def find_coincident_faces(occurrence, *faces):
+    """ Find all faces of any visible body in occurrence that are coincident to at least one of the faces in faces """
+    coincident_faces = []
+    for body in _occurrence_bodies(occurrence):
+        for face in faces:  # type: adsk.fusion.BRepFace
+            if body.boundingBox.intersects(face.boundingBox):
+                for body_face in body.faces:
+                    if body_face.boundingBox.intersects(face.boundingBox):
+                        if _check_face_coincidence(face, body_face):
+                            coincident_faces.append(body_face)
+    return coincident_faces
+
+
 def loft(*occurrences, name="Loft"):
     loft_input = root().features.loftFeatures.createInput(adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
     for occurrence in occurrences:

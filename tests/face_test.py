@@ -96,8 +96,29 @@ class FaceTest(test_utils.FscadTestCase):
             self.assertTrue(fscad._mm(face.pointOnFace.x) in face_positions)
             face_positions -= {face.pointOnFace.x}
 
+    def test_simple_coincident_faces(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(1, 1, 1, name="second"),
+                       minAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        second_left = get_face(second, "left")
+        first_right = find_coincident_faces(first, second_left)
+        self.assertEqual(len(first_right), 1)
+        first_right = first_right[0]
+        self.assertTrue(first_right.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(fscad._mm(first_right.pointOnFace.x), 1)
 
+    def test_simple_diff_coincident_face(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, .5, .5, name="second"),
+                       minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+        diff = difference(first, second, name="diff")
 
+        second_left = get_face(second, "left")
+        face = find_coincident_faces(diff, second_left)
+        self.assertEqual(len(face), 1)
+        face = face[0]
+        self.assertTrue(face.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(fscad._mm(face.pointOnFace.x), .5)
 
 
 def run(context):
