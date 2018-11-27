@@ -263,6 +263,14 @@ def extrude(occurrence, height, angle=0, name="Extrude"):
         adsk.fusion.ExtentDirections.PositiveExtentDirection,
         adsk.core.ValueInput.createByReal(math.radians(angle)))
     feature = root().features.extrudeFeatures.add(extrude_input)
+
+    for face in feature.startFaces:
+        _mark_face(face, "start")
+    for face in feature.endFaces:
+        _mark_face(face, "end")
+    for face in feature.sideFaces:
+        _mark_face(face, "side")
+
     result_occurrence = root().allOccurrencesByComponent(feature.parentComponent)[0]
 
     occurrence.moveToComponent(result_occurrence)
@@ -285,6 +293,11 @@ def loft(*occurrences, name="Loft"):
 
     feature = root().features.loftFeatures.add(loft_input)
     result_occurrence = root().allOccurrencesByComponent(feature.parentComponent)[0]
+
+    _mark_face(feature.startFace, "start")
+    _mark_face(feature.endFace, "end")
+    for face in feature.sideFaces:
+        _mark_face(face, "side")
 
     for occurrence in occurrences:
         occurrence.moveToComponent(result_occurrence)
