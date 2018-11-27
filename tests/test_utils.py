@@ -38,8 +38,7 @@ class FscadWrapperMeta(type):
         def wrap(func):
             def wrapper(self, *args, **kwargs):
                 run_design(func.__get__(self), message_box_on_error=False, document_name=self._test_name)
-                self._validate_test()
-                close_document(self._test_name)
+                self.validate_test()
                 close_document("expected")
             return wrapper
 
@@ -57,6 +56,8 @@ class FscadTestCase(unittest.TestCase, metaclass=FscadWrapperMeta):
         self._test_name = test_name[5:]
         super().__init__(test_name, *args, **kwargs)
 
+    def tearDown(self):
+        close_document(self._test_name)
 
     def _compare_occurrence(self, occurrence1, occurrence2, context):
         mycontext = list(context)
@@ -87,7 +88,7 @@ class FscadTestCase(unittest.TestCase, metaclass=FscadWrapperMeta):
             if ret is not None:
                 return ret
 
-    def _validate_test(self):
+    def validate_test(self):
         occurrences = list(root().occurrences)
         result_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
         result_occurrence.component.name = "actual_result"

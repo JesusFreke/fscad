@@ -19,6 +19,7 @@ import unittest
 test_modules = [
     "difference_test",
     "extrude_test",
+    "face_test",
     "intersection_test",
     "loft_test",
     "place_test",

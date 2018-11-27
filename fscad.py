@@ -37,11 +37,11 @@ def _convert_units(value, convert):
 
 
 def _mm(cm_value):
-    return _convert_units(cm_value, lambda value: value * 10)
+    return _convert_units(cm_value, lambda value: value if value is None else value * 10)
 
 
 def _cm(mm_value):
-    return _convert_units(mm_value, lambda value: value / 10)
+    return _convert_units(mm_value, lambda value: value if value is None else value / 10)
 
 
 def app():
@@ -160,7 +160,8 @@ def sphere(radius, *, name="Sphere") -> adsk.fusion.Occurrence:
     brep = adsk.fusion.TemporaryBRepManager.get()
     sphere_body = brep.createSphere(adsk.core.Point3D.create(0, 0, 0), _cm(radius))
     occurrence = _create_component(root(), sphere_body, name=name)
-    _mark_face(occurrence.bRepBodies.item(0).faces.item(0), "surface")
+    _mark_face(occurrence.component.bRepBodies.item(0).faces.item(0), "surface")
+    return occurrence
 
 
 def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Occurrence:
@@ -173,7 +174,7 @@ def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Oc
         radius if radius2 is None else radius2
     )
     occurrence = _create_component(root(), cylinder_body, name=name)
-    for face in occurrence.bRepBodies.item(0).faces:
+    for face in occurrence.component.bRepBodies.item(0).faces:
         if face.geometry.surfaceType == adsk.core.SurfaceTypes.CylinderSurfaceType or \
                 face.geometry.surfaceType == adsk.core.SurfaceTypes.ConeSurfaceType:
             _mark_face(face, "side")
@@ -181,9 +182,10 @@ def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Oc
             _mark_face(face, "bottom")
         else:
             _mark_face(face, "top")
+    return occurrence
 
 
-def box(x, y, z, *, name="Box"):
+def box(x, y, z, *, name="Box") -> adsk.fusion.Occurrence:
     x, y, z = _cm((x, y, z))
     brep = adsk.fusion.TemporaryBRepManager.get()
     box_body = brep.createBox(adsk.core.OrientedBoundingBox3D.create(
@@ -277,6 +279,42 @@ def extrude(occurrence, height, angle=0, name="Extrude"):
     occurrence.createForAssemblyContext(result_occurrence).isLightBulbOn = False
     result_occurrence.component.name = name
     return result_occurrence
+
+
+def get_faces(entity, name):
+    if isinstance(entity, adsk.fusion.Occurrence):
+        faces = []
+        for body in entity.component.bRepBodies:
+            for face in get_faces(body, name):
+                faces.append(face.createForAssemblyContext(entity))
+        return faces
+    if isinstance(entity, adsk.fusion.Component):
+        component_faces = []
+        for body in entity.bRepBodies:
+            component_faces.extend(get_faces(body, name))
+
+        faces = []
+        for occurrence in root().allOccurrencesByComponent(entity):
+            for face in component_faces:
+                faces.append(face.createForAssemblyContext(occurrence))
+        return faces
+    if isinstance(entity, adsk.fusion.BRepBody):
+        attr = entity.attributes.itemByName("fscad", name)
+        if not attr:
+            raise ValueError("Couldn't find face with given name: %s" % name)
+        attributes = design().findAttributes("fscad", attr.value)
+        faces = []
+        for attribute in attributes:
+            faces.append(attribute.parent)
+        return faces
+    raise ValueError("Unsupported object type")
+
+
+def get_face(entity, name=None):
+    faces = get_faces(entity, name)
+    if len(faces) > 1:
+        raise ValueError("Found multiple faces")
+    return faces[0]
 
 
 def loft(*occurrences, name="Loft"):
