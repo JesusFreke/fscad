@@ -13,28 +13,23 @@
 # limitations under the License.
 
 import adsk.fusion
-import importlib
 import unittest
+import test_utils
+import importlib
+importlib.reload(test_utils)
+import test_utils
 
-test_modules = [
-    "difference_test",
-    "extrude_test",
-    "face_test",
-    "geometry_2d_test",
-    "intersection_test",
-    "loft_test",
-    "place_test",
-    "rotate_test",
-    "translate_test",
-    "union_test"
-]
+from fscad import *
+
+
+class Geometry2DTest(test_utils.FscadTestCase):
+    def test_rect(self):
+        rect(1, 2, name="MyRectangle")
+
+    def test_circle(self):
+        circle(1, name="MyCircle")
+
 
 def run(context):
-    test_suites = []
-    for module_name in test_modules:
-        module = importlib.import_module(module_name)
-        importlib.reload(module)
-        module = importlib.import_module(module_name)
-        test_suites.append(unittest.defaultTestLoader.loadTestsFromModule(module))
-
-    unittest.TextTestRunner(failfast=True).run(unittest.TestSuite(test_suites))
+    test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(Geometry2DTest)
+    unittest.TextTestRunner(failfast=True).run(test_suite)

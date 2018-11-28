@@ -37,9 +37,13 @@ class FscadWrapperMeta(type):
 
         def wrap(func):
             def wrapper(self, *args, **kwargs):
-                run_design(func.__get__(self), message_box_on_error=False, document_name=self._test_name)
-                self.validate_test()
-                close_document("expected")
+                try:
+                    run_design(func.__get__(self), message_box_on_error=False, document_name=self._test_name)
+                    self.validate_test()
+                    close_document("expected")
+                except:
+                    self._close_document = False
+                    raise
             return wrapper
 
         for key, value in list(namespace.items()):
@@ -54,10 +58,12 @@ class FscadTestCase(unittest.TestCase, metaclass=FscadWrapperMeta):
 
     def __init__(self, test_name, *args, **kwargs):
         self._test_name = test_name[5:]
+        self._close_document = True
         super().__init__(test_name, *args, **kwargs)
 
     def tearDown(self):
-        close_document(self._test_name)
+        if self._close_document:
+            close_document(self._test_name)
 
     def _compare_occurrence(self, occurrence1, occurrence2, context):
         mycontext = list(context)
