@@ -281,11 +281,8 @@ def extrude(occurrence, height, angle=0, name="Extrude"):
     return result_occurrence
 
 
-def get_edges(faces1, faces2):
-    """Gets all edges that are shared between a face in faces1 and faces2.
-
-    All faces must be on the same body.
-    """
+def get_edges(faces1, faces2=None):
+    """Gets all edges that are shared between a face in faces1 and faces2"""
     edges2 = {}
     for face in faces2:
         for edge in face.edges:
@@ -293,21 +290,21 @@ def get_edges(faces1, faces2):
             if id_edges is None:
                 id_edges = []
                 edges2[edge.tempId] = id_edges
-            if edge not in id_edges:
-                id_edges.append(edge)
+            id_edges.append((edge, face))
 
     intermediate_result = {}
     for face in faces1:
         for edge in face.edges:
             potential_matches = edges2.get(edge.tempId)
-            if potential_matches and edge in potential_matches:
-                id_edges = intermediate_result.get(edge.tempId)
-                if id_edges is None:
-                    id_edges = []
-                    intermediate_result[edge.tempId] = id_edges
-                if edge not in id_edges:
-                    id_edges.append(edge)
-
+            if potential_matches:
+                for match_edge, match_face in potential_matches:
+                    if edge == match_edge and face != match_face:
+                        id_edges = intermediate_result.get(edge.tempId)
+                        if id_edges is None:
+                            id_edges = []
+                            intermediate_result[edge.tempId] = id_edges
+                        if edge not in id_edges:
+                            id_edges.append(edge)
     result = []
     for edges in intermediate_result.values():
         result.extend(edges)

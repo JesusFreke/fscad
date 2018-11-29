@@ -171,6 +171,15 @@ class FaceTest(test_utils.FscadTestCase):
                     fscad._cm(adsk.core.Point3D.create(1, 0, 1)),
                     fscad._cm(adsk.core.Point3D.create(1, 1, 1)))))
 
+    def test_find_edge_exclude_same_face_in_both_sets(self):
+        first = box(1, 1, 1, name="first")
+        top = get_face(first, "top")
+        front = get_face(first, "front")
+        right = get_face(first, "right")
+        faces = [top, front, right]
+        edges = get_edges(faces, faces)
+        self.assertEqual(len(edges), 3)
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(FaceTest)
