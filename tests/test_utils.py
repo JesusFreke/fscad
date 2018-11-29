@@ -38,7 +38,8 @@ class FscadWrapperMeta(type):
         def wrap(func):
             def wrapper(self, *args, **kwargs):
                 try:
-                    run_design(func.__get__(self), message_box_on_error=False, document_name=self._test_name)
+                    setup_document(self._test_name)
+                    func(self)
                     self.validate_test()
                     close_document("expected")
                 except:

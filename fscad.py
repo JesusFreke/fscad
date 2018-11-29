@@ -747,6 +747,29 @@ def place(occurrence, x_placement=keep(), y_placement=keep(), z_placement=keep()
     return occurrence
 
 
+def setup_document(document_name="fSCAD-Preview"):
+    preview_doc = None  # type: adsk.fusion.FusionDocument
+    saved_camera = None
+    for document in app().documents:
+        if document.name == document_name:
+            preview_doc = document
+            break
+    if preview_doc is not None:
+        preview_doc.activate()
+        saved_camera = app().activeViewport.camera
+        preview_doc.close(False)
+
+    preview_doc = app().documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
+    preview_doc.name = document_name
+    preview_doc.activate()
+    if saved_camera is not None:
+        is_smooth_transition_bak = saved_camera.isSmoothTransition
+        saved_camera.isSmoothTransition = False
+        app().activeViewport.camera = saved_camera
+        saved_camera.isSmoothTransition = is_smooth_transition_bak
+        app().activeViewport.camera = saved_camera
+
+
 def run_design(design_func, message_box_on_error=True, document_name="fSCAD-Preview"):
     """
     Utility method to handle the common setup tasks for a script
@@ -757,27 +780,7 @@ def run_design(design_func, message_box_on_error=True, document_name="fSCAD-Prev
     be forcibly closed and recreated.
     """
     try:
-        previewDoc = None  # type: adsk.fusion.FusionDocument
-        savedCamera = None
-        for document in app().documents:
-            if document.name == document_name:
-                previewDoc = document
-                break
-        if previewDoc is not None:
-            previewDoc.activate()
-            savedCamera = app().activeViewport.camera
-            previewDoc.close(False)
-
-        previewDoc = app().documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
-        previewDoc.name = document_name
-        previewDoc.activate()
-        if savedCamera is not None:
-            isSmoothTransitionBak = savedCamera.isSmoothTransition
-            savedCamera.isSmoothTransition = False
-            app().activeViewport.camera = savedCamera
-            savedCamera.isSmoothTransition = isSmoothTransitionBak
-            app().activeViewport.camera = savedCamera
-
+        setup_document(document_name)
         design_func()
     except:
         print(traceback.format_exc())
