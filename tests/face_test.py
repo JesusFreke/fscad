@@ -134,6 +134,43 @@ class FaceTest(test_utils.FscadTestCase):
         self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
         self.assertEqual(fscad._mm(top.pointOnFace.z), 1)
 
+    def test_simple_find_single_edge(self):
+        first = box(1, 1, 1, name="first")
+
+        face1 = get_face(first, "top")
+        face2 = get_face(first, "right")
+
+        edges = get_edges([face1], [face2])
+
+        self.assertEqual(len(edges), 1)
+        self.assertTrue(edges[0].geometry.isColinearTo(
+            adsk.core.Line3D.create(
+                fscad._cm(adsk.core.Point3D.create(1, 0, 1)),
+                fscad._cm(adsk.core.Point3D.create(1, 1, 1)))))
+
+    def test_find_split_edges(self):
+        first = box(1, 1, 1, name="first")
+        cut = place(box(.5, .5, 1),
+                    maxAt(atMax(first)), midAt(atMid(first)), minAt(atMin(first)))
+        diff = difference(first, cut)
+
+        face1 = get_face(first, "top")
+        faces1 = find_coincident_faces(diff, face1)
+        self.assertEqual(len(faces1), 1)
+
+        face2 = get_face(first, "right")
+        faces2 = find_coincident_faces(diff, face2)
+        self.assertEqual(len(faces2), 2)
+
+        edges = get_edges(faces1, faces2)
+        self.assertEqual(len(edges), 2)
+
+        for edge in edges:
+            self.assertTrue(edge.geometry.isColinearTo(
+                adsk.core.Line3D.create(
+                    fscad._cm(adsk.core.Point3D.create(1, 0, 1)),
+                    fscad._cm(adsk.core.Point3D.create(1, 1, 1)))))
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(FaceTest)
