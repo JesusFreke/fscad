@@ -120,6 +120,20 @@ class FaceTest(test_utils.FscadTestCase):
         self.assertTrue(face.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
         self.assertEqual(fscad._mm(face.pointOnFace.x), .5)
 
+    def test_face_on_copied_body(self):
+        first = box(1, 1, 1, name="first")
+        cut = place(box(.5, .5, 1),
+                    maxAt(atMax(first)), midAt(atMid(first)), minAt(atMin(first)))
+        diff = difference(first, cut)
+
+        top = get_face(first, "top")
+        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(fscad._mm(top.pointOnFace.z), 1)
+
+        top = get_face(diff, "top")
+        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(fscad._mm(top.pointOnFace.z), 1)
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(FaceTest)

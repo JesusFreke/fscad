@@ -305,12 +305,13 @@ def get_faces(entity, name):
         attributes = design().findAttributes("fscad", attr.value)
         faces = []
         for attribute in attributes:
-            faces.append(attribute.parent)
+            if attribute.parent.body == entity:
+                faces.append(attribute.parent)
         return faces
     raise ValueError("Unsupported object type")
 
 
-def get_face(entity, name=None):
+def get_face(entity, name=None) -> adsk.fusion.BRepFace:
     faces = get_faces(entity, name)
     if len(faces) > 1:
         raise ValueError("Found multiple faces")
