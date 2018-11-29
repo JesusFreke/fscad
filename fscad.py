@@ -383,6 +383,35 @@ def find_coincident_faces(occurrence, *faces):
     return coincident_faces
 
 
+def fillet(edges, radius, blend_corners=False):
+    if len(edges) == 0:
+        return
+    component = edges[0].body.parentComponent
+    fillet_input = component.features.filletFeatures.createInput()
+    fillet_input.addConstantRadiusEdgeSet(_collection_of(edges),
+                                          adsk.core.ValueInput.createByReal(_cm(radius)),
+                                          False)
+    fillet_input.isRollingBallCorner = not blend_corners
+    component.features.filletFeatures.add(fillet_input)
+
+
+def chamfer(edges, distance, distance2=None):
+    if len(edges) == 0:
+        return
+    component = edges[0].body.parentComponent
+    chamfer_input = component.features.chamferFeatures.createInput(
+        _collection_of(edges), False)
+    if distance2 is not None:
+        chamfer_input.setToTwoDistances(
+            adsk.core.ValueInput.createByReal(_cm(distance)),
+            adsk.core.ValueInput.createByReal(_cm(distance2)))
+    else:
+        chamfer_input.setToEqualDistance(
+            adsk.core.ValueInput.createByReal(_cm(distance)))
+
+    component.features.chamferFeatures.add(chamfer_input)
+
+
 def loft(*occurrences, name="Loft"):
     loft_input = root().features.loftFeatures.createInput(adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
     for occurrence in occurrences:

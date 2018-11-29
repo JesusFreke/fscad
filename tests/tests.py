@@ -20,6 +20,7 @@ test_modules = [
     "difference_test",
     "extrude_test",
     "face_test",
+    "fillet_chamfer_test",
     "geometry_2d_test",
     "intersection_test",
     "loft_test",
