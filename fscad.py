@@ -925,12 +925,12 @@ def duplicate(func, values, occurrence):
     return result_occurrence
 
 
-def place(occurrence, x_placement=keep(), y_placement=keep(), z_placement=keep()) -> adsk.fusion.Occurrence:
+def place(occurrence, x=keep(), y=keep(), z=keep()) -> adsk.fusion.Occurrence:
     bounding_box = _get_exact_bounding_box(occurrence)
     translate(occurrence,
-              x_placement(0, bounding_box),
-              y_placement(1, bounding_box),
-              z_placement(2, bounding_box))
+              x(0, bounding_box),
+              y(1, bounding_box),
+              z(2, bounding_box))
 
     _group_timeline("Place : %s" % occurrence.name)
 
