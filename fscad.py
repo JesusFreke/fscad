@@ -819,9 +819,9 @@ def midOf(occurrence):
 def sizeOf(occurrence):
     bounding_box = _get_exact_bounding_box(occurrence)
     return _mm(adsk.core.Point3D.create(
-        bounding_box.maxPoint.x - bounding_box.maxPoint.x,
-        bounding_box.maxPoint.y - bounding_box.maxPoint.y,
-        bounding_box.maxPoint.z - bounding_box.maxPoint.z
+        bounding_box.maxPoint.x - bounding_box.minPoint.x,
+        bounding_box.maxPoint.y - bounding_box.minPoint.y,
+        bounding_box.maxPoint.z - bounding_box.minPoint.z
     ))
 
 
