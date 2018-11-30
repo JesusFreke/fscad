@@ -26,6 +26,7 @@ test_modules = [
     "loft_test",
     "place_test",
     "rotate_test",
+    "scale_test",
     "translate_test",
     "union_test"
 ]

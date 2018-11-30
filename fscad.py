@@ -439,6 +439,68 @@ def loft(*occurrences, name="Loft"):
     return result_occurrence
 
 
+def _non_uniform_scale(occurrence, scale_value, center=None):
+    if center is not None:
+        base_feature = occurrence.component.features.baseFeatures.add()
+        base_feature.startEdit()
+        sketch = occurrence.component.sketches.add(root().xYConstructionPlane)
+        center_point = sketch.sketchPoints.add(adsk.core.Point3D.create(0, 0, 0))
+        transform = adsk.core.Matrix3D.create()
+        transform.translation = _cm(adsk.core.Vector3D.create(*center))
+        sketch.transform = transform
+        base_feature.finishEdit()
+        sketch.isLightBulbOn = False
+    else:
+        center_point = root().originConstructionPoint
+
+    scale_input = occurrence.component.features.scaleFeatures.createInput(
+        _collection_of(_occurrence_bodies(occurrence)),
+        center_point,
+        adsk.core.ValueInput.createByReal(1))
+
+    scale_input.setToNonUniform(
+        adsk.core.ValueInput.createByReal(scale_value[0]),
+        adsk.core.ValueInput.createByReal(scale_value[1]),
+        adsk.core.ValueInput.createByReal(scale_value[2]))
+
+    occurrence.component.features.scaleFeatures.add(scale_input)
+    return occurrence
+
+
+def scale(occurrence, scale_value, center=None):
+    try:
+        if len(scale_value) != 3:
+            raise ValueError("Expecting either a single scale value, or a list/tuple with x/y/z scales")
+        if occurrence.childOccurrences.count > 0:
+            raise ValueError("Non-uniform scaling can only be applied to simple objects, with no children")
+        return _non_uniform_scale(occurrence, scale_value, center)
+    except TypeError:
+        pass
+
+    transform = occurrence.transform
+
+    scale = adsk.core.Matrix3D.create()
+    scale.setCell(0, 0, scale_value)
+    scale.setCell(1, 1, scale_value)
+    scale.setCell(2, 2, scale_value)
+
+    if center:
+        translation = adsk.core.Matrix3D.create()
+        translation.translation = _cm(adsk.core.Vector3D.create(*center))
+        translation.invert()
+        transform.transformBy(translation)
+
+    transform.transformBy(scale)
+
+    if center:
+        translation.invert()
+        transform.transformBy(translation)
+
+    occurrence.transform = transform
+    design().snapshots.add()
+    return occurrence
+
+
 def _do_intersection(target_occurrence, tool_bodies):
     for target_body in _occurrence_bodies(target_occurrence):
         combine_input = target_occurrence.component.features.combineFeatures.createInput(target_body, tool_bodies)
