@@ -14,6 +14,7 @@
 
 import adsk.core
 import adsk.fusion
+import functools
 import math
 import traceback
 import types
@@ -65,14 +66,27 @@ def user_interface():
     return app().userInterface
 
 
-def _group_timeline(name):
-    last_group = -1
-    for i in range(design().timeline.count-1, -1, -1):
-        if design().timeline.item(i).isGroup:
-            last_group = i
-            break
-    group = design().timeline.timelineGroups.add(last_group+1, design().timeline.count-1)
-    group.name = name
+def _group_timeline(func):
+    @functools.wraps(func)
+    def func_wrapper(*args, **kwargs):
+        initial_count = design().timeline.count
+        ret = func(*args, **kwargs)
+        timeline_object = None
+        if design().timeline.count - initial_count > 1:
+            timeline_object = design().timeline.timelineGroups.add(initial_count, design().timeline.count-1)
+        elif design().timeline.count - initial_count == 1:
+            timeline_object = design().timeline.item(design().timeline.count - 1)
+        if timeline_object is not None:
+            if "name" in kwargs:
+                timeline_object.name = "%s: %s" % (func.__name__, kwargs["name"])
+            elif isinstance(ret, adsk.fusion.Occurrence):
+                timeline_object.name = "%s: %s" % (func.__name__, ret.name)
+            elif len(args) > 0 and isinstance(args[0], adsk.fusion.Occurrence):
+                timeline_object.name = "%s: %s" % (func.__name__, args[0].name)
+            else:
+                timeline_object.name = func.__name__
+        return ret
+    return func_wrapper
 
 
 def _collection_of(collection):
@@ -167,17 +181,17 @@ def _mark_face(face, face_name):
     face.body.attributes.add("fscad", face_name, str(face_uuid))
 
 
+@_group_timeline
 def sphere(radius, *, name="Sphere") -> adsk.fusion.Occurrence:
     brep = adsk.fusion.TemporaryBRepManager.get()
     sphere_body = brep.createSphere(adsk.core.Point3D.create(0, 0, 0), _cm(radius))
     occurrence = _create_component(root(), sphere_body, name=name)
     _mark_face(occurrence.component.bRepBodies.item(0).faces.item(0), "surface")
 
-    _group_timeline("Sphere: %s" % name)
-
     return occurrence
 
 
+@_group_timeline
 def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Occurrence:
     (height, radius, radius2) = _cm((height, radius, radius2))
     brep = adsk.fusion.TemporaryBRepManager.get()
@@ -197,11 +211,10 @@ def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Oc
         else:
             _mark_face(face, "top")
 
-    _group_timeline("Cylinder: %s" % name)
-
     return occurrence
 
 
+@_group_timeline
 def box(x, y, z, *, name="Box") -> adsk.fusion.Occurrence:
     x, y, z = _cm((x, y, z))
     brep = adsk.fusion.TemporaryBRepManager.get()
@@ -226,11 +239,10 @@ def box(x, y, z, *, name="Box") -> adsk.fusion.Occurrence:
     _find_and_mark_face("front", x/2, 0, z/2)
     _find_and_mark_face("back", x/2, y, z/2)
 
-    _group_timeline("Box: %s" % name)
-
     return occurrence
 
 
+@_group_timeline
 def rect(x, y, *, name="Rectangle"):
     (x, y) = _cm((x, y))
     brep = adsk.fusion.TemporaryBRepManager.get()
@@ -255,11 +267,10 @@ def rect(x, y, *, name="Rectangle"):
     wire, _ = brep.createWireFromCurves(curves)
     face = brep.createFaceFromPlanarWires([wire])
 
-    _group_timeline("Rect: %s" % name)
-
     return _create_component(root(), face, name=name)
 
 
+@_group_timeline
 def circle(r, *, name="Circle"):
     brep = adsk.fusion.TemporaryBRepManager.get()
     circle = adsk.core.Circle3D.createByCenter(
@@ -270,11 +281,10 @@ def circle(r, *, name="Circle"):
     wire, _ = brep.createWireFromCurves([circle])
     face = brep.createFaceFromPlanarWires([wire])
 
-    _group_timeline("Circle: %s" % name)
-
     return _create_component(root(), face, name=name)
 
 
+@_group_timeline
 def extrude(occurrence, height, angle=0, name="Extrude"):
     if not _check_2D(occurrence):
         raise ValueError("Can't use 3D geometry with extrude")
@@ -303,8 +313,6 @@ def extrude(occurrence, height, angle=0, name="Extrude"):
     occurrence.moveToComponent(result_occurrence)
     occurrence.createForAssemblyContext(result_occurrence).isLightBulbOn = False
     result_occurrence.component.name = name
-
-    _group_timeline("Extrude: %s" % name)
 
     return result_occurrence
 
@@ -411,6 +419,7 @@ def find_coincident_faces(occurrence, *faces):
     return coincident_faces
 
 
+@_group_timeline
 def fillet(edges, radius, blend_corners=False):
     if len(edges) == 0:
         return
@@ -422,9 +431,8 @@ def fillet(edges, radius, blend_corners=False):
     fillet_input.isRollingBallCorner = not blend_corners
     component.features.filletFeatures.add(fillet_input)
 
-    _group_timeline("Fillet: %s" % component.name)
 
-
+@_group_timeline
 def chamfer(edges, distance, distance2=None):
     if len(edges) == 0:
         return
@@ -441,9 +449,8 @@ def chamfer(edges, distance, distance2=None):
 
     component.features.chamferFeatures.add(chamfer_input)
 
-    _group_timeline("Chamfer: %s" % component.name)
 
-
+@_group_timeline
 def loft(*occurrences, name="Loft"):
     loft_input = root().features.loftFeatures.createInput(adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
     for occurrence in occurrences:
@@ -468,8 +475,6 @@ def loft(*occurrences, name="Loft"):
         occurrence.moveToComponent(result_occurrence)
         occurrence.createForAssemblyContext(result_occurrence).isLightBulbOn = False
     result_occurrence.component.name = name
-
-    _group_timeline("Loft: %s" % name)
 
     return result_occurrence
 
@@ -500,11 +505,10 @@ def _non_uniform_scale(occurrence, scale_value, center=None):
 
     occurrence.component.features.scaleFeatures.add(scale_input)
 
-    _group_timeline("Scale: %s" % occurrence.name)
-
     return occurrence
 
 
+@_group_timeline
 def scale(occurrence, scale_value, center=None):
     try:
         if len(scale_value) != 3:
@@ -542,8 +546,6 @@ def scale(occurrence, scale_value, center=None):
     occurrence.transform = transform
     design().snapshots.add()
 
-    _group_timeline("Scale: %s" % occurrence.name)
-
     return occurrence
 
 
@@ -555,6 +557,7 @@ def _do_intersection(target_occurrence, tool_bodies):
         target_occurrence.component.features.combineFeatures.add(combine_input)
 
 
+@_group_timeline
 def intersection(*occurrences, name=None):
     base_occurrence = occurrences[0]
 
@@ -580,8 +583,6 @@ def intersection(*occurrences, name=None):
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
 
-    _group_timeline("Intersection: %s" % result_occurrence.name)
-
     return result_occurrence
 
 
@@ -597,6 +598,7 @@ def _do_difference(target_occurrence, tool_occurrence):
         target_occurrence.component.features.combineFeatures.add(combine_input)
 
 
+@_group_timeline
 def difference(*occurrences, name=None):
     base_occurrence = occurrences[0]
 
@@ -631,11 +633,10 @@ def difference(*occurrences, name=None):
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
 
-    _group_timeline("Difference: %s" % result_occurrence.name)
-
     return result_occurrence
 
 
+@_group_timeline
 def translate(occurrence, x=0, y=0, z=0):
     if x == 0 and y == 0 and z == 0:
         return occurrence
@@ -652,11 +653,10 @@ def translate(occurrence, x=0, y=0, z=0):
     occurrence.transform = original_transform
     design().snapshots.add()
 
-    _group_timeline("Translate: %s" % occurrence.name)
-
     return occurrence
 
 
+@_group_timeline
 def rotate(occurrence, x=0, y=0, z=0, center=None):
     if x == 0 and y == 0 and z == 0:
         return occurrence
@@ -685,11 +685,10 @@ def rotate(occurrence, x=0, y=0, z=0, center=None):
     occurrence.transform = transform
     design().snapshots.add()
 
-    _group_timeline("Rotate: %s" % occurrence.name)
-
     return occurrence
 
 
+@_group_timeline
 def group(*occurrences, name="Group") -> adsk.fusion.Occurrence:
     new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())  # type: adsk.fusion.Occurrence
     new_component = new_occurrence.component  # type: adsk.fusion.Component
@@ -697,8 +696,6 @@ def group(*occurrences, name="Group") -> adsk.fusion.Occurrence:
 
     for occurrence in occurrences:
         occurrence.moveToComponent(new_occurrence)
-
-    _group_timeline("Group: %s" % name)
 
     return new_occurrence
 
@@ -727,6 +724,7 @@ def _get_plane(entity):
         return plane
 
 
+@_group_timeline
 def union(*occurrences, name=None):
     is2D = None
     plane = None
@@ -769,8 +767,6 @@ def union(*occurrences, name=None):
 
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
-
-    _group_timeline("Union : %s" % result_occurrence.name)
 
     return result_occurrence
 
@@ -908,6 +904,7 @@ def rz(occurrence, angle, center=None):
     return rotate(occurrence, 0, 0, angle, center=center)
 
 
+@_group_timeline
 def duplicate(func, values, occurrence):
     result_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
     result_occurrence.component.name = occurrence.name
@@ -920,19 +917,16 @@ def duplicate(func, values, occurrence):
             occurrence.component, adsk.core.Matrix3D.create())
         func(duplicate_occurrence, value)
 
-    _group_timeline("Duplicate : %s" % occurrence.name)
-
     return result_occurrence
 
 
+@_group_timeline
 def place(occurrence, x=keep(), y=keep(), z=keep()) -> adsk.fusion.Occurrence:
     bounding_box = _get_exact_bounding_box(occurrence)
     translate(occurrence,
               x(0, bounding_box),
               y(1, bounding_box),
               z(2, bounding_box))
-
-    _group_timeline("Place : %s" % occurrence.name)
 
     return occurrence
 
