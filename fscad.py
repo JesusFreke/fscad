@@ -65,6 +65,16 @@ def user_interface():
     return app().userInterface
 
 
+def _group_timeline(name):
+    last_group = -1
+    for i in range(design().timeline.count-1, -1, -1):
+        if design().timeline.item(i).isGroup:
+            last_group = i
+            break
+    group = design().timeline.timelineGroups.add(last_group+1, design().timeline.count-1)
+    group.name = name
+
+
 def _collection_of(collection):
     object_collection = adsk.core.ObjectCollection.create()
     for obj in collection:
@@ -162,6 +172,9 @@ def sphere(radius, *, name="Sphere") -> adsk.fusion.Occurrence:
     sphere_body = brep.createSphere(adsk.core.Point3D.create(0, 0, 0), _cm(radius))
     occurrence = _create_component(root(), sphere_body, name=name)
     _mark_face(occurrence.component.bRepBodies.item(0).faces.item(0), "surface")
+
+    _group_timeline("Sphere: %s" % name)
+
     return occurrence
 
 
@@ -183,6 +196,9 @@ def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Oc
             _mark_face(face, "bottom")
         else:
             _mark_face(face, "top")
+
+    _group_timeline("Cylinder: %s" % name)
+
     return occurrence
 
 
@@ -210,6 +226,8 @@ def box(x, y, z, *, name="Box") -> adsk.fusion.Occurrence:
     _find_and_mark_face("front", x/2, 0, z/2)
     _find_and_mark_face("back", x/2, y, z/2)
 
+    _group_timeline("Box: %s" % name)
+
     return occurrence
 
 
@@ -236,6 +254,9 @@ def rect(x, y, *, name="Rectangle"):
     ]
     wire, _ = brep.createWireFromCurves(curves)
     face = brep.createFaceFromPlanarWires([wire])
+
+    _group_timeline("Rect: %s" % name)
+
     return _create_component(root(), face, name=name)
 
 
@@ -248,6 +269,9 @@ def circle(r, *, name="Circle"):
     )
     wire, _ = brep.createWireFromCurves([circle])
     face = brep.createFaceFromPlanarWires([wire])
+
+    _group_timeline("Circle: %s" % name)
+
     return _create_component(root(), face, name=name)
 
 
@@ -279,6 +303,9 @@ def extrude(occurrence, height, angle=0, name="Extrude"):
     occurrence.moveToComponent(result_occurrence)
     occurrence.createForAssemblyContext(result_occurrence).isLightBulbOn = False
     result_occurrence.component.name = name
+
+    _group_timeline("Extrude: %s" % name)
+
     return result_occurrence
 
 
@@ -395,6 +422,8 @@ def fillet(edges, radius, blend_corners=False):
     fillet_input.isRollingBallCorner = not blend_corners
     component.features.filletFeatures.add(fillet_input)
 
+    _group_timeline("Fillet: %s" % component.name)
+
 
 def chamfer(edges, distance, distance2=None):
     if len(edges) == 0:
@@ -411,6 +440,8 @@ def chamfer(edges, distance, distance2=None):
             adsk.core.ValueInput.createByReal(_cm(distance)))
 
     component.features.chamferFeatures.add(chamfer_input)
+
+    _group_timeline("Chamfer: %s" % component.name)
 
 
 def loft(*occurrences, name="Loft"):
@@ -437,6 +468,9 @@ def loft(*occurrences, name="Loft"):
         occurrence.moveToComponent(result_occurrence)
         occurrence.createForAssemblyContext(result_occurrence).isLightBulbOn = False
     result_occurrence.component.name = name
+
+    _group_timeline("Loft: %s" % name)
+
     return result_occurrence
 
 
@@ -465,6 +499,9 @@ def _non_uniform_scale(occurrence, scale_value, center=None):
         adsk.core.ValueInput.createByReal(scale_value[2]))
 
     occurrence.component.features.scaleFeatures.add(scale_input)
+
+    _group_timeline("Scale: %s" % occurrence.name)
+
     return occurrence
 
 
@@ -504,6 +541,9 @@ def scale(occurrence, scale_value, center=None):
 
     occurrence.transform = transform
     design().snapshots.add()
+
+    _group_timeline("Scale: %s" % occurrence.name)
+
     return occurrence
 
 
@@ -539,6 +579,9 @@ def intersection(*occurrences, name=None):
         occurrence.isLightBulbOn = False
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
+
+    _group_timeline("Intersection: %s" % result_occurrence.name)
+
     return result_occurrence
 
 
@@ -587,6 +630,9 @@ def difference(*occurrences, name=None):
         occurrence.isLightBulbOn = False
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
+
+    _group_timeline("Difference: %s" % result_occurrence.name)
+
     return result_occurrence
 
 
@@ -605,6 +651,9 @@ def translate(occurrence, x=0, y=0, z=0):
     original_transform.transformBy(transform)
     occurrence.transform = original_transform
     design().snapshots.add()
+
+    _group_timeline("Translate: %s" % occurrence.name)
+
     return occurrence
 
 
@@ -636,6 +685,8 @@ def rotate(occurrence, x=0, y=0, z=0, center=None):
     occurrence.transform = transform
     design().snapshots.add()
 
+    _group_timeline("Rotate: %s" % occurrence.name)
+
     return occurrence
 
 
@@ -646,6 +697,9 @@ def group(*occurrences, name="Group") -> adsk.fusion.Occurrence:
 
     for occurrence in occurrences:
         occurrence.moveToComponent(new_occurrence)
+
+    _group_timeline("Group: %s" % name)
+
     return new_occurrence
 
 
@@ -715,6 +769,9 @@ def union(*occurrences, name=None):
 
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
+
+    _group_timeline("Union : %s" % result_occurrence.name)
+
     return result_occurrence
 
 
@@ -863,6 +920,8 @@ def duplicate(func, values, occurrence):
             occurrence.component, adsk.core.Matrix3D.create())
         func(duplicate_occurrence, value)
 
+    _group_timeline("Duplicate : %s" % occurrence.name)
+
     return result_occurrence
 
 
@@ -872,6 +931,9 @@ def place(occurrence, x_placement=keep(), y_placement=keep(), z_placement=keep()
               x_placement(0, bounding_box),
               y_placement(1, bounding_box),
               z_placement(2, bounding_box))
+
+    _group_timeline("Place : %s" % occurrence.name)
+
     return occurrence
 
 
