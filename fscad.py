@@ -639,7 +639,7 @@ def rotate(occurrence, x=0, y=0, z=0, center=None):
     return occurrence
 
 
-def component(*occurrences, name="Component") -> adsk.fusion.Occurrence:
+def group(*occurrences, name="Group") -> adsk.fusion.Occurrence:
     new_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())  # type: adsk.fusion.Occurrence
     new_component = new_occurrence.component  # type: adsk.fusion.Component
     new_component.name = name
