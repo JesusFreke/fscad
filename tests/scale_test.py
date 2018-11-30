@@ -53,6 +53,27 @@ class ScaleTest(test_utils.FscadTestCase):
         first = box(1, 1, 1, name="first")
         scale(first, (1, 1, .1), (1, 1, 1))
 
+    def test_simple_mirror(self):
+        first = box(1, 1, 1, name="first")
+        scale(first, (-1, 1, 1))
+
+    def test_mirror_with_center(self):
+        first = box(1, 1, 1, name="first")
+        scale(first, (-1, 1, 1), center=(1, 1, 1))
+
+    def test_duplicates_mirror(self):
+        first = box(1, 1, 1, name="first")
+        dup = duplicate(tx, (0, 2, 4, 6, 8), first)
+        scale(dup, (-1, 1, 1))
+
+    def test_non_uniform_mirror(self):
+        first = box(1, 1, 1, name="first")
+        try:
+            scale(first, (1, 1, -10), (1, 1, 1))
+            self.fail("Expected error did not occur")
+        except ValueError:
+            pass
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(ScaleTest)

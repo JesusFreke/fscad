@@ -472,18 +472,23 @@ def scale(occurrence, scale_value, center=None):
     try:
         if len(scale_value) != 3:
             raise ValueError("Expecting either a single scale value, or a list/tuple with x/y/z scales")
-        if occurrence.childOccurrences.count > 0:
-            raise ValueError("Non-uniform scaling can only be applied to simple objects, with no children")
-        return _non_uniform_scale(occurrence, scale_value, center)
+        if (abs(scale_value[0]) != abs(scale_value[1])) or \
+                (abs(scale_value[1]) != abs(scale_value[2])):
+            if scale_value[0] < 0 or scale_value[1] < 0 or scale_value[2] < 0:
+                raise ValueError("Mirroring with a non-uniform scale factor is not currently supported")
+            if occurrence.childOccurrences.count > 0:
+                raise ValueError("Non-uniform scaling can only be applied to simple objects, with no children")
+            return _non_uniform_scale(occurrence, scale_value, center)
     except TypeError:
+        scale_value = (scale_value, scale_value, scale_value)
         pass
 
     transform = occurrence.transform
 
     scale = adsk.core.Matrix3D.create()
-    scale.setCell(0, 0, scale_value)
-    scale.setCell(1, 1, scale_value)
-    scale.setCell(2, 2, scale_value)
+    scale.setCell(0, 0, scale_value[0])
+    scale.setCell(1, 1, scale_value[1])
+    scale.setCell(2, 2, scale_value[2])
 
     if center:
         translation = adsk.core.Matrix3D.create()
