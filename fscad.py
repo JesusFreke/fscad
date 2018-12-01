@@ -427,6 +427,53 @@ def _check_face_intersection(face1, face2):
     return facebody1.faces.count > 0
 
 
+def _point_vector_to_line(point, vector):
+    return adsk.core.Line3D.create(point,
+                                   adsk.core.Point3D.create(point.x + vector.x,
+                                                            point.y + vector.y,
+                                                            point.z + vector.z))
+
+def _check_face_geometry(face1, face2):
+    """Does some quick sanity checks of the face geometry, to rule out easy cases of non-equality.
+
+    A return value of True does not guarantee the geometry is the same, but a return value of False does
+    guarantee they are not.
+    """
+    geometry1 = face1.geometry
+    geometry2 = face2.geometry
+    if isinstance(geometry1, adsk.core.Cylinder):
+        if not math.isclose(geometry1.radius, geometry2.radius):
+            return False
+        line1 = _point_vector_to_line(geometry1.origin, geometry1.axis)
+        line2 = _point_vector_to_line(geometry2.origin, geometry2.axis)
+        return line1.isColinearTo(line2)
+    if isinstance(geometry1, adsk.core.Sphere):
+        if not math.isclose(geometry1.radius, geometry2.radius):
+            return False
+        return geometry1.origin.isEqualTo(geometry2.origin)
+    if isinstance(geometry1, adsk.core.Torus):
+        if not geometry1.origin.isEqualTo(geometry2.origin):
+            return False
+        if not geometry1.axis.isParallelTo(geometry2.axis):
+            return False
+        if not math.isclose(geometry1.majorRadius, geometry2.majorRadius):
+            return False
+        return math.isclose(geometry1.minorRadius, geometry2.minorRadius)
+    if isinstance(geometry1, adsk.core.EllipticalCylinder):
+        line1 = _point_vector_to_line(geometry1.origin, geometry1.axis)
+        line2 = _point_vector_to_line(geometry2.origin, geometry2.axis)
+        if not line1.isColinearTo(line2):
+            return False
+        if not geometry1.majorAxis.isParallelTo(geometry2.majorAxis):
+            return False
+        if not math.isclose(geometry1.majorRadius, geometry2.majorRadius):
+            return False
+        return math.isclose(geometry1.minorRadius, geometry2.minorRadius)
+    # It's a bit harder to check the remaining types. We'll just fallback to doing the
+    # full face intersection check.
+    return True
+
+
 def _check_face_coincidence(face1, face2):
     if face1.geometry.surfaceType != face2.geometry.surfaceType:
         return False
@@ -435,7 +482,7 @@ def _check_face_coincidence(face1, face2):
             return False
         return _check_face_intersection(face1, face2)
     else:
-        if face1.geometry.getData() != face2.geometry.getData():
+        if not _check_face_geometry(face1, face2):
             return False
         return _check_face_intersection(face1, face2)
 

@@ -258,6 +258,15 @@ class FaceTest(test_utils.FscadTestCase):
         self.assertTrue(selected_faces[0].geometry.normal.isParallelTo(adsk.core.Vector3D.create(0, 1, 0)))
         self.assertEqual(selected_faces[0].pointOnFace.y, .05)
 
+    def test_faces_cylinder_difference(self):
+        first = box(1, 1, 1, name="first")
+        cyl = place(rx(cylinder(1, .5), 90),
+                    midAt(atMid(first)), midAt(atMid(first)), minAt(atMid(first)))
+        diff = difference(first, cyl)
+        result = faces(diff, faces(cyl, "side"))
+        self.assertEqual(len(result), 1)
+        self.assertTrue(isinstance(result[0].geometry, adsk.core.Cylinder))
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(FaceTest)
