@@ -318,35 +318,32 @@ def extrude(occurrence, height, angle=0, name="Extrude"):
     return result_occurrence
 
 
-def get_edges(faces1, faces2=None):
-    """Gets all edges that are shared between a face in faces1 and faces2"""
-    edges2 = {}
-    for face in faces2:
-        for edge in face.edges:
-            id_edges = edges2.get(edge.tempId)
-            if id_edges is None:
-                id_edges = []
-                edges2[edge.tempId] = id_edges
-            id_edges.append((edge, face))
-
-    intermediate_result = {}
-    for face in faces1:
-        for edge in face.edges:
-            potential_matches = edges2.get(edge.tempId)
-            if potential_matches:
-                for match_edge, match_face in potential_matches:
-                    if edge == match_edge and face != match_face:
-                        id_edges = intermediate_result.get(edge.tempId)
+def edges(*args):
+    if len(args) == 3:
+        # provides a more concise way of doing edges(faces(obj, "something"), faces(obj, "else"))
+        # e.g. edges(obj, ["something"], ["else"])
+        entity = args[0]
+        faces1 = faces(entity, *args[1])
+        faces2 = faces(entity, *args[2])
+        return edges(faces1, faces2)
+    else:
+        faces1 = args[0]
+        faces2 = args[1]
+        id_map = {}
+        for face1 in faces1:
+            for edge1 in face1.edges:
+                for edge_face in edge1.faces:
+                    if edge_face != face1 and edge_face in faces2:
+                        id_edges = id_map.get(edge1.tempId)
                         if id_edges is None:
                             id_edges = []
-                            intermediate_result[edge.tempId] = id_edges
-                        if edge not in id_edges:
-                            id_edges.append(edge)
-    result = []
-    for edges in intermediate_result.values():
-        result.extend(edges)
-
-    return result
+                            id_map[edge1.tempId] = id_edges
+                        if edge1 not in id_edges:
+                            id_edges.append(edge1)
+        result = []
+        for id_edges in id_map.values():
+            result.extend(id_edges)
+        return result
 
 
 def faces(entity, *selectors):

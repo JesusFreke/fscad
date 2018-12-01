@@ -140,10 +140,21 @@ class FaceTest(test_utils.FscadTestCase):
         face1 = get_face(first, "top")
         face2 = get_face(first, "right")
 
-        edges = get_edges([face1], [face2])
+        result = edges([face1], [face2])
 
-        self.assertEqual(len(edges), 1)
-        self.assertTrue(edges[0].geometry.isColinearTo(
+        self.assertEqual(len(result), 1)
+        self.assertTrue(result[0].geometry.isColinearTo(
+            adsk.core.Line3D.create(
+                fscad._cm(adsk.core.Point3D.create(1, 0, 1)),
+                fscad._cm(adsk.core.Point3D.create(1, 1, 1)))))
+
+    def test_find_single_edge_concise(self):
+        first = box(1, 1, 1, name="first")
+
+        result = edges(first, ["top"], ["right"])
+
+        self.assertEqual(len(result), 1)
+        self.assertTrue(result[0].geometry.isColinearTo(
             adsk.core.Line3D.create(
                 fscad._cm(adsk.core.Point3D.create(1, 0, 1)),
                 fscad._cm(adsk.core.Point3D.create(1, 1, 1)))))
@@ -162,10 +173,26 @@ class FaceTest(test_utils.FscadTestCase):
         faces2 = find_coincident_faces(diff, face2)
         self.assertEqual(len(faces2), 2)
 
-        edges = get_edges(faces1, faces2)
-        self.assertEqual(len(edges), 2)
+        result = edges(faces1, faces2)
+        self.assertEqual(len(result), 2)
 
-        for edge in edges:
+        for edge in result:
+            self.assertTrue(edge.geometry.isColinearTo(
+                adsk.core.Line3D.create(
+                    fscad._cm(adsk.core.Point3D.create(1, 0, 1)),
+                    fscad._cm(adsk.core.Point3D.create(1, 1, 1)))))
+
+    def test_find_split_edges_concise(self):
+        first = box(1, 1, 1, name="first")
+        cut = place(box(.5, .5, 1),
+                    maxAt(atMax(first)), midAt(atMid(first)), minAt(atMin(first)))
+        diff = difference(first, cut)
+
+        result = edges(diff, [faces(first, "top")], [faces(first, "right")])
+
+        self.assertEqual(len(result), 2)
+
+        for edge in result:
             self.assertTrue(edge.geometry.isColinearTo(
                 adsk.core.Line3D.create(
                     fscad._cm(adsk.core.Point3D.create(1, 0, 1)),
@@ -177,8 +204,14 @@ class FaceTest(test_utils.FscadTestCase):
         front = get_face(first, "front")
         right = get_face(first, "right")
         faces = [top, front, right]
-        edges = get_edges(faces, faces)
-        self.assertEqual(len(edges), 3)
+        result = edges(faces, faces)
+        self.assertEqual(len(result), 3)
+
+    def test_find_edge_exclude_same_face_in_both_sets_concise(self):
+        first = box(1, 1, 1, name="first")
+        faces = ["top", "front", "right"]
+        result = edges(first, faces, faces)
+        self.assertEqual(len(result), 3)
 
     def test_faces_occurrence(self):
         first = box(1, 1, 1, name="first")
