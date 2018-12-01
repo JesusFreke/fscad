@@ -22,7 +22,7 @@ import types
 import sys
 import uuid
 
-from typing import Iterable
+from typing import Iterable, List, Any, Union
 
 
 def _convert_units(value, convert):
@@ -176,10 +176,22 @@ def _create_component(parent_component, *bodies, name):
 
 
 def _mark_face(face, face_name):
+    if face.nativeObject is not None:
+        face = face.nativeObject
     face_uuid = uuid.uuid4()
     face.attributes.add("fscad", "id", str(face_uuid))
     face.attributes.add("fscad", str(face_uuid), str(face_uuid))
     face.body.attributes.add("fscad", face_name, str(face_uuid))
+
+
+def _mark_all_faces(body: adsk.fusion.BRepBody):
+    if body.nativeObject is not None:
+        body = body.nativeObject
+    for face in body.faces:
+        if face.attributes.itemByName("fscad", "id") is None:
+            face_uuid = uuid.uuid4()
+            face.attributes.add("fscad", "id", str(face_uuid))
+            face.attributes.add("fscad", str(face_uuid), str(face_uuid))
 
 
 @_group_timeline
@@ -302,14 +314,14 @@ def extrude(occurrence, height, angle=0, name="Extrude"):
         adsk.core.ValueInput.createByReal(math.radians(angle)))
     feature = root().features.extrudeFeatures.add(extrude_input)
 
+    result_occurrence = root().allOccurrencesByComponent(feature.parentComponent)[0]
+
     for face in feature.startFaces:
         _mark_face(face, "start")
     for face in feature.endFaces:
         _mark_face(face, "end")
     for face in feature.sideFaces:
         _mark_face(face, "side")
-
-    result_occurrence = root().allOccurrencesByComponent(feature.parentComponent)[0]
 
     occurrence.moveToComponent(result_occurrence)
     occurrence.createForAssemblyContext(result_occurrence).isLightBulbOn = False
@@ -346,22 +358,40 @@ def edges(*args):
         return result
 
 
+def all_faces(occurrence: adsk.fusion.Occurrence, *faces: Union[adsk.fusion.BRepFace, Iterable[adsk.fusion.BRepFace]])\
+        -> Iterable[adsk.fusion.BRepFace]:
+    """Finds all duplicates of the given faces.
+
+    When an occurrence is duplicated via the duplicate function, this allows you to find faces on the duplicated
+    occurrences, based on faces from the original occurrence.
+
+    :param occurrence: If specified, filter the returned faces to only those contained in this occurrence
+    :param faces: The faces to search for
+    """
+    result = []
+    for face in faces:
+        if isinstance(face, Iterable):
+            result.extend(all_faces(occurrence, *face))
+        else:
+            native_face = face
+            if face.nativeObject is not None:
+                native_face = face.nativeObject
+            id_attr = native_face.attributes.itemByName("fscad", "id")
+            if id_attr is None:
+                raise ValueError("face does not have an id attribute")
+            for attr in design().findAttributes("fscad", id_attr.value):
+                occurrences = root().allOccurrencesByComponent(attr.parent.body.parentComponent)
+                assert occurrences.count == 1
+                result.append(attr.parent.createForAssemblyContext(occurrences[0]))
+    return result
+
+
 def faces(entity, *selectors):
     if isinstance(entity, adsk.fusion.Occurrence):
         result = []
         for body in entity.component.bRepBodies:
             for face in faces(body, *selectors):
                 result.append(face.createForAssemblyContext(entity))
-        return result
-    if isinstance(entity, adsk.fusion.Component):
-        component_faces = []
-        for body in entity.bRepBodies:
-            component_faces.extend(faces(body, *selectors))
-
-        result = []
-        for occurrence in root().allOccurrencesByComponent(entity):
-            for face in component_faces:
-                result.append(face.createForAssemblyContext(occurrence))
         return result
     if isinstance(entity, adsk.fusion.BRepBody):
         result = []
@@ -382,41 +412,11 @@ def faces(entity, *selectors):
     raise ValueError("Unsupported object type: %s" % type(entity).__name__)
 
 
-def get_faces(entity, name):
-    if isinstance(entity, adsk.fusion.Occurrence):
-        faces = []
-        for body in entity.component.bRepBodies:
-            for face in get_faces(body, name):
-                faces.append(face.createForAssemblyContext(entity))
-        return faces
-    if isinstance(entity, adsk.fusion.Component):
-        component_faces = []
-        for body in entity.bRepBodies:
-            component_faces.extend(get_faces(body, name))
-
-        faces = []
-        for occurrence in root().allOccurrencesByComponent(entity):
-            for face in component_faces:
-                faces.append(face.createForAssemblyContext(occurrence))
-        return faces
-    if isinstance(entity, adsk.fusion.BRepBody):
-        attr = entity.attributes.itemByName("fscad", name)
-        if not attr:
-            raise ValueError("Couldn't find face with given name: %s" % name)
-        attributes = design().findAttributes("fscad", attr.value)
-        faces = []
-        for attribute in attributes:
-            if attribute.parent.body == entity:
-                faces.append(attribute.parent)
-        return faces
-    raise ValueError("Unsupported object type")
-
-
-def get_face(entity, name=None) -> adsk.fusion.BRepFace:
-    faces = get_faces(entity, name)
-    if len(faces) > 1:
+def get_face(entity, selector) -> adsk.fusion.BRepFace:
+    result = faces(entity, selector)
+    if len(result) > 1:
         raise ValueError("Found multiple faces")
-    return faces[0]
+    return result[0]
 
 
 def _check_face_intersection(face1, face2):
@@ -992,19 +992,33 @@ def rz(occurrence, angle, center=None):
     return rotate(occurrence, 0, 0, angle, center=center)
 
 
+def _duplicate_occurrence(occurrence: adsk.fusion.Occurrence):
+    parent_component = _get_parent_component(occurrence)
+
+    result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    result_occurrence.component.name = occurrence.component.name
+    result_occurrence.isLightBulbOn = occurrence.isLightBulbOn
+    for body in occurrence.bRepBodies:
+        _mark_all_faces(body)
+        body.copyToComponent(result_occurrence)
+        for child_occurrence in occurrence.childOccurrences:
+            _duplicate_occurrence(child_occurrence)
+    return result_occurrence
+
+
 @_group_timeline
 def duplicate(func, values, occurrence):
-    result_occurrence = root().occurrences.addNewComponent(adsk.core.Matrix3D.create())
-    result_occurrence.component.name = occurrence.name
+    parent_component = _get_parent_component(occurrence)
+
+    result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    result_occurrence.component.name = occurrence.component.name
 
     occurrence.moveToComponent(result_occurrence)
     occurrence = occurrence.createForAssemblyContext(result_occurrence)
     func(occurrence, values[0])
     for value in values[1:]:
-        duplicate_occurrence = result_occurrence.component.occurrences.addExistingComponent(
-            occurrence.component, adsk.core.Matrix3D.create())
+        duplicate_occurrence = _duplicate_occurrence(occurrence)
         func(duplicate_occurrence, value)
-
     return result_occurrence
 
 

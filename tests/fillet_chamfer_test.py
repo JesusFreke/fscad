@@ -26,66 +26,48 @@ class FilletChamferTest(test_utils.FscadTestCase):
     def test_simple_fillet(self):
         first = box(1, 1, 1, name="first")
 
-        face1 = get_face(first, "top")
-        face2 = get_face(first, "right")
+        result = edges(first, ["top"], ["right"])
 
-        edges = get_edges([face1], [face2])
-
-        fillet(edges, .1)
+        fillet(result, .1)
 
     def test_multiple_edge_fillet(self):
         first = box(1, 1, 1, name="first")
 
-        face1 = get_face(first, "top")
-        face2 = get_face(first, "right")
-        face3 = get_face(first, "front")
+        faces = ["top", "right", "front"]
+        result = edges(first, faces, faces)
 
-        edges = get_edges([face1, face2, face3], [face1, face2, face3])
-
-        fillet(edges, .1)
+        fillet(result, .1)
 
     def test_blended_multiple_edge_fillet(self):
         first = box(1, 1, 1, name="first")
 
-        face1 = get_face(first, "top")
-        face2 = get_face(first, "right")
-        face3 = get_face(first, "front")
+        faces = ["top", "right", "front"]
+        result = edges(first, faces, faces)
 
-        edges = get_edges([face1, face2, face3], [face1, face2, face3])
-
-        fillet(edges, .1, True)
+        fillet(result, .1, True)
 
     def test_simple_chamfer(self):
         first = box(1, 1, 1, name="first")
 
-        face1 = get_face(first, "top")
-        face2 = get_face(first, "right")
+        result = edges(first, ["top"], ["right"])
 
-        edges = get_edges([face1], [face2])
-
-        chamfer(edges, .1)
+        chamfer(result, .1)
 
     def test_multiple_edge_chamfer(self):
         first = box(1, 1, 1, name="first")
 
-        face1 = get_face(first, "top")
-        face2 = get_face(first, "right")
-        face3 = get_face(first, "front")
+        faces = ["top", "right", "front"]
+        result = edges(first, faces, faces)
 
-        edges = get_edges([face1, face2, face3], [face1, face2, face3])
-
-        chamfer(edges, .1)
+        chamfer(result, .1)
 
     def test_two_distance_chamfer(self):
         first = box(1, 1, 1, name="first")
 
-        face1 = get_face(first, "top")
-        face2 = get_face(first, "right")
-        face3 = get_face(first, "front")
+        faces = ["top", "right", "front"]
+        result = edges(first, faces, faces)
 
-        edges = get_edges([face1, face2, face3], [face1, face2, face3])
-
-        chamfer(edges, .2, .1)
+        chamfer(result, .2, .1)
 
 
 def run(context):

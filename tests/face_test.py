@@ -79,13 +79,13 @@ class FaceTest(test_utils.FscadTestCase):
 
     def test_duplicated_faces(self):
         first = box(1, 1, 1, name="first")
-        duplicate(tx, (0, 2, 4, 6, 8), first)
+        dup = duplicate(tx, (0, 2, 4, 6, 8), first)
 
-        faces = get_faces(first.component, "left")
-        self.assertEqual(len(faces), 5)
+        duplicate_faces = all_faces(dup, faces(first, "left"))
+        self.assertEqual(len(duplicate_faces), 5)
 
         face_positions = {0, 2, 4, 6, 8}
-        for face in faces:
+        for face in duplicate_faces:
             self.assertTrue(face.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
             self.assertTrue(fscad._mm(face.pointOnFace.x) in face_positions)
             face_positions -= {face.pointOnFace.x}
@@ -221,11 +221,11 @@ class FaceTest(test_utils.FscadTestCase):
         self.assertEqual(selected_faces[1], get_face(first, "back"))
         self.assertEqual(selected_faces[2], get_face(first, "top"))
 
-    def test_faces_component(self):
+    def test_all_faces(self):
         first = box(1, 1, 1, name="first")
         dup = duplicate(tx, (0, 2, 4, 6, 8), first)
 
-        selected_faces = faces(first.component, "front", "back", "top")
+        selected_faces = all_faces(dup, faces(first, "front", "back", "top"))
         self.assertEqual(len(selected_faces), 15)
         expected_faces = [get_face(dup.childOccurrences.item(0), "front"),
                           get_face(dup.childOccurrences.item(0), "back"), get_face(dup.childOccurrences.item(0), "top"),
@@ -269,5 +269,8 @@ class FaceTest(test_utils.FscadTestCase):
 
 
 def run(context):
+    """test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
+        "face_test.FaceTest.test_duplicated_faces")"""
+
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(FaceTest)
     unittest.TextTestRunner(failfast=True).run(test_suite)
