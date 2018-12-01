@@ -180,6 +180,51 @@ class FaceTest(test_utils.FscadTestCase):
         edges = get_edges(faces, faces)
         self.assertEqual(len(edges), 3)
 
+    def test_faces_occurrence(self):
+        first = box(1, 1, 1, name="first")
+        selected_faces = faces(first, "front", "back", "top")
+        self.assertEqual(len(selected_faces), 3)
+        self.assertEqual(selected_faces[0], get_face(first, "front"))
+        self.assertEqual(selected_faces[1], get_face(first, "back"))
+        self.assertEqual(selected_faces[2], get_face(first, "top"))
+
+    def test_faces_component(self):
+        first = box(1, 1, 1, name="first")
+        dup = duplicate(tx, (0, 2, 4, 6, 8), first)
+
+        selected_faces = faces(first.component, "front", "back", "top")
+        self.assertEqual(len(selected_faces), 15)
+        expected_faces = [get_face(dup.childOccurrences.item(0), "front"),
+                          get_face(dup.childOccurrences.item(0), "back"), get_face(dup.childOccurrences.item(0), "top"),
+                          get_face(dup.childOccurrences.item(1), "front"),
+                          get_face(dup.childOccurrences.item(1), "back"), get_face(dup.childOccurrences.item(1), "top"),
+                          get_face(dup.childOccurrences.item(2), "front"),
+                          get_face(dup.childOccurrences.item(2), "back"), get_face(dup.childOccurrences.item(2), "top"),
+                          get_face(dup.childOccurrences.item(3), "front"),
+                          get_face(dup.childOccurrences.item(3), "back"), get_face(dup.childOccurrences.item(3), "top"),
+                          get_face(dup.childOccurrences.item(4), "front"),
+                          get_face(dup.childOccurrences.item(4), "back"), get_face(dup.childOccurrences.item(4), "top")]
+        for selected_face in selected_faces:
+            if not selected_face in expected_faces:
+                self.fail()
+            expected_faces.remove(selected_face)
+
+    def test_faces_occurrence_face(self):
+        first = box(1, 1, 1, name="first")
+        hole = place(box(.5, .5, .5, name="hole"),
+                     midAt(atMid(first)),
+                     minAt(atMin(first)),
+                     midAt(atMid(first)))
+        diff = difference(first, hole)
+
+        selected_faces = faces(diff, faces(hole, "back"))
+        ui().activeSelections.add(selected_faces[0])
+
+        self.assertEqual(len(selected_faces), 1)
+
+        self.assertTrue(selected_faces[0].geometry.normal.isParallelTo(adsk.core.Vector3D.create(0, 1, 0)))
+        self.assertEqual(selected_faces[0].pointOnFace.y, .05)
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(FaceTest)

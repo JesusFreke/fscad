@@ -14,6 +14,7 @@
 
 import adsk.core
 import adsk.fusion
+import collections
 import functools
 import math
 import traceback
@@ -348,6 +349,42 @@ def get_edges(faces1, faces2=None):
     return result
 
 
+def faces(entity, *selectors):
+    if isinstance(entity, adsk.fusion.Occurrence):
+        result = []
+        for body in entity.component.bRepBodies:
+            for face in faces(body, *selectors):
+                result.append(face.createForAssemblyContext(entity))
+        return result
+    if isinstance(entity, adsk.fusion.Component):
+        component_faces = []
+        for body in entity.bRepBodies:
+            component_faces.extend(faces(body, *selectors))
+
+        result = []
+        for occurrence in root().allOccurrencesByComponent(entity):
+            for face in component_faces:
+                result.append(face.createForAssemblyContext(occurrence))
+        return result
+    if isinstance(entity, adsk.fusion.BRepBody):
+        result = []
+        for selector in selectors:
+            if isinstance(selector, str):
+                attr = entity.attributes.itemByName("fscad", selector)
+                if not attr:
+                    raise ValueError("Couldn't find face with given name: %s" % selector)
+                attributes = design().findAttributes("fscad", attr.value)
+                for attribute in attributes:
+                    if attribute.parent.body == entity:
+                        result.append(attribute.parent)
+            elif isinstance(selector, adsk.fusion.BRepFace):
+                result.extend(_find_coincident_faces_on_body(entity, selector))
+            elif isinstance(selector, collections.Iterable):
+                result.extend(faces(entity, *selector))
+        return result
+    raise ValueError("Unsupported object type: %s" % type(entity).__name__)
+
+
 def get_faces(entity, name):
     if isinstance(entity, adsk.fusion.Occurrence):
         faces = []
@@ -406,16 +443,23 @@ def _check_face_coincidence(face1, face2):
         return _check_face_intersection(face1, face2)
 
 
+def _find_coincident_faces_on_body(body, *faces):
+    coincident_faces = []
+    for face in faces:  # type: adsk.fusion.BRepFace
+        if body.boundingBox.intersects(face.boundingBox):
+            for body_face in body.faces:
+                if body_face.boundingBox.intersects(face.boundingBox):
+                    if _check_face_coincidence(face, body_face):
+                        coincident_faces.append(body_face)
+    return coincident_faces
+
+
 def find_coincident_faces(occurrence, *faces):
     """ Find all faces of any visible body in occurrence that are coincident to at least one of the faces in faces """
     coincident_faces = []
     for body in _occurrence_bodies(occurrence):
-        for face in faces:  # type: adsk.fusion.BRepFace
-            if body.boundingBox.intersects(face.boundingBox):
-                for body_face in body.faces:
-                    if body_face.boundingBox.intersects(face.boundingBox):
-                        if _check_face_coincidence(face, body_face):
-                            coincident_faces.append(body_face)
+        coincident_faces.extend(_find_coincident_faces_on_body(body, *faces))
+
     return coincident_faces
 
 
