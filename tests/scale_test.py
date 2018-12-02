@@ -39,11 +39,7 @@ class ScaleTest(test_utils.FscadTestCase):
     def test_duplicate_non_uniform_scale(self):
         first = box(1, 1, 1, name="first")
         dup = duplicate(tx, (0, 2, 4, 6, 8), first)
-        try:
-            scale(dup, (2, 3, 4))
-            self.fail("Expected error did not occur")
-        except ValueError:
-            pass
+        scale(dup, (2, 3, 4))
 
     def test_scale_with_center(self):
         first = box(1, 1, 1, name="first")
@@ -68,11 +64,7 @@ class ScaleTest(test_utils.FscadTestCase):
 
     def test_non_uniform_mirror(self):
         first = box(1, 1, 1, name="first")
-        try:
-            scale(first, (1, 1, -10), (1, 1, 1))
-            self.fail("Expected error did not occur")
-        except ValueError:
-            pass
+        scale(first, (1, 1, -10), (1, 1, 1))
 
 
 def run(context):

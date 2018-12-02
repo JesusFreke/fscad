@@ -103,12 +103,19 @@ def _get_parent_component(occurrence):
     return occurrence.assemblyContext.component
 
 
-def _occurrence_bodies(occurrence: adsk.fusion.Occurrence):
+def _for_all_child_occurrences(occurrence, func, include_hidden=False):
+    func(occurrence)
+    for child_occurrence in occurrence.childOccurrences:
+        if include_hidden or child_occurrence.isLightBulbOn:
+            _for_all_child_occurrences(child_occurrence, func, include_hidden)
+
+
+def _occurrence_bodies(occurrence: adsk.fusion.Occurrence, include_hidden=False):
     bodies = []
     for body in occurrence.bRepBodies:
         bodies.append(body)
     for child in occurrence.childOccurrences:
-        if child.isLightBulbOn:
+        if include_hidden or child.isLightBulbOn:
             bodies.extend(_occurrence_bodies(child))
     return bodies
 
@@ -566,75 +573,136 @@ def loft(*occurrences, name="Loft"):
 
     return result_occurrence
 
-
-def _non_uniform_scale(occurrence, scale_value, center=None):
-    if center is not None:
-        base_feature = occurrence.component.features.baseFeatures.add()
-        base_feature.startEdit()
-        sketch = occurrence.component.sketches.add(root().xYConstructionPlane)
-        center_point = sketch.sketchPoints.add(adsk.core.Point3D.create(0, 0, 0))
-        transform = adsk.core.Matrix3D.create()
-        transform.translation = _cm(adsk.core.Vector3D.create(*center))
-        sketch.transform = transform
-        base_feature.finishEdit()
-        sketch.isLightBulbOn = False
-    else:
-        center_point = root().originConstructionPoint
-
-    scale_input = occurrence.component.features.scaleFeatures.createInput(
-        _collection_of(_occurrence_bodies(occurrence)),
-        center_point,
-        adsk.core.ValueInput.createByReal(1))
-
-    scale_input.setToNonUniform(
-        adsk.core.ValueInput.createByReal(scale_value[0]),
-        adsk.core.ValueInput.createByReal(scale_value[1]),
-        adsk.core.ValueInput.createByReal(scale_value[2]))
-
-    occurrence.component.features.scaleFeatures.add(scale_input)
-
-    return occurrence
-
-
 @_group_timeline
 def scale(occurrence, scale_value, center=None):
-    try:
+    def center_point():
+        if center is not None:
+            base_feature = occurrence.component.features.baseFeatures.add()
+            base_feature.startEdit()
+            sketch = occurrence.component.sketches.add(root().xYConstructionPlane)
+            result = sketch.sketchPoints.add(adsk.core.Point3D.create(0, 0, 0))
+            transform = adsk.core.Matrix3D.create()
+            transform.translation = _cm(adsk.core.Vector3D.create(*center))
+            sketch.transform = transform
+            base_feature.finishEdit()
+            sketch.isLightBulbOn = False
+            return result
+        else:
+            return root().originConstructionPoint
+
+    def mirror_transform(x, y, z):
+        total_transform = adsk.core.Matrix3D.create()
+        translate_transform = adsk.core.Matrix3D.create()
+        mirror_transform = adsk.core.Matrix3D.create()
+        if center:
+            translate_transform.translation = _cm(adsk.core.Vector3D.create(*center))
+        if x:
+            mirror_transform.setCell(0, 0, -1)
+        if y:
+            mirror_transform.setCell(1, 1, -1)
+        if z:
+            mirror_transform.setCell(2, 2, -1)
+        translate_transform.invert()
+        total_transform.transformBy(translate_transform)
+        total_transform.transformBy(mirror_transform)
+        translate_transform.invert()
+        total_transform.transformBy(translate_transform)
+        return total_transform
+
+    def mirror_body(occurrence, body, transform):
+        brep = adsk.fusion.TemporaryBRepManager.get()
+        copy = brep.copy(body)
+        brep.transform(copy, transform)
+        base_feature = root().features.baseFeatures.add()
+        base_feature.startEdit()
+        copy2 = root().bRepBodies.add(copy, base_feature)
+        base_feature.finishEdit()
+
+        base_feature = occurrence.component.features.baseFeatures.add()
+        base_feature.startEdit()
+        copy = copy2.copyToComponent(occurrence)
+        copy2.deleteMe()
+        base_feature.finishEdit()
+
+        for attr in body.nativeObject.attributes:
+            copy.nativeObject.attributes.add(attr.groupName, attr.name, attr.value)
+
+        original_faces = list(body.faces)
+        copy_faces = list(copy.faces)
+
+        assert len(original_faces) == len(copy_faces)
+        for i in range(0, len(original_faces)-1):
+            for attr in original_faces[i].nativeObject.attributes:
+                copy_faces[i].nativeObject.attributes.add(attr.groupName, attr.name, attr.value)
+
+    if isinstance(scale_value, Iterable):
+        scale_value = list(scale_value)
         if len(scale_value) != 3:
             raise ValueError("Expecting either a single scale value, or a list/tuple with x/y/z scales")
-        if (abs(scale_value[0]) != abs(scale_value[1])) or \
-                (abs(scale_value[1]) != abs(scale_value[2])):
-            if scale_value[0] < 0 or scale_value[1] < 0 or scale_value[2] < 0:
-                raise ValueError("Mirroring with a non-uniform scale factor is not currently supported")
-            if occurrence.childOccurrences.count > 0:
-                raise ValueError("Non-uniform scaling can only be applied to simple objects, with no children")
-            return _non_uniform_scale(occurrence, scale_value, center)
-    except TypeError:
-        scale_value = (scale_value, scale_value, scale_value)
-        pass
+        if tuple(scale_value) == (1, 1, 1):
+            return
+        mirror = [False, False, False]
+        if scale_value[0] < 0:
+            mirror[0] = True
+            scale_value[0] = abs(scale_value[0])
+        if scale_value[1] < 0:
+            mirror[1] = True
+            scale_value[1] = abs(scale_value[1])
+        if scale_value[2] < 0:
+            mirror[2] = True
+            scale_value[2] = abs(scale_value[2])
 
-    transform = occurrence.transform
+        if tuple(scale_value) != (1, 1, 1):
+            scale_input = occurrence.component.features.scaleFeatures.createInput(
+                _collection_of(_occurrence_bodies(occurrence, True)),
+                center_point(),
+                adsk.core.ValueInput.createByReal(1))
+            scale_input.setToNonUniform(
+                adsk.core.ValueInput.createByReal(scale_value[0]),
+                adsk.core.ValueInput.createByReal(scale_value[1]),
+                adsk.core.ValueInput.createByReal(scale_value[2]))
+            occurrence.component.features.scaleFeatures.add(scale_input)
+        if tuple(mirror) != (False, False, False):
+            bodies_to_delete = []
+            transform = mirror_transform(*mirror)
 
-    scale = adsk.core.Matrix3D.create()
-    scale.setCell(0, 0, scale_value[0])
-    scale.setCell(1, 1, scale_value[1])
-    scale.setCell(2, 2, scale_value[2])
+            def do_mirror(occurrence):
+                for body in list(occurrence.bRepBodies):
+                    mirror_body(occurrence, body, transform)
+                    bodies_to_delete.append(body)
+            _for_all_child_occurrences(occurrence, do_mirror, True)
 
-    if center:
-        translation = adsk.core.Matrix3D.create()
-        translation.translation = _cm(adsk.core.Vector3D.create(*center))
-        translation.invert()
-        transform.transformBy(translation)
+            for body in bodies_to_delete:
+                body.parentComponent.features.removeFeatures.add(body)
+        return occurrence
+    else:
+        if scale_value == 1:
+            return
+        mirror = False
+        if scale_value < 0:
+            mirror = True
+            scale_value = abs(scale_value)
 
-    transform.transformBy(scale)
+        body_collection = _collection_of(_occurrence_bodies(occurrence, True))
+        if scale_value != 1:
+            scale_input = occurrence.component.features.scaleFeatures.createInput(
+                body_collection,
+                center_point(),
+                adsk.core.ValueInput.createByReal(scale_value))
+            occurrence.component.features.scaleFeatures.add(scale_input)
+        if mirror:
+            bodies_to_delete = []
+            transform = mirror_transform(True, True, True)
 
-    if center:
-        translation.invert()
-        transform.transformBy(translation)
+            def do_mirror(occurrence):
+                for body in list(occurrence.bRepBodies):
+                    mirror_body(occurrence, body, transform)
+                    bodies_to_delete.append(body)
+            _for_all_child_occurrences(occurrence, do_mirror, True)
 
-    occurrence.transform = transform
-    design().snapshots.add()
-
-    return occurrence
+            for body in bodies_to_delete:
+                body.parentComponent.features.removeFeatures.add(body)
+        return occurrence
 
 
 def _do_intersection(target_occurrence, tool_bodies):
