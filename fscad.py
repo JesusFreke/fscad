@@ -59,6 +59,10 @@ def ui():
     return app().userInterface
 
 
+def brep():
+    return adsk.fusion.TemporaryBRepManager.get()
+
+
 def design():
     return adsk.fusion.Design.cast(app().activeProduct)
 
@@ -203,8 +207,7 @@ def _mark_all_faces(body: adsk.fusion.BRepBody):
 
 @_group_timeline
 def sphere(radius, *, name="Sphere") -> adsk.fusion.Occurrence:
-    brep = adsk.fusion.TemporaryBRepManager.get()
-    sphere_body = brep.createSphere(adsk.core.Point3D.create(0, 0, 0), _cm(radius))
+    sphere_body = brep().createSphere(adsk.core.Point3D.create(0, 0, 0), _cm(radius))
     occurrence = _create_component(root(), sphere_body, name=name)
     _mark_face(occurrence.component.bRepBodies.item(0).faces.item(0), "surface")
 
@@ -214,8 +217,7 @@ def sphere(radius, *, name="Sphere") -> adsk.fusion.Occurrence:
 @_group_timeline
 def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Occurrence:
     (height, radius, radius2) = _cm((height, radius, radius2))
-    brep = adsk.fusion.TemporaryBRepManager.get()
-    cylinder_body = brep.createCylinderOrCone(
+    cylinder_body = brep().createCylinderOrCone(
         adsk.core.Point3D.create(0, 0, 0),
         radius,
         adsk.core.Point3D.create(0, 0, height),
@@ -237,8 +239,7 @@ def cylinder(height, radius, radius2=None, *, name="Cylinder") -> adsk.fusion.Oc
 @_group_timeline
 def box(x, y, z, *, name="Box") -> adsk.fusion.Occurrence:
     x, y, z = _cm((x, y, z))
-    brep = adsk.fusion.TemporaryBRepManager.get()
-    box_body = brep.createBox(adsk.core.OrientedBoundingBox3D.create(
+    box_body = brep().createBox(adsk.core.OrientedBoundingBox3D.create(
         adsk.core.Point3D.create(x/2, y/2, z/2),
         adsk.core.Vector3D.create(1, 0, 0),
         adsk.core.Vector3D.create(0, 1, 0),
@@ -265,7 +266,6 @@ def box(x, y, z, *, name="Box") -> adsk.fusion.Occurrence:
 @_group_timeline
 def rect(x, y, *, name="Rectangle"):
     (x, y) = _cm((x, y))
-    brep = adsk.fusion.TemporaryBRepManager.get()
     curves = [
         adsk.core.Line3D.create(
             adsk.core.Point3D.create(0, 0, 0),
@@ -284,22 +284,21 @@ def rect(x, y, *, name="Rectangle"):
             adsk.core.Point3D.create(0, 0, 0)
         )
     ]
-    wire, _ = brep.createWireFromCurves(curves)
-    face = brep.createFaceFromPlanarWires([wire])
+    wire, _ = brep().createWireFromCurves(curves)
+    face = brep().createFaceFromPlanarWires([wire])
 
     return _create_component(root(), face, name=name)
 
 
 @_group_timeline
 def circle(r, *, name="Circle"):
-    brep = adsk.fusion.TemporaryBRepManager.get()
     circle = adsk.core.Circle3D.createByCenter(
         adsk.core.Point3D.create(0, 0, 0),
         adsk.core.Vector3D.create(0, 0, 1),
         _cm(r)
     )
-    wire, _ = brep.createWireFromCurves([circle])
-    face = brep.createFaceFromPlanarWires([wire])
+    wire, _ = brep().createWireFromCurves([circle])
+    face = brep().createFaceFromPlanarWires([wire])
 
     return _create_component(root(), face, name=name)
 
@@ -427,10 +426,9 @@ def get_face(entity, selector) -> adsk.fusion.BRepFace:
 
 
 def _check_face_intersection(face1, face2):
-    brep = adsk.fusion.TemporaryBRepManager.get()
-    facebody1 = brep.copy(face1)
-    facebody2 = brep.copy(face2)
-    brep.booleanOperation(facebody1, facebody2, adsk.fusion.BooleanTypes.IntersectionBooleanType)
+    facebody1 = brep().copy(face1)
+    facebody2 = brep().copy(face2)
+    brep().booleanOperation(facebody1, facebody2, adsk.fusion.BooleanTypes.IntersectionBooleanType)
     return facebody1.faces.count > 0
 
 
@@ -610,9 +608,8 @@ def scale(occurrence, scale_value, center=None):
         return total_transform
 
     def mirror_body(occurrence, body, transform):
-        brep = adsk.fusion.TemporaryBRepManager.get()
-        copy = brep.copy(body)
-        brep.transform(copy, transform)
+        copy = brep().copy(body)
+        brep().transform(copy, transform)
         base_feature = root().features.baseFeatures.add()
         base_feature.startEdit()
         copy2 = root().bRepBodies.add(copy, base_feature)
