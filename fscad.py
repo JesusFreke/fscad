@@ -77,6 +77,16 @@ def _group_timeline(func):
         initial_count = design().timeline.count
         ret = func(*args, **kwargs)
         timeline_object = None
+
+        index = initial_count + 1
+        groups = []
+        for index in range(initial_count+1, design().timeline.count):
+            item = design().timeline[index]
+            if design().timeline[index].isGroup:
+                groups.append(item)
+        for group in groups:
+            group.deleteMe(False)
+
         if design().timeline.count - initial_count > 1:
             timeline_object = design().timeline.timelineGroups.add(initial_count, design().timeline.count-1)
         elif design().timeline.count - initial_count == 1:
