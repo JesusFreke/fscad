@@ -1081,8 +1081,9 @@ def rz(occurrence, angle, center=None):
     return rotate(occurrence, 0, 0, angle, center=center)
 
 
-def _duplicate_occurrence(occurrence: adsk.fusion.Occurrence):
-    parent_component = _get_parent_component(occurrence)
+def _duplicate_occurrence(occurrence: adsk.fusion.Occurrence, parent_component=None):
+    if not parent_component:
+        parent_component = _get_parent_component(occurrence)
 
     result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     result_occurrence.component.name = occurrence.component.name
@@ -1093,6 +1094,10 @@ def _duplicate_occurrence(occurrence: adsk.fusion.Occurrence):
         for child_occurrence in occurrence.childOccurrences:
             _duplicate_occurrence(child_occurrence)
     return result_occurrence
+
+
+def duplicate_of(occurrence):
+    return _duplicate_occurrence(occurrence, root())
 
 
 @_group_timeline
