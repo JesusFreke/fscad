@@ -267,10 +267,32 @@ class FaceTest(test_utils.FscadTestCase):
         self.assertEqual(len(result), 1)
         self.assertTrue(isinstance(result[0].geometry, adsk.core.Cylinder))
 
+    def test_face_bounding_box_tolerance(self):
+        front = box(5, 2.2, 6.4, name="front")
+        back = place(box(sizeOf(front).x, 1.95, 3, name="back"),
+                     midAt(atMid(front)), minAt(atMax(front)), minAt(atMin(front)))
+
+        key_pivot = place(ry(cylinder(sizeOf(back).x, 1, name="key_pivot"), 90),
+                          midAt(atMid(back)), minAt(atMax(back)), midAt(atMin(back)))
+        sloped_key = place(box(sizeOf(back).x, sizeOf(key_pivot).y, 100, name="sloped_key"),
+                           midAt(atMid(key_pivot)), midAt(atMid(key_pivot)), minAt(atMid(key_pivot)))
+        sloped_key = union(sloped_key, key_pivot)
+        rx(sloped_key, 20, center=(0, midOf(sloped_key).y, 0))
+
+        sloped_back = difference(back, sloped_key, name="sloped_back")
+
+        top_face = get_face(sloped_back, "top")
+        # This was a specific example, where the top of the differenced box was off by a floating point smidge from
+        # the top of the original box, which caused the face coincidence check to fail initially
+        top_faces = faces(sloped_back, get_face(back, "top"))
+
+        self.assertEqual(len(top_faces), 1)
+        self.assertEqual(top_faces[0], top_face)
+
 
 def run(context):
-    """test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
-        "face_test.FaceTest.test_duplicated_faces")"""
+    #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
+    #    "face_test.FaceTest.test_face_bounding_box_tolerance")
 
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(FaceTest)
     unittest.TextTestRunner(failfast=True).run(test_suite)

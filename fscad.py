@@ -508,9 +508,20 @@ def _check_face_coincidence(face1, face2):
 def _find_coincident_faces_on_body(body, *faces):
     coincident_faces = []
     for face in faces:  # type: adsk.fusion.BRepFace
-        if body.boundingBox.intersects(face.boundingBox):
+        face_bounding_box = face.boundingBox
+        expanded_bounding_box = adsk.core.BoundingBox3D.create(
+            adsk.core.Point3D.create(
+                face_bounding_box.minPoint.x - app().pointTolerance,
+                face_bounding_box.minPoint.y - app().pointTolerance,
+                face_bounding_box.minPoint.z - app().pointTolerance),
+            adsk.core.Point3D.create(
+                face_bounding_box.maxPoint.x + app().pointTolerance,
+                face_bounding_box.maxPoint.y + app().pointTolerance,
+                face_bounding_box.maxPoint.z + app().pointTolerance),
+        )
+        if body.boundingBox.intersects(expanded_bounding_box):
             for body_face in body.faces:
-                if body_face.boundingBox.intersects(face.boundingBox):
+                if body_face.boundingBox.intersects(expanded_bounding_box):
                     if _check_face_coincidence(face, body_face):
                         coincident_faces.append(body_face)
     return coincident_faces
