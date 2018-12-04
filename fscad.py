@@ -168,16 +168,19 @@ def _oriented_bounding_box_to_bounding_box(oriented: adsk.core.OrientedBoundingB
     )
 
 
-def _get_exact_bounding_box(occurrence):
+def _get_exact_bounding_box(entity):
     vector1 = adsk.core.Vector3D.create(1.0, 0.0, 0.0)
     vector2 = adsk.core.Vector3D.create(0.0, 1.0, 0.0)
 
-    bodies = _occurrence_bodies(occurrence)
+    if isinstance(entity, adsk.fusion.Occurrence):
+        entities = _occurrence_bodies(entity)
+    else:
+        entities = [entity]
 
     bounding_box = None
-    for body in bodies:
+    for entity in entities:
         body_bounding_box = _oriented_bounding_box_to_bounding_box(
-            app().measureManager.getOrientedBoundingBox(body, vector1, vector2))
+            app().measureManager.getOrientedBoundingBox(entity, vector1, vector2))
         if bounding_box is None:
             bounding_box = body_bounding_box
         else:
