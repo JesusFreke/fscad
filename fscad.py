@@ -208,15 +208,19 @@ def _mark_face(face, face_name):
     face.body.attributes.add("fscad", face_name, str(face_uuid))
 
 
-def _mark_all_faces(body: adsk.fusion.BRepBody):
+def _mark_body_and_all_faces(body: adsk.fusion.BRepBody):
     if body.nativeObject is not None:
         body = body.nativeObject
+    if body.attributes.itemByName("fscad", "id") is None:
+        body_uuid = str(uuid.uuid4())
+        body.attributes.add("fscad", "id", body_uuid)
+        body.attributes.add("fscad", body_uuid, body_uuid)
+
     for face in body.faces:
         if face.attributes.itemByName("fscad", "id") is None:
-            face_uuid = uuid.uuid4()
-            face.attributes.add("fscad", "id", str(face_uuid))
-            face.attributes.add("fscad", str(face_uuid), str(face_uuid))
-
+            face_uuid = str(uuid.uuid4())
+            face.attributes.add("fscad", "id", face_uuid)
+            face.attributes.add("fscad", face_uuid, face_uuid)
 
 @_group_timeline
 def sphere(radius, *, name="Sphere") -> adsk.fusion.Occurrence:
@@ -1084,20 +1088,38 @@ def rz(occurrence, angle, center=None):
 def _duplicate_occurrence(occurrence: adsk.fusion.Occurrence, parent_component=None):
     if not parent_component:
         parent_component = _get_parent_component(occurrence)
+    parent_occurrence = root().allOccurrencesByComponent(parent_component)
+    if parent_occurrence:
+        parent_occurrence = parent_occurrence[0]
+
+    component_id_attr = occurrence.component.attributes.itemByName("fscad", "id")
+    if occurrence.component.attributes.itemByName("fscad", "id") is None:
+        component_uuid = str(uuid.uuid4())
+        occurrence.component.attributes.add("fscad", "id", component_uuid)
+        occurrence.component.attributes.add("fscad", component_uuid, component_uuid)
+    else:
+        component_uuid = component_id_attr.value
 
     result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    if parent_occurrence:
+        result_occurrence = result_occurrence.createForAssemblyContext(parent_occurrence)
     result_occurrence.component.name = occurrence.component.name
     result_occurrence.isLightBulbOn = occurrence.isLightBulbOn
+    result_occurrence.component.attributes.add("fscad", "id", component_uuid)
+    result_occurrence.component.attributes.add("fscad", component_uuid, component_uuid)
+
     for body in occurrence.bRepBodies:
-        _mark_all_faces(body)
+        _mark_body_and_all_faces(body)
         body.copyToComponent(result_occurrence)
-        for child_occurrence in occurrence.childOccurrences:
-            _duplicate_occurrence(child_occurrence)
+    for child_occurrence in occurrence.childOccurrences:
+        _duplicate_occurrence(child_occurrence, result_occurrence.component)
     return result_occurrence
 
 
 def duplicate_of(occurrence):
-    return _duplicate_occurrence(occurrence, root())
+    dup = _duplicate_occurrence(occurrence, root())
+    dup.isLightBulbOn = True
+    return dup
 
 
 @_group_timeline
@@ -1106,14 +1128,26 @@ def duplicate(func, values, occurrence):
 
     result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     result_occurrence.component.name = occurrence.component.name
-
     occurrence.moveToComponent(result_occurrence)
     occurrence = occurrence.createForAssemblyContext(result_occurrence)
-    func(occurrence, values[0])
+
     for value in values[1:]:
         duplicate_occurrence = _duplicate_occurrence(occurrence)
         func(duplicate_occurrence, value)
+
+    func(occurrence, values[0])
     return result_occurrence
+
+
+def find_all_duplicates(occurrence):
+    id_attr = occurrence.component.attributes.itemByName("fscad", "id")
+    occurrences = []
+    if id_attr is not None:
+        for attr in design().findAttributes("fscad", id_attr.value):
+            occurrences.extend(root().allOccurrencesByComponent(attr.parent))
+    else:
+        occurrences.append(occurrence)
+    return occurrences
 
 
 @_group_timeline

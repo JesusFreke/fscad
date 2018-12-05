@@ -18,6 +18,7 @@ import unittest
 
 test_modules = [
     "difference_test",
+    "duplicate_test",
     "extrude_test",
     "face_test",
     "fillet_chamfer_test",
