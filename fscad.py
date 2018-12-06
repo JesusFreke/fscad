@@ -1198,11 +1198,11 @@ def duplicate_of(occurrence):
 
 
 @_group_timeline
-def duplicate(func, values, occurrence):
+def duplicate(func, values, occurrence, name=None):
     parent_component = _get_parent_component(occurrence)
 
     result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
-    result_occurrence.component.name = occurrence.component.name
+    result_occurrence.component.name = name or occurrence.component.name
     occurrence = occurrence.moveToComponent(result_occurrence)
 
     for value in values[1:]:
