@@ -356,8 +356,8 @@ def extrude(occurrence, height, angle=0, name="Extrude"):
     for face in feature.sideFaces:
         _mark_face(face, "side")
 
-    occurrence.moveToComponent(result_occurrence)
-    occurrence.createForAssemblyContext(result_occurrence).isLightBulbOn = False
+    occurrence = occurrence.moveToComponent(result_occurrence)
+    occurrence.isLightBulbOn = False
     result_occurrence.component.name = name
 
     return result_occurrence
@@ -603,8 +603,8 @@ def loft(*occurrences, name="Loft"):
         _mark_face(face, "side")
 
     for occurrence in occurrences:
-        occurrence.moveToComponent(result_occurrence)
-        occurrence.createForAssemblyContext(result_occurrence).isLightBulbOn = False
+        occurrence = occurrence.moveToComponent(result_occurrence)
+        occurrence.isLightBulbOn = False
     result_occurrence.component.name = name
 
     return result_occurrence
@@ -768,8 +768,7 @@ def intersection(*occurrences, name=None):
         _do_intersection(result_occurrence, _collection_of(_occurrence_bodies(tool_occurrence)))
 
     for occurrence in occurrences:
-        occurrence.moveToComponent(result_occurrence)
-        occurrence = occurrence.createForAssemblyContext(result_occurrence)
+        occurrence = occurrence.moveToComponent(result_occurrence)
         occurrence.isLightBulbOn = False
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
@@ -818,8 +817,7 @@ def difference(*occurrences, name=None):
         raise
 
     for occurrence in occurrences:
-        occurrence.moveToComponent(result_occurrence)
-        occurrence = occurrence.createForAssemblyContext(result_occurrence)
+        occurrence = occurrence.moveToComponent(result_occurrence)
         occurrence.isLightBulbOn = False
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
@@ -948,8 +946,7 @@ def union(*occurrences, name=None):
         combine_input.isNewComponent = False
         parent_component.features.combineFeatures.add(combine_input)
         for occurrence in occurrences:
-            occurrence.moveToComponent(result_occurrence)
-            occurrence = occurrence.createForAssemblyContext(result_occurrence)
+            occurrence = occurrence.moveToComponent(result_occurrence)
             occurrence.isLightBulbOn = False
     else:
         for occurrence in occurrences:
@@ -1138,8 +1135,7 @@ def duplicate(func, values, occurrence):
 
     result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     result_occurrence.component.name = occurrence.component.name
-    occurrence.moveToComponent(result_occurrence)
-    occurrence = occurrence.createForAssemblyContext(result_occurrence)
+    occurrence = occurrence.moveToComponent(result_occurrence)
 
     for value in values[1:]:
         duplicate_occurrence = _duplicate_occurrence(occurrence)
