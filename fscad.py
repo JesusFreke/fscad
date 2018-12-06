@@ -126,11 +126,8 @@ def _for_all_child_occurrences(occurrence, func, include_hidden=False):
 
 def _occurrence_bodies(occurrence: adsk.fusion.Occurrence, include_hidden=False):
     bodies = []
-    for body in occurrence.bRepBodies:
-        bodies.append(body)
-    for child in occurrence.childOccurrences:
-        if include_hidden or child.isLightBulbOn:
-            bodies.extend(_occurrence_bodies(child))
+    _for_all_child_occurrences(
+        occurrence, lambda child_occurrence: bodies.extend(child_occurrence.bRepBodies), include_hidden)
     return bodies
 
 
@@ -326,6 +323,11 @@ def extrude(occurrence, height, angle=0, name="Extrude"):
         raise ValueError("Can't use 3D geometry with extrude")
     if not _check_coplanarity(None, occurrence):
         raise ValueError("Can't use non-coplanar 2D geometry with extrude")
+
+    if not occurrence.isLightBulbOn:
+        occurrence = _duplicate_occurrence(occurrence, root())
+        occurrence.isLightBulbOn = True
+
     faces = []
     for body in _occurrence_bodies(occurrence):
         faces.extend(body.faces)

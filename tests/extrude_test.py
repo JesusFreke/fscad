@@ -19,6 +19,7 @@ import importlib
 importlib.reload(test_utils)
 import test_utils
 
+import fscad
 from fscad import *
 
 
@@ -44,7 +45,21 @@ class ExtrudeTest(test_utils.FscadTestCase):
 
         extrude(difference(first, hole, name="face with hole"), 5, name="loft")
 
+    def test_extrude_hidden(self):
+        first = rect(2, 2, name="first")
+        hole = place(circle(.5, name="hole"),
+                     midAt(atMid(first)), midAt(atMid(first)))
+        diff = difference(first, hole, name="face with hole")
+        hole2 = fscad._duplicate_occurrence(hole, root())
+        extrude(hole2, 5, name="hole_extrude")
+        for dup in find_all_duplicates(hole):
+            self.assertTrue(dup.nativeObject == hole.nativeObject or dup.nativeObject == hole2.nativeObject)
+        self.assertEqual(len(find_all_duplicates(hole)), 2)
+
 
 def run(context):
+    #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
+    #    "extrude_test.ExtrudeTest.test_extrude_hidden")
+
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(ExtrudeTest)
     unittest.TextTestRunner(failfast=True).run(test_suite)
