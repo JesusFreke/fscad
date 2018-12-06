@@ -128,6 +128,33 @@ class UnionTest(test_utils.FscadTestCase):
 
         union(firsts, seconds, name="union")
 
+    def test_hidden_base_occurrence_union(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(2, 2, 2, name="second"),
+                       minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+        result = difference(first, second, name="difference")
+
+        third = place(box(2, 2, 2, name="third"),
+                      minAt(atMax(second)), midAt(atMid(second)), midAt(atMid(second)))
+
+        got_error = False
+        try:
+            union(second, third, name="second_union")
+        except:
+            got_error = True
+        self.assertTrue(got_error)
+
+    def test_hidden_tool_occurrence_union(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(2, 2, 2, name="second"),
+                       minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+        result = difference(first, second, name="difference")
+
+        third = place(box(2, 2, 2, name="third"),
+                      minAt(atMax(second)), midAt(atMid(second)), midAt(atMid(second)))
+        union(third, second, name="second_union")
+
+
 def run(context):
     #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
     #    "union_test.UnionTest.test_duplicated_union")

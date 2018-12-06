@@ -69,6 +69,34 @@ class FilletChamferTest(test_utils.FscadTestCase):
 
         chamfer(result, .2, .1)
 
+    def test_hidden_occurrence_fillet(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, .5, .5, name="second"),
+                       maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        diff = difference(first, second, name="diff")
+
+        result = edges(first, ["top"], ["right"])
+        got_error = False
+        try:
+            fillet(result, .1)
+        except:
+            got_error = True
+        self.assertTrue(got_error)
+
+    def test_hidden_occurrence_chamfer(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, .5, .5, name="second"),
+                       maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        diff = difference(first, second, name="diff")
+
+        result = edges(first, ["top"], ["right"])
+        got_error = False
+        try:
+            chamfer(result, .1)
+        except:
+            got_error = True
+        self.assertTrue(got_error)
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(FilletChamferTest)

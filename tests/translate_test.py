@@ -55,6 +55,19 @@ class TranslateTest(test_utils.FscadTestCase):
     def test_translate_rotated(self):
         tx(rz(box(1, 2, 3), 45), 10)
 
+    def test_hidden_occurrence_translate(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, .5, .5, name="second"),
+                       maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        diff = difference(first, second)
+
+        got_error = False
+        try:
+            translate(second, 5)
+        except:
+            got_error = True
+        self.assertTrue(got_error)
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(TranslateTest)

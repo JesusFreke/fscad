@@ -55,6 +55,19 @@ class RotateTest(test_utils.FscadTestCase):
     def test_rotate_translated(self):
         rz(tx(box(1, 2, 3), 10), 45)
 
+    def test_hidden_occurrence_rotate(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, .5, .5, name="second"),
+                       maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        diff = difference(first, second)
+
+        got_error = False
+        try:
+            rotate(second, 90)
+        except:
+            got_error = True
+        self.assertTrue(got_error)
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(RotateTest)

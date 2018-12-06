@@ -66,6 +66,18 @@ class ScaleTest(test_utils.FscadTestCase):
         first = box(1, 1, 1, name="first")
         scale(first, (1, 1, -10), (1, 1, 1))
 
+    def test_hidden_occurrence_scale(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, .5, .5, name="second"),
+                       maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        diff = difference(first, second, name="diff")
+        got_error = False
+        try:
+            scale(second, 2)
+        except:
+            got_error = True
+        self.assertTrue(got_error)
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(ScaleTest)

@@ -117,10 +117,21 @@ def _get_parent_component(occurrence):
     return occurrence.assemblyContext.component
 
 
+def _check_occurrence_visible(occurrence):
+    if not occurrence.isLightBulbOn:
+        raise ValueError("This operation cannot be performed on a hidden sub-component")
+
+
+def _component_occurrence(component):
+    occurrences = root().allOccurrencesByComponent(component)
+    assert(len(occurrences) == 1)
+    return occurrences[0]
+
+
 def _assembly_occurrence(occurrence):
     if occurrence.assemblyContext is not None:
         return occurrence
-    occurrences = occurrence.sourceComponent.allOccurrencesByComponent(occurrence.component)
+    occurrences = root().allOccurrencesByComponent(occurrence.component)
     assert(len(occurrences) == 1)
     return occurrences[0]
 
@@ -327,6 +338,7 @@ def circle(r, *, name="Circle"):
 
 @_group_timeline
 def extrude(occurrence, height, angle=0, name="Extrude"):
+    occurrence = _assembly_occurrence(occurrence)
     if not _check_2D(occurrence):
         raise ValueError("Can't use 3D geometry with extrude")
     if not _check_coplanarity(None, occurrence):
@@ -555,6 +567,9 @@ def fillet(edges, radius, blend_corners=False):
     if len(edges) == 0:
         return
     component = edges[0].body.parentComponent
+    occurrence = _component_occurrence(component)
+    _check_occurrence_visible(occurrence)
+
     fillet_input = component.features.filletFeatures.createInput()
     fillet_input.addConstantRadiusEdgeSet(_collection_of(edges),
                                           adsk.core.ValueInput.createByReal(_cm(radius)),
@@ -568,6 +583,9 @@ def chamfer(edges, distance, distance2=None):
     if len(edges) == 0:
         return
     component = edges[0].body.parentComponent
+    occurrence = _component_occurrence(component)
+    _check_occurrence_visible(occurrence)
+
     chamfer_input = component.features.chamferFeatures.createInput(
         _collection_of(edges), False)
     if distance2 is not None:
@@ -583,6 +601,15 @@ def chamfer(edges, distance, distance2=None):
 
 @_group_timeline
 def loft(*occurrences, name="Loft"):
+    occurrences_copy = []
+    for occurrence in occurrences:
+        assembly_occurrence = _assembly_occurrence(occurrence)
+        if assembly_occurrence.isLightBulbOn:
+            occurrences_copy.append(assembly_occurrence)
+        else:
+            occurrences_copy.append(_duplicate_occurrence(assembly_occurrence, root()))
+    occurrences = occurrences_copy
+
     loft_input = root().features.loftFeatures.createInput(adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
     for occurrence in occurrences:
         if not _check_2D(occurrence):
@@ -611,6 +638,9 @@ def loft(*occurrences, name="Loft"):
 
 @_group_timeline
 def scale(occurrence, scale_value, center=None):
+    occurrence = _assembly_occurrence(occurrence)
+    _check_occurrence_visible(occurrence)
+
     def center_point():
         if center is not None:
             base_feature = occurrence.component.features.baseFeatures.add()
@@ -750,7 +780,17 @@ def _do_intersection(target_occurrence, tool_bodies):
 
 @_group_timeline
 def intersection(*occurrences, name=None):
-    base_occurrence = occurrences[0]
+    base_occurrence = _assembly_occurrence(occurrences[0])
+    _check_occurrence_visible(base_occurrence)
+
+    occurrences_copy = [base_occurrence]
+    for occurrence in occurrences[1:]:
+        assembly_occurrence = _assembly_occurrence(occurrence)
+        if assembly_occurrence.isLightBulbOn:
+            occurrences_copy.append(assembly_occurrence)
+        else:
+            occurrences_copy.append(_duplicate_occurrence(assembly_occurrence))
+    occurrences = occurrences_copy
 
     plane = None
     if _check_2D(base_occurrence):
@@ -790,7 +830,17 @@ def _do_difference(target_occurrence, tool_occurrence):
 
 @_group_timeline
 def difference(*occurrences, name=None):
-    base_occurrence = occurrences[0]
+    base_occurrence = _assembly_occurrence(occurrences[0])
+    _check_occurrence_visible(base_occurrence)
+
+    occurrences_copy = [base_occurrence]
+    for occurrence in occurrences[1:]:
+        assembly_occurrence = _assembly_occurrence(occurrence)
+        if assembly_occurrence.isLightBulbOn:
+            occurrences_copy.append(assembly_occurrence)
+        else:
+            occurrences_copy.append(_duplicate_occurrence(assembly_occurrence))
+    occurrences = occurrences_copy
 
     is2D = _check_2D(base_occurrence)
     plane = None
@@ -827,6 +877,9 @@ def difference(*occurrences, name=None):
 
 @_group_timeline
 def translate(occurrence, x=0, y=0, z=0):
+    occurrence = _assembly_occurrence(occurrence)
+    _check_occurrence_visible(occurrence)
+
     if x == 0 and y == 0 and z == 0:
         return occurrence
 
@@ -847,6 +900,9 @@ def translate(occurrence, x=0, y=0, z=0):
 
 @_group_timeline
 def rotate(occurrence, x=0, y=0, z=0, center=None):
+    occurrence = _assembly_occurrence(occurrence)
+    _check_occurrence_visible(occurrence)
+
     if x == 0 and y == 0 and z == 0:
         return occurrence
 
@@ -915,6 +971,18 @@ def _get_plane(entity):
 
 @_group_timeline
 def union(*occurrences, name=None):
+    base_occurrence = _assembly_occurrence(occurrences[0])
+    _check_occurrence_visible(base_occurrence)
+
+    occurrences_copy = [base_occurrence]
+    for occurrence in occurrences[1:]:
+        assembly_occurrence = _assembly_occurrence(occurrence)
+        if assembly_occurrence.isLightBulbOn:
+            occurrences_copy.append(assembly_occurrence)
+        else:
+            occurrences_copy.append(_duplicate_occurrence(assembly_occurrence))
+    occurrences = occurrences_copy
+
     is2D = None
     plane = None
     bodies = []

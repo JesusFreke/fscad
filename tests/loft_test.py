@@ -56,6 +56,18 @@ class LoftTest(test_utils.FscadTestCase):
                        midAt(atMid(first)), midAt(atMid(first)), midAt(1))
         loft(first, second, name="loft")
 
+    def test_hidden_occurrence_loft(self):
+        first = rect(2, 2, name="first")
+        second = place(rect(1, 1, name="second"),
+                       midAt(atMid(first)), midAt(atMid(first)))
+        diff = difference(first, second, name="diff")
+
+        third = place(rect(2, 2, name="third"), midAt(atMid(first)), midAt(atMid(first)), midAt(2))
+        fourth = place(rect(1, 1, name="fourth"), midAt(atMid(first)), midAt(atMid(first)), midAt(atMid(third)))
+        diff2 = difference(third, fourth, name="diff2")
+
+        loft(second, fourth, name="loft")
+
 
 def run(context):
     test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(LoftTest)

@@ -163,6 +163,34 @@ class DifferenceTest(test_utils.FscadTestCase):
                            midAt(atMid(outer)), midAt(atMid(outer)))
         difference(outerouter, diff1, name="difference2")
 
+    def test_hidden_base_occurrence_difference(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, .5, .5, name="second"),
+                       maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        result = difference(first, second, name="first_difference")
+
+        third = place(box(.25, .25, .25, name="third"),
+                      maxAt(atMax(second)), midAt(atMid(second)), midAt(atMid(second)))
+
+        got_error = False
+        try:
+            difference(second, third)
+        except:
+            got_error = True
+        self.assertTrue(got_error)
+
+    def test_hidden_tool_occurrence_difference(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, .5, .5, name="second"),
+                       maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        result = difference(first, second, name="first_difference")
+
+        third = place(box(1, 1, 1, name="third"),
+                      minAt(atMin(second)), midAt(atMid(second)), midAt(atMid(second)))
+        difference(third, second, name="second_difference")
+
+        self.assertEqual(len(find_all_duplicates(second)), 2)
+
 
 def run(context):
     #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(

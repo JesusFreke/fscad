@@ -131,6 +131,27 @@ class IntersectionTest(test_utils.FscadTestCase):
             got_exception = True
         self.assertTrue(got_exception, "No error when intersecting non-coplanar sketches")
 
+    def test_hidden_base_occurrence_intersection(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(2, 2, 2, name="second"),
+                       minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+        result = intersection(first, second, name="first_intersection")
+
+        got_error = False
+        try:
+            intersection(second, result, name="second_intersection")
+        except:
+            got_error = True
+        self.assertTrue(got_error)
+
+    def test_hidden_tool_occurrence_intersection(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(2, 2, 2, name="second"),
+                       minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+        result = intersection(first, second, name="first_intersection")
+        intersection(result, second, name="second_intersection")
+        self.assertEqual(len(find_all_duplicates(second)), 2)
+
 
 def run(context):
     #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
