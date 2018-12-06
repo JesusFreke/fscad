@@ -117,6 +117,14 @@ def _get_parent_component(occurrence):
     return occurrence.assemblyContext.component
 
 
+def _assembly_occurrence(occurrence):
+    if occurrence.assemblyContext is not None:
+        return occurrence
+    occurrences = occurrence.sourceComponent.allOccurrencesByComponent(occurrence.component)
+    assert(len(occurrences) == 1)
+    return occurrences[0]
+
+
 def _for_all_child_occurrences(occurrence, func, include_hidden=False):
     func(occurrence)
     for child_occurrence in occurrence.childOccurrences:
