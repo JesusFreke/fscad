@@ -39,6 +39,10 @@ class FscadWrapperMeta(type):
             def wrapper(self, *args, **kwargs):
                 try:
                     setup_document(self._test_name)
+                    if self.parameterized:
+                        set_parametric(True)
+                    else:
+                        set_parametric(False)
                     func(self)
                     self.validate_test()
                     close_document("expected")
@@ -61,6 +65,12 @@ class FscadTestCase(unittest.TestCase, metaclass=FscadWrapperMeta):
         self._test_name = test_name[5:]
         self._close_document = True
         super().__init__(test_name, *args, **kwargs)
+
+
+    def __str__(self):
+        if hasattr(self, "parameterized"):
+            return super().__str__() + "(%s)" % ("parameterized" if self.parameterized else "direct")
+        return super().__str__()
 
     def tearDown(self):
         if self._close_document:
@@ -101,15 +111,27 @@ class FscadTestCase(unittest.TestCase, metaclass=FscadWrapperMeta):
         result_occurrence.component.name = "actual_result"
         for occurrence in occurrences:
             occurrence.moveToComponent(result_occurrence)
-        docname = "%s/%s/%s.f3d" % (script_dir, self.__class__.__qualname__, self._test_name)
+
+        if self.parameterized:
+            test_name = self._test_name
+        else:
+            test_name = "direct/%s" % self._test_name
+
+        docname = "%s/%s/%s.f3d" % (script_dir, self.__class__.__name__, test_name)
         import_options = None
         try:
             import_options = app().importManager.createFusionArchiveImportOptions(docname)
         except RuntimeError:
             pass
 
-        self.assertIsNotNone(import_options,
-            "Couldn't find expected result document: %s" % docname)
+        if import_options is None:
+            fallback = "%s/%s/%s.f3d" % (script_dir, self.__class__.__name__, self._test_name)
+            try:
+                import_options = app().importManager.createFusionArchiveImportOptions(fallback)
+            except RuntimeError:
+                pass
+
+        self.assertIsNotNone(import_options, "Couldn't find expected result document: %s" % docname)
 
         expected_document = None
         for document in app().documents:
@@ -146,3 +168,15 @@ def close_document(name):
         if document.name == name:
             document.close(False)
             return
+
+
+def load_tests(loader, standard_tests, pattern):
+    test_cases = unittest.TestSuite()
+    for parameterized in [True, False]:
+        for standard_test_suite in standard_tests:
+            for standard_test in standard_test_suite:
+                if pattern is None or pattern == standard_test._test_name:
+                    standard_test.parameterized = parameterized
+                    test_cases.addTest(standard_test)
+
+    return test_cases

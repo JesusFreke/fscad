@@ -30,6 +30,8 @@ class Geometry2DTest(test_utils.FscadTestCase):
         circle(1, name="MyCircle")
 
 
+from test_utils import load_tests
 def run(context):
-    test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(Geometry2DTest)
+    import sys
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     unittest.TextTestRunner(failfast=True).run(test_suite)

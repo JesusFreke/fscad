@@ -79,6 +79,8 @@ class ScaleTest(test_utils.FscadTestCase):
         self.assertTrue(got_error)
 
 
+from test_utils import load_tests
 def run(context):
-    test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(ScaleTest)
+    import sys
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     unittest.TextTestRunner(failfast=True).run(test_suite)

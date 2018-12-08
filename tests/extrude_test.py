@@ -57,9 +57,8 @@ class ExtrudeTest(test_utils.FscadTestCase):
         self.assertEqual(len(find_all_duplicates(hole)), 2)
 
 
+from test_utils import load_tests
 def run(context):
-    #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
-    #    "extrude_test.ExtrudeTest.test_extrude_hidden")
-
-    test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(ExtrudeTest)
+    import sys
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     unittest.TextTestRunner(failfast=True).run(test_suite)

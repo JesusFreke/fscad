@@ -21,7 +21,6 @@ import test_utils
 
 from fscad import *
 
-
 class DifferenceTest(test_utils.FscadTestCase):
     def test_simple_difference(self):
         first = box(1, 1, 1, name="first")
@@ -192,9 +191,8 @@ class DifferenceTest(test_utils.FscadTestCase):
         self.assertEqual(len(find_all_duplicates(second)), 2)
 
 
+from test_utils import load_tests
 def run(context):
-    #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
-    #    "difference_test.DifferenceTest.test_complex_sketch_difference")
-
-    test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(DifferenceTest)
+    import sys
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     unittest.TextTestRunner(failfast=True).run(test_suite)

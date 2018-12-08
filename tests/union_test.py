@@ -155,9 +155,8 @@ class UnionTest(test_utils.FscadTestCase):
         union(third, second, name="second_union")
 
 
+from test_utils import load_tests
 def run(context):
-    #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
-    #    "union_test.UnionTest.test_duplicated_union")
-
-    test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(UnionTest)
+    import sys
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     unittest.TextTestRunner(failfast=True).run(test_suite)

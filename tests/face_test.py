@@ -290,9 +290,8 @@ class FaceTest(test_utils.FscadTestCase):
         self.assertEqual(top_faces[0], top_face)
 
 
+from test_utils import load_tests
 def run(context):
-    #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
-    #    "face_test.FaceTest.test_face_bounding_box_tolerance")
-
-    test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(FaceTest)
+    import sys
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     unittest.TextTestRunner(failfast=True).run(test_suite)

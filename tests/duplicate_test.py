@@ -54,9 +54,8 @@ class DuplicateTest(test_utils.FscadTestCase):
         difference(base, join.result())
 
 
+from test_utils import load_tests
 def run(context):
-    #test_suite = test_suite = unittest.defaultTestLoader.loadTestsFromName(
-    #    "duplicate_test.DuplicateTest.test_complex_sketch_duplicate")
-
-    test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(DuplicateTest)
+    import sys
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     unittest.TextTestRunner(failfast=True).run(test_suite)

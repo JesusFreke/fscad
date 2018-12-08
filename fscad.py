@@ -71,9 +71,23 @@ def user_interface():
     return app().userInterface
 
 
+def _is_parametric():
+    return design().designType == adsk.fusion.DesignTypes.ParametricDesignType
+
+
+def set_parametric(parametric):
+    if parametric:
+        design().designType = adsk.fusion.DesignTypes.ParametricDesignType
+    else:
+        design().designType = adsk.fusion.DesignTypes.DirectDesignType
+
+
 def _group_timeline(func):
     @functools.wraps(func)
     def func_wrapper(*args, **kwargs):
+        if not _is_parametric():
+            return func(*args, **kwargs)
+
         initial_count = design().timeline.count
         ret = func(*args, **kwargs)
         timeline_object = None
@@ -160,6 +174,8 @@ def _check_2D(occurrence):
             has2D = True
         if has2D and has3D:
             raise ValueError("Occurrence %s contains both 2D and 3D geometry" % occurrence.name)
+    if not has2D and not has3D:
+        return True
     return has2D
 
 
@@ -189,7 +205,7 @@ def _get_exact_bounding_box(entity):
     vector2 = adsk.core.Vector3D.create(0.0, 1.0, 0.0)
 
     if isinstance(entity, adsk.fusion.Occurrence):
-        entities = _occurrence_bodies(entity)
+        entities = _occurrence_bodies(_assembly_occurrence(entity))
     else:
         entities = [entity]
 
@@ -205,6 +221,9 @@ def _get_exact_bounding_box(entity):
 
 
 def _create_component(parent_component, *bodies, name):
+    parametric = _is_parametric()
+    if not parametric:
+        set_parametric(True)
     new_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     new_occurrence.component.name = name
     base_feature = new_occurrence.component.features.baseFeatures.add()
@@ -212,6 +231,8 @@ def _create_component(parent_component, *bodies, name):
     for body in bodies:
         new_occurrence.component.bRepBodies.add(body, base_feature)
     base_feature.finishEdit()
+    if not parametric:
+        set_parametric(False)
     return new_occurrence
 
 
@@ -433,6 +454,7 @@ def all_faces(occurrence: adsk.fusion.Occurrence, *faces: Union[adsk.fusion.BRep
 
 def faces(entity, *selectors):
     if isinstance(entity, adsk.fusion.Occurrence):
+        entity = _assembly_occurrence(entity)
         result = []
         for body in entity.component.bRepBodies:
             for face in faces(body, *selectors):
@@ -643,14 +665,17 @@ def scale(occurrence, scale_value, center=None):
 
     def center_point():
         if center is not None:
-            base_feature = occurrence.component.features.baseFeatures.add()
-            base_feature.startEdit()
+            parametric = _is_parametric()
+            if parametric:
+                base_feature = occurrence.component.features.baseFeatures.add()
+                base_feature.startEdit()
             sketch = occurrence.component.sketches.add(root().xYConstructionPlane)
             result = sketch.sketchPoints.add(adsk.core.Point3D.create(0, 0, 0))
             transform = adsk.core.Matrix3D.create()
             transform.translation = _cm(adsk.core.Vector3D.create(*center))
             sketch.transform = transform
-            base_feature.finishEdit()
+            if parametric:
+                base_feature.finishEdit()
             sketch.isLightBulbOn = False
             return result
         else:
@@ -678,16 +703,20 @@ def scale(occurrence, scale_value, center=None):
     def mirror_body(occurrence, body, transform):
         copy = brep().copy(body)
         brep().transform(copy, transform)
-        base_feature = root().features.baseFeatures.add()
-        base_feature.startEdit()
+        base_feature = None
+        parametric = _is_parametric()
+        if parametric:
+            base_feature = root().features.baseFeatures.add()
+            base_feature.startEdit()
         copy2 = root().bRepBodies.add(copy, base_feature)
-        base_feature.finishEdit()
-
-        base_feature = occurrence.component.features.baseFeatures.add()
-        base_feature.startEdit()
+        if parametric:
+            base_feature.finishEdit()
+            base_feature = occurrence.component.features.baseFeatures.add()
+            base_feature.startEdit()
         copy = copy2.copyToComponent(occurrence)
         copy2.deleteMe()
-        base_feature.finishEdit()
+        if parametric:
+            base_feature.finishEdit()
 
         for attr in body.nativeObject.attributes:
             copy.nativeObject.attributes.add(attr.groupName, attr.name, attr.value)
@@ -738,7 +767,10 @@ def scale(occurrence, scale_value, center=None):
             _for_all_child_occurrences(occurrence, do_mirror, True)
 
             for body in bodies_to_delete:
-                body.parentComponent.features.removeFeatures.add(body)
+                if _is_parametric():
+                    body.parentComponent.features.removeFeatures.add(body)
+                else:
+                    body.deleteMe()
         return occurrence
     else:
         if scale_value == 1:
@@ -772,10 +804,16 @@ def scale(occurrence, scale_value, center=None):
 
 def _do_intersection(target_occurrence, tool_bodies):
     for target_body in _occurrence_bodies(target_occurrence):
-        combine_input = target_occurrence.component.features.combineFeatures.createInput(target_body, tool_bodies)
-        combine_input.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
-        combine_input.isKeepToolBodies = True
-        target_occurrence.component.features.combineFeatures.add(combine_input)
+        if tool_bodies.count == 0:
+            if _is_parametric():
+                target_occurrence.component.features.removeFeatures.add(target_body)
+            else:
+                target_body.deleteMe()
+        else:
+            combine_input = target_occurrence.component.features.combineFeatures.createInput(target_body, tool_bodies)
+            combine_input.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
+            combine_input.isKeepToolBodies = True
+            target_occurrence.component.features.combineFeatures.add(combine_input)
 
 
 @_group_timeline
@@ -893,7 +931,8 @@ def translate(occurrence, x=0, y=0, z=0):
     original_transform = occurrence.transform  # type: adsk.core.Matrix3D
     original_transform.transformBy(transform)
     occurrence.transform = original_transform
-    design().snapshots.add()
+    if _is_parametric():
+        design().snapshots.add()
 
     return occurrence
 
@@ -928,7 +967,8 @@ def rotate(occurrence, x=0, y=0, z=0, center=None):
     transform = occurrence.transform  # type: adsk.core.Matrix3D
     transform.transformBy(transform1)
     occurrence.transform = transform
-    design().snapshots.add()
+    if _is_parametric():
+        design().snapshots.add()
 
     return occurrence
 

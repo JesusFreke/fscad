@@ -69,6 +69,8 @@ class LoftTest(test_utils.FscadTestCase):
         loft(second, fourth, name="loft")
 
 
+from test_utils import load_tests
 def run(context):
-    test_suite = unittest.defaultTestLoader.loadTestsFromTestCase(LoftTest)
+    import sys
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     unittest.TextTestRunner(failfast=True).run(test_suite)
