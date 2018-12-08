@@ -190,9 +190,51 @@ class DifferenceTest(test_utils.FscadTestCase):
 
         self.assertEqual(len(find_all_duplicates(second)), 2)
 
+    def test_keep_base(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            keep_bodies(first)
+            second = place(box(.5, .5, .5, name="second"),
+                           maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+            difference(first, second, name="diff")
+
+    def test_keep_base_recursive(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            keep_bodies(first)
+            second = place(box(.5, .5, .5, name="second"),
+                           maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+            diff1 = difference(first, second, name="diff1")
+
+            third = place(box(.5, .5, .5, name="third"),
+                          midAt(atMid(first)), minAt(atMin(first)), midAt(atMid(first)))
+            difference(diff1, third, name="diff2")
+
+    def test_keep_tool(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            second = place(box(.5, .5, .5, name="second"),
+                           maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+            keep_bodies(second)
+            difference(first, second, name="diff")
+
+    def test_keep_tool_recursive(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            second = place(box(.5, .5, .5, name="second"),
+                           maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+            keep_bodies(second)
+            diff1 = difference(first, second, name="diff1")
+
+            third = place(box(.5, .5, .5, name="third"),
+                          midAt(atMid(first)), minAt(atMin(first)), midAt(atMid(first)))
+            difference(diff1, third, name="diff2")
+
 
 from test_utils import load_tests
 def run(context):
     import sys
-    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]
+                                                                #, pattern="keep_tool_recursive"
+                                                                )
     unittest.TextTestRunner(failfast=True).run(test_suite)

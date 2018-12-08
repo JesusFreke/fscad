@@ -15,6 +15,7 @@
 import adsk.core
 import adsk.fusion
 import collections
+import contextlib
 import functools
 import math
 import traceback
@@ -23,6 +24,28 @@ import sys
 import uuid
 
 from typing import Iterable, List, Any, Union
+
+
+_keep_subtree = True
+
+
+@contextlib.contextmanager
+def keep_subtree(keep):
+    global _keep_subtree
+    bak = _keep_subtree
+    _keep_subtree = keep
+    yield
+    _keep_subtree = bak
+
+
+def keep_bodies(occurrence):
+    occurrence = _assembly_occurrence(occurrence)
+    occurrence.component.attributes.add("fscad", "keep", "keep")
+    return occurrence
+
+
+def _has_keep(occurrence):
+    return occurrence.component.attributes.itemByName("fscad", "keep") is not None
 
 
 def _convert_units(value, convert):
@@ -862,7 +885,7 @@ def _do_difference(target_occurrence, tool_occurrence):
     for target_body in _occurrence_bodies(target_occurrence):
         combine_input = target_occurrence.component.features.combineFeatures.createInput(target_body, tool_bodies)
         combine_input.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
-        combine_input.isKeepToolBodies = True
+        combine_input.isKeepToolBodies = _keep_subtree or _has_keep(tool_occurrence)
         target_occurrence.component.features.combineFeatures.add(combine_input)
 
 
@@ -870,6 +893,7 @@ def _do_difference(target_occurrence, tool_occurrence):
 def difference(*occurrences, name=None):
     base_occurrence = _assembly_occurrence(occurrences[0])
     _check_occurrence_visible(base_occurrence)
+    keep_base = _keep_subtree or _has_keep(base_occurrence)
 
     occurrences_copy = [base_occurrence]
     for occurrence in occurrences[1:]:
@@ -883,12 +907,21 @@ def difference(*occurrences, name=None):
     is2D = _check_2D(base_occurrence)
     plane = None
 
-    result_occurrence = _get_parent_component(base_occurrence).occurrences.addNewComponent(adsk.core.Matrix3D.create())
-    result_occurrence.component.name = name or base_occurrence.component.name
-    for body in _occurrence_bodies(base_occurrence):
+    if _keep_subtree or keep_base:
+        result_occurrence = _get_parent_component(
+            base_occurrence).occurrences.addNewComponent(adsk.core.Matrix3D.create())
+        result_occurrence.component.name = name or base_occurrence.component.name
+        for body in _occurrence_bodies(base_occurrence):
+            if is2D:
+                plane = _check_coplanarity(plane, _get_plane(body))
+            body.copyToComponent(result_occurrence)
+    else:
         if is2D:
-            plane = _check_coplanarity(plane, _get_plane(body))
-        body.copyToComponent(result_occurrence)
+            for body in _occurrence_bodies(base_occurrence):
+                plane = _check_coplanarity(plane, _get_plane(body))
+        result_occurrence = base_occurrence
+        if name is not None:
+            result_occurrence.component.name = name
 
     try:
         for tool_occurrence in occurrences[1:]:
@@ -904,9 +937,18 @@ def difference(*occurrences, name=None):
         result_occurrence.deleteMe()
         raise
 
-    for occurrence in occurrences:
-        occurrence = occurrence.moveToComponent(result_occurrence)
-        occurrence.isLightBulbOn = False
+    if keep_base:
+        base_occurrence.moveToComponent(result_occurrence)
+        base_occurrence.isLightBulbOn = False
+    for occurrence in occurrences[1:]:
+        if _keep_subtree or _has_keep(occurrence):
+            occurrence = occurrence.moveToComponent(result_occurrence)
+            occurrence.isLightBulbOn = False
+        elif _is_parametric():
+            base_occurrence.component.features.removeFeatures.add(occurrence)
+        else:
+            occurrence.deleteMe()
+
     if base_occurrence.assemblyContext is not None:
         result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
 
