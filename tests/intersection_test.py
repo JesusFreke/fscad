@@ -152,9 +152,101 @@ class IntersectionTest(test_utils.FscadTestCase):
         intersection(result, second, name="second_intersection")
         self.assertEqual(len(find_all_duplicates(second)), 2)
 
+    def test_keep_base(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            keep_bodies(first)
+            second = place(box(1, 1, 1, name="second"),
+                           minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+            intersection(first, second, name="intersection")
+
+    def test_keep_base_recursive(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            keep_bodies(first)
+            second = place(box(1, 1, 1, name="second"),
+                           minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+            intersection1 = intersection(first, second, name="intersection1")
+
+            third = place(box(1, 1, 1, name="third"),
+                          midAt(atMid(first)), midAt(atMid(first)), maxAt(atMid(first)))
+            intersection(intersection1, third, name="intersection2")
+
+    def test_keep_tool(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            second = place(box(1, 1, 1, name="second"),
+                           minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+            keep_bodies(second)
+            intersection(first, second, name="intersection")
+
+    def test_keep_tool_recursive(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            second = place(box(1, 1, 1, name="second"),
+                           minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+            keep_bodies(second)
+            intersection1 = intersection(first, second, name="intersection1")
+
+            third = place(box(1, 1, 1, name="third"),
+                          midAt(atMid(second)), midAt(atMid(second)), maxAt(atMid(second)))
+            intersection(intersection1, third, name="intersection2")
+
+    def test_deep_keep(self):
+        set_parametric(True)
+        first = box(1, 1, 1, name="first")
+        second = place(box(1, 1, 1, name="second"),
+                       minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+        keep_bodies(first)
+        intersection1 = intersection(first, second, name="intersection1")
+        with keep_subtree(False):
+            third = place(box(1, 1, 1, name="third"),
+                          midAt(atMid(first)), midAt(atMid(first)), maxAt(atMid(first)))
+            intersection2 = intersection(intersection1, third, name="intersection2")
+
+    def test_keep_subtree(self):
+        set_parametric(True)
+        first = box(1, 1, 1, name="first")
+        second = place(box(1, 1, 1, name="second"),
+                       minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+        intersection1 = intersection(first, second, name="intersection1")
+        keep_bodies(intersection1)
+        with keep_subtree(False):
+            third = place(box(1, 1, 1, name="third"),
+                          midAt(atMid(first)), midAt(atMid(first)), maxAt(atMid(first)))
+            intersection2 = intersection(intersection1, third, name="intersection2")
+
+
+    def test_keep_duplicated_tool(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            second = place(box(1, 1, 1, name="second"),
+                           minAt(atMid(first)), midAt(atMid(first)), midAt(atMid(first)))
+            keep_bodies(second)
+            dup = duplicate(lambda o, v: rz(o, v, center=midOf(first).asArray()), (0, -90), second)
+
+            intersection1 = intersection(first, dup, name="intersection1")
+
+            third = place(box(1, 1, 1, name="third"),
+                          maxAt(atMid(second)), minAt(atMin(second)), maxAt(atMid(second)))
+            intersection(intersection1, third, name="intersection2")
+
+    def test_keep_duplicated_target(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            keep_bodies(first)
+            dup = duplicate(tx, (0, 2, 4, 6, 8), first)
+
+            second = place(box(10, .5, .5),
+                           minAt(atMin(first)), midAt(atMid(first)), midAt(atMid(first)))
+
+            intersection1 = intersection(dup, second, name="intersection")
+
 
 from test_utils import load_tests
 def run(context):
     import sys
-    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]
+                                                                #, pattern="keep_duplicated_target"
+                                                                )
     unittest.TextTestRunner(failfast=True).run(test_suite)

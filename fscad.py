@@ -908,8 +908,7 @@ def intersection(*occurrences, name=None):
     for occurrence in occurrences:
         occurrence = occurrence.moveToComponent(result_occurrence)
         occurrence.isLightBulbOn = False
-    if base_occurrence.assemblyContext is not None:
-        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
+        _pare_occurrence(occurrence)
 
     return result_occurrence
 
