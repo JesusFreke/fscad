@@ -1128,16 +1128,13 @@ def union(*occurrences, name=None):
         combine_input.isKeepToolBodies = False
         combine_input.isNewComponent = False
         parent_component.features.combineFeatures.add(combine_input)
-        for occurrence in occurrences:
-            occurrence = occurrence.moveToComponent(result_occurrence)
-            occurrence.isLightBulbOn = False
-    else:
-        for occurrence in occurrences:
-            occurrence.moveToComponent(result_occurrence)
-    result_occurrence.component.name = name or base_occurrence.component.name
 
-    if base_occurrence.assemblyContext is not None:
-        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
+    for occurrence in occurrences:
+        occurrence = occurrence.moveToComponent(result_occurrence)
+        occurrence.isLightBulbOn = False
+        _pare_occurrence(occurrence)
+
+    result_occurrence.component.name = name or base_occurrence.component.name
 
     return result_occurrence
 

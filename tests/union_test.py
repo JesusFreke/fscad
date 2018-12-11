@@ -154,9 +154,101 @@ class UnionTest(test_utils.FscadTestCase):
                       minAt(atMax(second)), midAt(atMid(second)), midAt(atMid(second)))
         union(third, second, name="second_union")
 
+    def test_keep_base(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            keep_bodies(first)
+            second = place(box(.5, .5, .5, name="second"),
+                           minAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+            union(first, second, name="union")
+
+    def test_keep_base_recursive(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            keep_bodies(first)
+            second = place(box(.5, .5, .5, name="second"),
+                           minAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+            union1 = union(first, second, name="union1")
+
+            third = place(box(.5, .5, .5, name="third"),
+                          midAt(atMid(first)), maxAt(atMin(first)), midAt(atMid(first)))
+            union(union1, third, name="union2")
+
+    def test_keep_tool(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            second = place(box(.5, .5, .5, name="second"),
+                           minAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+            keep_bodies(second)
+            union(first, second, name="union")
+
+    def test_keep_tool_recursive(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            second = place(box(.5, .5, .5, name="second"),
+                           minAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+            keep_bodies(second)
+            union1 = union(first, second, name="union1")
+
+            third = place(box(.5, .5, .5, name="third"),
+                          midAt(atMid(second)), maxAt(atMin(second)), midAt(atMid(second)))
+            union(union1, third, name="union2")
+
+    def test_deep_keep(self):
+        set_parametric(True)
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, .5, .5, name="second"),
+                       minAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        keep_bodies(first)
+        union1 = union(first, second, name="union1")
+        with keep_subtree(False):
+            third = place(box(.5, .5, .5, name="third"),
+                          midAt(atMid(first)), maxAt(atMin(first)), midAt(atMid(first)))
+            union2 = union(union1, third, name="union2")
+
+    def test_keep_subtree(self):
+        set_parametric(True)
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, .5, .5, name="second"),
+                       minAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        union1 = union(first, second, name="union1")
+        keep_bodies(union1)
+        with keep_subtree(False):
+            third = place(box(.5, .5, .5, name="third"),
+                          midAt(atMid(first)), maxAt(atMin(first)), midAt(atMid(first)))
+            union2 = union(union1, third, name="union2")
+
+
+    def test_keep_duplicated_tool(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            second = place(box(.5, .5, .5, name="second"),
+                           minAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+            keep_bodies(second)
+            dup = duplicate(lambda o, v: rz(o, v, center=midOf(first).asArray()), (0, -90), second)
+
+            union1 = union(first, dup, name="union1")
+
+            third = place(box(.25, .25, .25, name="third"),
+                          minAt(atMax(second)), midAt(atMid(second)), midAt(atMid(second)))
+            union(union1, third, name="union2")
+
+    def test_keep_duplicated_target(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            keep_bodies(first)
+            dup = duplicate(tx, (0, 2, 4, 6, 8), first)
+
+            second = place(box(10, .5, .5),
+                           minAt(atMin(first)), midAt(atMid(first)), midAt(atMid(first)))
+
+            union1 = union(dup, second, name="union")
+
 
 from test_utils import load_tests
 def run(context):
     import sys
-    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]
+                                                                #, pattern="keep_duplicated_target"
+                                                                )
     unittest.TextTestRunner(failfast=True).run(test_suite)
