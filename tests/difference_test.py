@@ -226,8 +226,8 @@ class DifferenceTest(test_utils.FscadTestCase):
             keep_bodies(second)
             diff1 = difference(first, second, name="diff1")
 
-            third = place(box(.5, .5, .5, name="third"),
-                          midAt(atMid(first)), minAt(atMin(first)), midAt(atMid(first)))
+            third = place(box(.25, .25, .25, name="third"),
+                          maxAt(atMin(second)), midAt(atMid(second)), midAt(atMid(second)))
             difference(diff1, third, name="diff2")
 
     def test_deep_keep(self):
@@ -273,6 +273,6 @@ from test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]
-                                                                #, pattern="keep_duplicated_target"
+                                                                #, pattern="keep_tool_recursive"
                                                                 )
     unittest.TextTestRunner(failfast=True).run(test_suite)

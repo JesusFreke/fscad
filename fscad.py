@@ -936,7 +936,6 @@ def _do_difference(target_occurrence, tool_occurrence):
 def difference(*occurrences, name=None):
     base_occurrence = _assembly_occurrence(occurrences[0])
     _check_occurrence_visible(base_occurrence)
-    keep_base = _keep_subtree or _has_keep(base_occurrence, True)
 
     occurrences_copy = [base_occurrence]
     for occurrence in occurrences[1:]:
@@ -950,21 +949,13 @@ def difference(*occurrences, name=None):
     is2D = _check_2D(base_occurrence)
     plane = None
 
-    if keep_base:
-        result_occurrence = _get_parent_component(
-            base_occurrence).occurrences.addNewComponent(adsk.core.Matrix3D.create())
-        result_occurrence.component.name = name or base_occurrence.component.name
-        for body in _occurrence_bodies(base_occurrence):
-            if is2D:
-                plane = _check_coplanarity(plane, _get_plane(body))
-            body.copyToComponent(result_occurrence)
-    else:
+    result_occurrence = _get_parent_component(
+        base_occurrence).occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    result_occurrence.component.name = name or base_occurrence.component.name
+    for body in _occurrence_bodies(base_occurrence):
         if is2D:
-            for body in _occurrence_bodies(base_occurrence):
-                plane = _check_coplanarity(plane, _get_plane(body))
-        result_occurrence = base_occurrence
-        if name is not None:
-            result_occurrence.component.name = name
+            plane = _check_coplanarity(plane, _get_plane(body))
+        body.copyToComponent(result_occurrence)
 
     try:
         for tool_occurrence in occurrences[1:]:
@@ -980,10 +971,9 @@ def difference(*occurrences, name=None):
         result_occurrence.deleteMe()
         raise
 
-    if keep_base:
-        base_occurrence = base_occurrence.moveToComponent(result_occurrence)
-        base_occurrence.isLightBulbOn = False
-        _pare_occurrence(base_occurrence)
+    base_occurrence = base_occurrence.moveToComponent(result_occurrence)
+    base_occurrence.isLightBulbOn = False
+    _pare_occurrence(base_occurrence)
 
     return result_occurrence
 
