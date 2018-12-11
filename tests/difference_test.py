@@ -230,11 +230,49 @@ class DifferenceTest(test_utils.FscadTestCase):
                           midAt(atMid(first)), minAt(atMin(first)), midAt(atMid(first)))
             difference(diff1, third, name="diff2")
 
+    def test_deep_keep(self):
+        set_parametric(True)
+        first = box(1, 1, 1, name="first")
+        second = place(box(.5, .5, .5, name="second"),
+                       maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        keep_bodies(first)
+        diff1 = difference(first, second, name="diff1")
+        with keep_subtree(False):
+            third = place(box(.5, .5, .5, name="third"),
+                          midAt(atMid(first)), minAt(atMin(first)), midAt(atMid(first)))
+            diff2 = difference(diff1, third, name="diff2")
+
+
+    def test_keep_duplicated_tool(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            second = place(box(.5, .5, .5, name="second"),
+                           maxAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+            keep_bodies(second)
+            dup = duplicate(lambda o, v: rz(o, v, center=midOf(first).asArray()), (0, -90), second)
+
+            diff1 = difference(first, dup, name="diff1")
+
+            third = place(box(.25, .25, .25, name="third"),
+                          maxAt(atMin(second)), midAt(atMid(second)), midAt(atMid(second)))
+            difference(diff1, third, name="diff2")
+
+    def test_keep_duplicated_target(self):
+        with keep_subtree(False):
+            first = box(1, 1, 1, name="first")
+            keep_bodies(first)
+            dup = duplicate(tx, (0, 2, 4, 6, 8), first)
+
+            second = place(box(10, .5, .5),
+                           minAt(atMin(first)), midAt(atMid(first)), midAt(atMid(first)))
+
+            diff = difference(dup, second, name="diff")
+
 
 from test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]
-                                                                #, pattern="keep_tool_recursive"
+                                                                #, pattern="keep_duplicated_target"
                                                                 )
     unittest.TextTestRunner(failfast=True).run(test_suite)

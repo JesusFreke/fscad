@@ -44,8 +44,45 @@ def keep_bodies(occurrence):
     return occurrence
 
 
-def _has_keep(occurrence):
-    return occurrence.component.attributes.itemByName("fscad", "keep") is not None
+def _get_kept_occurrences(occurrence):
+    keep_children = []
+    if _has_keep(occurrence):
+        keep_children.append(occurrence)
+    else:
+        for child_occurrence in occurrence.childOccurrences:
+            keep_children.extend(_get_kept_occurrences(child_occurrence))
+    return keep_children
+
+
+def _has_keep(occurrence, recursive=False):
+    if occurrence.component.attributes.itemByName("fscad", "keep") is not None:
+        return True
+    if recursive:
+        for occurrence in occurrence.childOccurrences:
+            if _has_keep(occurrence, True):
+                return True
+    return False
+
+
+def _pare_occurrence(occurrence, parent_component=None):
+    if parent_component is None:
+        if _keep_subtree or _has_keep(occurrence):
+            # Nothing to do, we're keeping the entire occurrence
+            return
+        parent_component = _get_parent_component(occurrence)
+
+    if _keep_subtree or _has_keep(occurrence):
+        occurrence = occurrence.moveToComponent(_component_occurrence(parent_component))
+        occurrence.isLightBulbOn = False
+        return
+
+    for child_occurrence in occurrence.childOccurrences:
+        _pare_occurrence(child_occurrence, parent_component)
+
+    if _is_parametric():
+        _get_parent_component(occurrence).features.removeFeatures.add(occurrence)
+    else:
+        occurrence.deleteMe()
 
 
 def _convert_units(value, convert):
@@ -882,18 +919,24 @@ def _do_difference(target_occurrence, tool_occurrence):
     for tool_body in _occurrence_bodies(tool_occurrence):
         tool_bodies.add(tool_body)
 
-    for target_body in _occurrence_bodies(target_occurrence):
+    target_bodies = _occurrence_bodies(target_occurrence)
+    for i in range(0, len(target_bodies)):
+        target_body = target_bodies[i]
         combine_input = target_occurrence.component.features.combineFeatures.createInput(target_body, tool_bodies)
         combine_input.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
-        combine_input.isKeepToolBodies = _keep_subtree or _has_keep(tool_occurrence)
+        combine_input.isKeepToolBodies = i < len(target_bodies) - 1 or _keep_subtree or _has_keep(tool_occurrence, True)
         target_occurrence.component.features.combineFeatures.add(combine_input)
+
+    tool_occurrence = tool_occurrence.moveToComponent(target_occurrence)
+    tool_occurrence.isLightBulbOn = False
+    _pare_occurrence(tool_occurrence)
 
 
 @_group_timeline
 def difference(*occurrences, name=None):
     base_occurrence = _assembly_occurrence(occurrences[0])
     _check_occurrence_visible(base_occurrence)
-    keep_base = _keep_subtree or _has_keep(base_occurrence)
+    keep_base = _keep_subtree or _has_keep(base_occurrence, True)
 
     occurrences_copy = [base_occurrence]
     for occurrence in occurrences[1:]:
@@ -907,7 +950,7 @@ def difference(*occurrences, name=None):
     is2D = _check_2D(base_occurrence)
     plane = None
 
-    if _keep_subtree or keep_base:
+    if keep_base:
         result_occurrence = _get_parent_component(
             base_occurrence).occurrences.addNewComponent(adsk.core.Matrix3D.create())
         result_occurrence.component.name = name or base_occurrence.component.name
@@ -938,19 +981,9 @@ def difference(*occurrences, name=None):
         raise
 
     if keep_base:
-        base_occurrence.moveToComponent(result_occurrence)
+        base_occurrence = base_occurrence.moveToComponent(result_occurrence)
         base_occurrence.isLightBulbOn = False
-    for occurrence in occurrences[1:]:
-        if _keep_subtree or _has_keep(occurrence):
-            occurrence = occurrence.moveToComponent(result_occurrence)
-            occurrence.isLightBulbOn = False
-        elif _is_parametric():
-            base_occurrence.component.features.removeFeatures.add(occurrence)
-        else:
-            occurrence.deleteMe()
-
-    if base_occurrence.assemblyContext is not None:
-        result_occurrence = result_occurrence.createForAssemblyContext(base_occurrence.assemblyContext)
+        _pare_occurrence(base_occurrence)
 
     return result_occurrence
 
@@ -1264,6 +1297,8 @@ def _duplicate_occurrence(occurrence: adsk.fusion.Occurrence, parent_component=N
     result_occurrence.isLightBulbOn = occurrence.isLightBulbOn
     result_occurrence.component.attributes.add("fscad", "id", component_uuid)
     result_occurrence.component.attributes.add("fscad", component_uuid, component_uuid)
+    if _has_keep(occurrence):
+        result_occurrence.component.attributes.add("fscad", "keep", "keep")
 
     for body in occurrence.bRepBodies:
         _mark_body_and_all_faces(body)

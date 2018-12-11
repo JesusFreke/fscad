@@ -43,7 +43,8 @@ class FscadWrapperMeta(type):
                         set_parametric(True)
                     else:
                         set_parametric(False)
-                    func(self)
+                    with keep_subtree(True):
+                        func(self)
                     self.validate_test()
                     close_document("expected")
                 except:
