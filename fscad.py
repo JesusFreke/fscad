@@ -90,6 +90,8 @@ def _convert_units(value, convert):
         return None
     if isinstance(value, adsk.core.Point3D):
         return adsk.core.Point3D.create(convert(value.x), convert(value.y), convert(value.z))
+    if isinstance(value, adsk.core.Point2D):
+        return adsk.core.Point2D.create(convert(value.x), convert(value.y))
     if isinstance(value, adsk.core.Vector3D):
         return adsk.core.Vector3D.create(convert(value.x), convert(value.y), convert(value.z))
     if isinstance(value, tuple):
@@ -1336,6 +1338,142 @@ def place(occurrence, x=keep(), y=keep(), z=keep()) -> adsk.fusion.Occurrence:
               z(2, bounding_box))
 
     return occurrence
+
+
+@_group_timeline
+def threads(entity, points, pitch, name="threads"):
+    pitch = _cm(pitch)
+
+    parent_component = None
+
+    face = None
+    if isinstance(entity, adsk.fusion.BRepFace):
+        parent_component = entity.body.parentComponent
+        if isinstance(entity.geometry, adsk.core.Cylinder):
+            face = entity
+    elif isinstance(entity, adsk.fusion.Occurrence):
+        parent_component = entity.component
+        for body in _occurrence_bodies(entity):
+            for body_face in body.faces:
+                if isinstance(body_face.geometry, adsk.core.Cylinder):
+                    if face is not None:
+                        raise ValueError("Multiple cylindrical faces found")
+                    face = body_face
+    if face is None:
+        raise ValueError("No cylindrical faces found")
+
+    cylinder = face.geometry  # type: adsk.core.Cylinder
+    axis = cylinder.axis
+    axis.normalize()
+
+    _, thread_start_point = face.evaluator.getPointAtParameter(face.evaluator.parametricRange().minPoint)
+    _, end_point = face.evaluator.getPointAtParameter(
+        adsk.core.Point2D.create(face.evaluator.parametricRange().maxPoint.x,
+                                 face.evaluator.parametricRange().minPoint.y))
+    length = end_point.distanceTo(thread_start_point)
+
+    start_point_vector = cylinder.origin.vectorTo(thread_start_point)
+    start_point_vector = axis.crossProduct(axis.crossProduct(start_point_vector))
+    start_point_vector.scaleBy(-1)
+    start_point_vector.normalize()
+
+    start_point_vector_copy = start_point_vector.copy()
+    origin = thread_start_point.copy()
+    start_point_vector_copy.scaleBy(-1 * cylinder.radius)
+    origin.translateBy(start_point_vector_copy)
+
+    max_y = None
+    max_x = None
+    for point in points:
+        point = _cm(point)
+        if max_x is None:
+            max_x = point[0]
+        elif point[0] > max_x:
+            max_x = point[0]
+        if max_y is None:
+            max_y = point[1]
+        elif point[1] > max_y:
+            max_y = point[1]
+
+    extra_length = max_y
+    turns = (length + extra_length)/pitch
+
+    axis_copy = axis.copy()
+    axis_copy.scaleBy(-1 * extra_length)
+    original_start_point = thread_start_point.copy()
+    thread_start_point.translateBy(axis_copy)
+
+    # axis is the "y" axis and start_point_vector is the "x" axis, with thread_start_point as the origin
+    helixes = []
+
+    for point in points:
+        point = _cm(point)
+        start_point = thread_start_point.copy()
+        x_axis = start_point_vector.copy()
+        x_axis.scaleBy(point[0])
+        y_axis = axis.copy()
+        y_axis.scaleBy(point[1])
+        start_point.translateBy(x_axis)
+        start_point.translateBy(y_axis)
+        helixes.append(brep().createHelixWire(origin, axis, start_point, pitch, turns, 0))
+
+    face_bodies = []
+    start_face_edges = []
+    end_face_edges = []
+    for i in range(-1, len(helixes)-1):
+        face_bodies.append(brep().createRuledSurface(helixes[i].wires[0], helixes[i+1].wires[0]))
+        start_face_edges.append(adsk.core.Line3D.create(
+            helixes[i].edges[0].startVertex.geometry,
+            helixes[i+1].edges[0].startVertex.geometry))
+        end_face_edges.append(adsk.core.Line3D.create(
+            helixes[i].edges[0].endVertex.geometry,
+            helixes[i+1].edges[0].endVertex.geometry))
+
+    start_face_wire, _ = brep().createWireFromCurves(start_face_edges)
+    end_face_wire, _ = brep().createWireFromCurves(end_face_edges)
+
+    face_bodies.append(brep().createFaceFromPlanarWires([start_face_wire]))
+    face_bodies.append(brep().createFaceFromPlanarWires([end_face_wire]))
+
+    cumulative_body = face_bodies[0]
+    for face_body in face_bodies[1:]:
+        brep().booleanOperation(cumulative_body, face_body, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+    bottom_plane = adsk.core.Plane.create(original_start_point, axis)
+    axis_copy = axis.copy()
+    axis_copy.scaleBy(length)
+    top_point = original_start_point.copy()
+    top_point.translateBy(axis_copy)
+    top_plane = adsk.core.Plane.create(top_point, axis)
+
+    bottom_face_wire = brep().planeIntersection(cumulative_body, bottom_plane)
+    top_face_wire = brep().planeIntersection(cumulative_body, top_plane)
+    bottom_face = brep().createFaceFromPlanarWires([bottom_face_wire])
+    top_face = brep().createFaceFromPlanarWires([top_face_wire])
+
+    axis_line = adsk.core.InfiniteLine3D.create(cylinder.origin, cylinder.axis)
+    bottom_point = axis_line.intersectWithSurface(bottom_plane)[0]
+    top_point = axis_line.intersectWithSurface(top_plane)[0]
+    bounding_cylinder = brep().createCylinderOrCone(
+        bottom_point, cylinder.radius + max_x, top_point, cylinder.radius + max_x)
+    brep().booleanOperation(cumulative_body, bounding_cylinder, adsk.fusion.BooleanTypes.IntersectionBooleanType)
+
+    brep().booleanOperation(cumulative_body, top_face, adsk.fusion.BooleanTypes.UnionBooleanType)
+    brep().booleanOperation(cumulative_body, bottom_face, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+    surface_bodies = []
+    for face in cumulative_body.faces:
+        surface_bodies.append(brep().copy(face))
+
+    thread_occurrence = _create_component(root(), *surface_bodies, name="thread")
+
+    stitch_input = thread_occurrence.component.features.stitchFeatures.createInput(
+        _collection_of(thread_occurrence.bRepBodies),
+        adsk.core.ValueInput.createByReal(app().pointTolerance),
+        adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+
+    thread_occurrence.component.features.stitchFeatures.add(stitch_input)
+    return thread_occurrence
 
 
 def setup_document(document_name="fSCAD-Preview"):
