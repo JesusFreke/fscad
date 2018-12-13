@@ -29,6 +29,37 @@ class Geometry2DTest(test_utils.FscadTestCase):
     def test_circle(self):
         circle(1, name="MyCircle")
 
+    def test_basic_polygon(self):
+        polygon(
+            (0, 0),
+            (1, 0),
+            (1, 1),
+            (0, 1))
+
+    def test_polygon(self):
+        polygon(
+            (0, 0),
+            (.5, 0),
+            (.5, .5),
+            (1, 0),
+            (1, 1),
+            (.25, .75),
+            (0, 1),
+            (.25, .5))
+
+    def test_regular_polygons(self):
+        for i in range(3, 10):
+            tx(regular_polygon(i, 1), (i-3)*2)
+
+    def test_regular_polygon_width(self):
+        hexagon = regular_polygon(6, regular_polygon_radius_for_width(1, 6))
+        hexagon_rect = place(rect(1, 1), midAt(atMid(hexagon)), midAt(atMid(hexagon)))
+
+        heptagon = regular_polygon(7, regular_polygon_radius_for_width(1, 7))
+        heptagon_rect = place(rect(1, 1), midAt(atMid(heptagon)), midAt(atMid(heptagon)))
+        tx(heptagon, 2)
+        tx(heptagon_rect, 2)
+
 
 from test_utils import load_tests
 def run(context):

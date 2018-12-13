@@ -420,6 +420,43 @@ def circle(r, *, name="Circle"):
 
 
 @_group_timeline
+def polygon(*points, name="Polygon"):
+    lines = []
+    for i in range(-1, len(points)-1):
+        lines.append(adsk.core.Line3D.create(
+            _cm(adsk.core.Point3D.create(points[i][0], points[i][1], 0)),
+            _cm(adsk.core.Point3D.create(points[i+1][0], points[i+1][1], 0))))
+
+    wire, _ = brep().createWireFromCurves(lines)
+    face = brep().createFaceFromPlanarWires([wire])
+
+    return _create_component(root(), face, name=name)
+
+
+@_group_timeline
+def regular_polygon(sides, radius, *, name="Polygon"):
+    # polygon will be rotated so that there is a flat surface parallel with the x axis on the bottom
+    step_angle = 360 / sides
+    points = []
+    for i in range(0, sides):
+        angle = step_angle / 2 + step_angle * i
+        points.append((
+            radius * math.sin(math.radians(angle)),
+            -radius * math.cos(math.radians(angle)),
+            0))
+    return polygon(*points, name=name)
+
+
+def regular_polygon_radius_for_width(width, sides):
+    # width is the distance from flat side to flat side for an even polygon
+    # or from flat side to vertex for an odd polygon
+    if sides % 2 == 0:
+        return width / (2 * math.cos(math.radians(180) / sides))
+    else:
+        return width / (1 + math.cos(math.radians(180) / sides))
+
+
+@_group_timeline
 def extrude(occurrence, height, angle=0, name="Extrude"):
     occurrence = _assembly_occurrence(occurrence)
     if not _check_2D(occurrence):
