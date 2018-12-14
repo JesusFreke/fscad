@@ -268,17 +268,29 @@ def _get_exact_bounding_box(entity):
 
     if isinstance(entity, adsk.fusion.Occurrence):
         entities = _occurrence_bodies(_assembly_occurrence(entity))
-    else:
-        entities = [entity]
+        return _get_exact_bounding_box(entities)
+
+    try:
+        if entity.objectType.startswith("adsk::fusion::BRep"):
+            return _oriented_bounding_box_to_bounding_box(
+                app().measureManager.getOrientedBoundingBox(entity, vector1, vector2))
+        raise TypeError("Cannot get bounding box for type %s" % type(entity).__name__)
+    except AttributeError:
+        pass
+
+    try:
+        iter(entity)
+    except TypeError:
+        raise TypeError("Cannot get bounding box for type %s" % type(entity).__name__)
+    entities = entity
 
     bounding_box = None
     for entity in entities:
-        body_bounding_box = _oriented_bounding_box_to_bounding_box(
-            app().measureManager.getOrientedBoundingBox(entity, vector1, vector2))
+        entity_bounding_box = _get_exact_bounding_box(entity)
         if bounding_box is None:
-            bounding_box = body_bounding_box
+            bounding_box = entity_bounding_box
         else:
-            bounding_box.combine(body_bounding_box)
+            bounding_box.combine(entity_bounding_box)
     return bounding_box
 
 
@@ -1191,16 +1203,16 @@ class Joiner(object):
         return self._occurrence
 
 
-def minOf(occurrence):
-    return _mm(_get_exact_bounding_box(occurrence).minPoint)
+def minOf(*entities):
+    return _mm(_get_exact_bounding_box(entities).minPoint)
 
 
-def maxOf(occurrence):
-    return _mm(_get_exact_bounding_box(occurrence).maxPoint)
+def maxOf(*entities):
+    return _mm(_get_exact_bounding_box(entities).maxPoint)
 
 
-def midOf(occurrence):
-    bounding_box = _get_exact_bounding_box(occurrence)
+def midOf(*entities):
+    bounding_box = _get_exact_bounding_box(entities)
     return _mm(adsk.core.Point3D.create(
         (bounding_box.minPoint.x + bounding_box.maxPoint.x) / 2,
         (bounding_box.minPoint.y + bounding_box.maxPoint.y) / 2,
@@ -1208,8 +1220,8 @@ def midOf(occurrence):
     ))
 
 
-def sizeOf(occurrence):
-    bounding_box = _get_exact_bounding_box(occurrence)
+def sizeOf(*entities):
+    bounding_box = _get_exact_bounding_box(entities)
     return _mm(adsk.core.Point3D.create(
         bounding_box.maxPoint.x - bounding_box.minPoint.x,
         bounding_box.maxPoint.y - bounding_box.minPoint.y,
@@ -1239,18 +1251,18 @@ def midAt(value):
         (bounding_box.minPoint.asArray()[coordinate_index] + bounding_box.maxPoint.asArray()[coordinate_index]) / 2)
 
 
-def atMin(entity):
-    bounding_box = _get_exact_bounding_box(entity)
+def atMin(*entities):
+    bounding_box = _get_exact_bounding_box(entities)
     return lambda coordinate_index: _mm(bounding_box.minPoint.asArray()[coordinate_index])
 
 
-def atMax(entity):
-    bounding_box = _get_exact_bounding_box(entity)
+def atMax(*entities):
+    bounding_box = _get_exact_bounding_box(entities)
     return lambda coordinate_index: _mm(bounding_box.maxPoint.asArray()[coordinate_index])
 
 
-def atMid(entity):
-    bounding_box = _get_exact_bounding_box(entity)
+def atMid(*entities):
+    bounding_box = _get_exact_bounding_box(entities)
     return lambda coordinate_index: _mm(
         (bounding_box.minPoint.asArray()[coordinate_index] + bounding_box.maxPoint.asArray()[coordinate_index]) / 2)
 
