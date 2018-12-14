@@ -1385,8 +1385,22 @@ def place(occurrence, x=keep(), y=keep(), z=keep()) -> adsk.fusion.Occurrence:
               x(0, bounding_box),
               y(1, bounding_box),
               z(2, bounding_box))
-
     return occurrence
+
+
+class Translation(object):
+    def __init__(self, x, y, z):
+        self.translation = (x, y, z)
+
+    def apply(self, occurrence):
+        translate(occurrence, *self.translation)
+
+
+def get_placement(entity, x=keep(), y=keep(), z=keep()):
+    bounding_box = _get_exact_bounding_box(entity)
+    return Translation(x(0, bounding_box),
+                       y(1, bounding_box),
+                       z(2, bounding_box))
 
 
 @_group_timeline

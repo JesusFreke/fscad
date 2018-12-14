@@ -56,6 +56,17 @@ class PlaceTest(test_utils.FscadTestCase):
                        minAt(atMax(first)),
                        keep())
 
+    def test_get_placement(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(.25, .25, .25, name="second"),
+                       minAt(atMax(first)), midAt(atMid(first)), maxAt(atMax(first)))
+        combined = union(first, second)
+
+        ball = sphere(.25)
+
+        get_placement(second, maxAt(atMin(ball)), midAt(atMid(ball)), midAt(atMid(ball))).apply(combined)
+
+
 
 from test_utils import load_tests
 def run(context):
