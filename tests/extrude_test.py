@@ -56,6 +56,24 @@ class ExtrudeTest(test_utils.FscadTestCase):
             self.assertTrue(dup.nativeObject == hole.nativeObject or dup.nativeObject == hole2.nativeObject)
         self.assertEqual(len(find_all_duplicates(hole)), 2)
 
+    def test_extrude_to_face(self):
+        first = box(1, 5, 100, name="first")
+        ry(first, 15, center=(midOf(first).x, 0, minOf(first).x))
+
+        second = place(rect(1, 5, name="second_base"),
+                       minAt(atMid(first)), midAt(atMid(first)), minAt(atMin(first)))
+
+        extrude_to(second, get_face(first, "right"), name="second")
+
+    def test_extrude_to_occurrence(self):
+        first = box(1, 5, 100, name="first")
+        ry(first, 15, center=(midOf(first).x, 0, minOf(first).x))
+
+        second = place(rect(1, 5, name="second_base"),
+                       minAt(atMid(first)), midAt(atMid(first)), minAt(atMin(first)))
+
+        extrude_to(second, first, name="second")
+
 
 from test_utils import load_tests
 def run(context):

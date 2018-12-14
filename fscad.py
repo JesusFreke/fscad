@@ -469,7 +469,7 @@ def regular_polygon_radius_for_width(width, sides):
 
 
 @_group_timeline
-def extrude(occurrence, height, angle=0, name="Extrude"):
+def _extrude(occurrence, extent, angle, name):
     occurrence = _assembly_occurrence(occurrence)
     if not _check_2D(occurrence):
         raise ValueError("Can't use 3D geometry with extrude")
@@ -486,7 +486,7 @@ def extrude(occurrence, height, angle=0, name="Extrude"):
     extrude_input = root().features.extrudeFeatures.createInput(
         _collection_of(faces), adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
     extrude_input.setOneSideExtent(
-        adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(_cm(height))),
+        extent,
         adsk.fusion.ExtentDirections.PositiveExtentDirection,
         adsk.core.ValueInput.createByReal(math.radians(angle)))
     feature = root().features.extrudeFeatures.add(extrude_input)
@@ -505,6 +505,24 @@ def extrude(occurrence, height, angle=0, name="Extrude"):
     result_occurrence.component.name = name
 
     return result_occurrence
+
+
+def extrude(occurrence, height, angle=0, name="Extrude"):
+    return _extrude(
+        occurrence,
+        adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(_cm(height))),
+        angle,
+        name)
+
+
+def extrude_to(occurrence, to_entity, angle=0, name="Extrude"):
+    if isinstance(to_entity, adsk.fusion.Occurrence):
+        bodies = list(_occurrence_bodies(to_entity))
+        if len(bodies) != 1:
+            raise ValueError("If to_entity is an occurrence, it must only contain a single body")
+        to_entity = bodies[0]
+
+    return _extrude(occurrence, adsk.fusion.ToEntityExtentDefinition.create(to_entity, False), angle, name)
 
 
 def edges(*args):
