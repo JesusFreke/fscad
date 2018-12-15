@@ -27,6 +27,7 @@ from typing import Iterable, List, Any, Union
 
 
 _keep_subtree = True
+_auto_keeping = False
 
 
 @contextlib.contextmanager
@@ -36,6 +37,49 @@ def keep_subtree(keep):
     _keep_subtree = keep
     yield
     _keep_subtree = bak
+
+
+def autokeep(func):
+    @functools.wraps(func)
+    def do_autokeep(*args, **kwargs):
+        if _keep_subtree:
+            return func(*args, **kwargs)
+
+        global _auto_keeping
+        bak = _auto_keeping
+        _auto_keeping = True
+        ret = func(*args, **kwargs)
+
+        occurrence = ret
+        if isinstance(ret, Iterable):
+            occurrence = next(iter(ret))
+
+        _auto_keeping = False
+
+        for child_occurrence in occurrence.childOccurrences:
+            _pare_occurrence(child_occurrence)
+
+        _auto_keeping = bak
+
+        return ret
+    return do_autokeep
+
+
+def pare_occurrence(occurrence):
+    global _auto_keeping
+    global _keep_subtree
+    auto_bak = _auto_keeping
+    subtree_bak = _keep_subtree
+
+    _auto_keeping = False
+    _keep_subtree = False
+    try:
+        for child_occurrence in occurrence.childOccurrences:
+            _pare_occurrence(child_occurrence)
+        return occurrence
+    finally:
+        _auto_keeping = auto_bak
+        _keep_subtree = subtree_bak
 
 
 def keep_bodies(occurrence):
@@ -65,13 +109,15 @@ def _has_keep(occurrence, recursive=False):
 
 
 def _pare_occurrence(occurrence, parent_component=None):
+    root_pare = False
     if parent_component is None:
-        if _keep_subtree or _has_keep(occurrence):
+        if _keep_subtree or _auto_keeping or _has_keep(occurrence):
             # Nothing to do, we're keeping the entire occurrence
             return
         parent_component = _get_parent_component(occurrence)
+        root_pare = True
 
-    if _keep_subtree or _has_keep(occurrence):
+    if _keep_subtree or _auto_keeping or _has_keep(occurrence):
         occurrence = occurrence.moveToComponent(_component_occurrence(parent_component))
         occurrence.isLightBulbOn = False
         return
@@ -79,10 +125,11 @@ def _pare_occurrence(occurrence, parent_component=None):
     for child_occurrence in occurrence.childOccurrences:
         _pare_occurrence(child_occurrence, parent_component)
 
-    if _is_parametric():
-        _get_parent_component(occurrence).features.removeFeatures.add(occurrence)
-    else:
-        occurrence.deleteMe()
+    if root_pare:
+        if _is_parametric():
+            _get_parent_component(occurrence).features.removeFeatures.add(occurrence)
+        else:
+            occurrence.deleteMe()
 
 
 def _convert_units(value, convert):
@@ -992,7 +1039,8 @@ def _do_difference(target_occurrence, tool_occurrence):
         target_body = target_bodies[i]
         combine_input = target_occurrence.component.features.combineFeatures.createInput(target_body, tool_bodies)
         combine_input.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
-        combine_input.isKeepToolBodies = i < len(target_bodies) - 1 or _keep_subtree or _has_keep(tool_occurrence, True)
+        combine_input.isKeepToolBodies = i < len(target_bodies) - 1 or _keep_subtree or _auto_keeping or \
+                                         _has_keep(tool_occurrence, True)
         target_occurrence.component.features.combineFeatures.add(combine_input)
 
     tool_occurrence = tool_occurrence.moveToComponent(target_occurrence)
