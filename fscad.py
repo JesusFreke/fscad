@@ -1321,8 +1321,10 @@ def sizeOf(*entities):
 
 
 def _get_construction_point(construction_point):
-    sketch = root().sketches.add(root().xYConstructionPlane)
-    sketch_point = sketch.include(construction_point)[0]
+    sketch = construction_point.component.sketches.add(root().xYConstructionPlane)
+    sketch_point = sketch.include(construction_point.nativeObject)[0]
+    if construction_point.assemblyContext is not None:
+        sketch_point = sketch_point.createForAssemblyContext(construction_point.assemblyContext)
     point = sketch_point.worldGeometry
     sketch.deleteMe()
     return point
