@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import adsk.core
 import adsk.fusion
-import fscad
 import unittest
 import test_utils
 import importlib
@@ -22,29 +20,12 @@ importlib.reload(test_utils)
 import test_utils
 
 from fscad import *
-from adsk.core import Vector3D
-from adsk.core import Point3D
 
 
-class SizeTest(test_utils.FscadTestCase):
+class BasicGeometryTest(test_utils.FscadTestCase):
+    def test_box(self):
+        Box(1, 1, 1, "MyBox").create_occurrence()
 
-    def validate_test(self):
-        pass
-
-    def test_occurrence_sizeOf(self):
-        ball = sphere(1.442)
-        self.assertEqual(sizeOf(ball).asArray(), (2*1.442, 2*1.442, 2*1.442))
-
-    def test_list_sizeOf(self):
-        ball = sphere(1.442)
-        mybox = place(box(5, 5, 5),
-                      minAt(atMax(ball)), midAt(atMid(ball)), midAt(atMid(ball)))
-        self.assertEqual(sizeOf(ball, mybox).asArray(), (2*1.442+5, 5, 5))
-
-
-    def test_face_sizeOf(self):
-        mybox = box(5, 5, 5)
-        self.assertEqual(sizeOf(get_face(mybox, "top")).asArray(), (5, 5, 0))
 
 
 from test_utils import load_tests

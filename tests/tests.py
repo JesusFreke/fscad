@@ -17,19 +17,7 @@ import importlib
 import unittest
 
 test_modules = [
-    "difference_test",
-    "duplicate_test",
-    "extrude_test",
-    "face_test",
-    "fillet_chamfer_test",
-    "geometry_2d_test",
-    "intersection_test",
-    "loft_test",
-    "place_test",
-    "rotate_test",
-    "scale_test",
-    "translate_test",
-    "union_test"
+    "basic_geometry_test"
 ]
 
 def run(context):
