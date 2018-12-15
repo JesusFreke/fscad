@@ -1250,22 +1250,28 @@ def union(*occurrences, name=None):
         bodies.extend(_occurrence_bodies(occurrence))
 
     base_occurrence = occurrences[0]
-
-    parent_component = _get_parent_component(base_occurrence)
-    result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    component_type_attr = base_occurrence.component.attributes.itemByName("fscad", "component_type")
+    if  component_type_attr is not None and component_type_attr.value == "union" and name is None:
+        result_occurrence = base_occurrence
+    else:
+        parent_component = _get_parent_component(base_occurrence)
+        result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+        result_occurrence.component.attributes.add("fscad", "component_type", "union")
+        result_occurrence.component.name = name or base_occurrence.component.name
 
     if len(bodies) > 1:
         result_body = brep().copy(bodies[0])
         for body in bodies[1:]:
             brep().booleanOperation(result_body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+        for body in result_occurrence.component.bRepBodies:
+            body.deleteMe()
         _add_to_occurrence(result_occurrence, *[brep().copy(lump) for lump in result_body.lumps])
 
     for occurrence in occurrences:
-        occurrence = occurrence.moveToComponent(result_occurrence)
-        occurrence.isLightBulbOn = False
-        _pare_occurrence(occurrence)
-
-    result_occurrence.component.name = name or base_occurrence.component.name
+        if occurrence != result_occurrence:
+            occurrence = occurrence.moveToComponent(result_occurrence)
+            occurrence.isLightBulbOn = False
+            _pare_occurrence(occurrence)
 
     return result_occurrence
 

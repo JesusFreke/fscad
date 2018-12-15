@@ -244,6 +244,15 @@ class UnionTest(test_utils.FscadTestCase):
 
             union1 = union(dup, second, name="union")
 
+    def test_collapse_sequential_unions(self):
+        first = box(1, 1, 1, name="first")
+        second = place(box(1, 1, 1, name="second"),
+                       minAt(atMax(first)), midAt(atMid(first)), midAt(atMid(first)))
+        first = union(first, second)
+        third = place(box(1, 1, 1, name="third"),
+                      minAt(atMax(second)), midAt(atMid(second)), midAt(atMid(second)))
+        union(first, third)
+
 
 from test_utils import load_tests
 def run(context):
