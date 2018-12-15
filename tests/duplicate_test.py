@@ -53,6 +53,15 @@ class DuplicateTest(test_utils.FscadTestCase):
                 join(duplicate_of(dup))
         difference(base, join.result())
 
+    def test_duplicate_point(self):
+        first = box(1, 1, 1, name="first")
+        define_point(first, midOf(first).x, minOf(first).y, midOf(first).z, name="point")
+        first_dup = duplicate_of(first)
+        place(first_dup,
+              pointAt("point", atMax(first)),
+              pointAt("point", atMax(first)),
+              pointAt("point", atMax(first)))
+
 
 from test_utils import load_tests
 def run(context):

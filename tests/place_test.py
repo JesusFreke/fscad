@@ -67,6 +67,47 @@ class PlaceTest(test_utils.FscadTestCase):
         get_placement(second, maxAt(atMin(ball)), midAt(atMid(ball)), midAt(atMid(ball))).apply(combined)
 
 
+    def test_pointAt(self):
+        first = box(1, 1, 1, name="first")
+        define_point(first, midOf(first).x, minOf(first).y, midOf(first).z, name="point")
+        second = box(1, 1, 1, name="second")
+        place(first,
+              pointAt("point", atMax(second)),
+              pointAt("point", atMax(second)),
+              pointAt("point", atMax(second)))
+
+    def test_atPoint(self):
+        first = box(1, 1, 1, name="first")
+        second = box(1, 1, 1, name="second")
+        define_point(second, midOf(second).x, minOf(second).y, midOf(second).z, name="point")
+
+        place(first,
+              maxAt(atPoint(second, "point")),
+              maxAt(atPoint(second, "point")),
+              maxAt(atPoint(second, "point")))
+
+    def test_pointAtAtPoint(self):
+        first = box(1, 1, 1, name="first")
+        define_point(first, maxOf(first).x, midOf(first).y, maxOf(first).z, name="point")
+        second = box(1, 1, 1, name="second")
+        define_point(second, midOf(second).x, minOf(second).y, minOf(second).z, name="point")
+
+        place(first,
+              pointAt("point", atPoint(second, "point")),
+              pointAt("point", atPoint(second, "point")),
+              pointAt("point", atPoint(second, "point")))
+
+    def test_translatedPoint(self):
+        first = box(1, 1, 1, name="first")
+        translate(first, 5, 5, 5)
+        define_point(first, midOf(first).x, minOf(first).y, midOf(first).z, name="point")
+        second = box(1, 1, 1, name="second")
+        place(first,
+              pointAt("point", atMax(second)),
+              pointAt("point", atMax(second)),
+              pointAt("point", atMax(second)))
+
+
 
 from test_utils import load_tests
 def run(context):

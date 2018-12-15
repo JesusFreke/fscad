@@ -31,6 +31,21 @@ _keep_subtree = True
 _auto_keeping = False
 
 
+def define_point(occurrence, x, y, z, *, name):
+    is_parametric = _is_parametric()
+    if is_parametric:
+        base_feature = occurrence.component.features.baseFeatures.add()
+        base_feature.startEdit()
+
+    construction_point_input = occurrence.component.constructionPoints.createInput()
+    construction_point_input.setByPoint(_cm(adsk.core.Point3D.create(x, y, z)))
+    construction_point = occurrence.component.constructionPoints.add(construction_point_input)
+    construction_point.name = name
+
+    if is_parametric:
+        base_feature.finishEdit()
+
+
 @contextlib.contextmanager
 def keep_subtree(keep):
     global _keep_subtree
@@ -140,6 +155,8 @@ def _convert_units(value, convert):
         return adsk.core.Point3D.create(convert(value.x), convert(value.y), convert(value.z))
     if isinstance(value, adsk.core.Point2D):
         return adsk.core.Point2D.create(convert(value.x), convert(value.y))
+    if isinstance(value, adsk.fusion.ConstructionPoint):
+        return _convert_units(value.geometry, convert)
     if isinstance(value, adsk.core.Vector3D):
         return adsk.core.Vector3D.create(convert(value.x), convert(value.y), convert(value.z))
     if isinstance(value, tuple):
@@ -1303,26 +1320,55 @@ def sizeOf(*entities):
     ))
 
 
+def _get_construction_point(construction_point):
+    sketch = root().sketches.add(root().xYConstructionPlane)
+    sketch_point = sketch.include(construction_point)[0]
+    point = sketch_point.worldGeometry
+    sketch.deleteMe()
+    return point
+
+
+def pointOf(occurrence, name):
+    occurrence = _assembly_occurrence(occurrence)
+    point = occurrence.component.constructionPoints.itemByName(name)
+    point = point.createForAssemblyContext(occurrence)
+
+    return _mm(_get_construction_point(point))
+
+
 def _get_placement_value(value, coordinate_index):
     if callable(value):
         return _cm(value(coordinate_index))
+    if isinstance(value, adsk.core.Point3D):
+        return value.asArray()[coordinate_index]
+    if isinstance(value, adsk.fusion.ConstructionPoint):
+        return _get_placement_value(value.geometry, coordinate_index)
     return _cm(value)
 
 
 def minAt(value):
-    return lambda coordinate_index, bounding_box: _mm(
+    return lambda occurrence, coordinate_index, bounding_box: _mm(
         _get_placement_value(value, coordinate_index) - bounding_box.minPoint.asArray()[coordinate_index])
 
 
 def maxAt(value):
-    return lambda coordinate_index, bounding_box: _mm(
+    return lambda occurrence, coordinate_index, bounding_box: _mm(
         _get_placement_value(value, coordinate_index) - bounding_box.maxPoint.asArray()[coordinate_index])
 
 
 def midAt(value):
-    return lambda coordinate_index, bounding_box: _mm(
+    return lambda occurrence, coordinate_index, bounding_box: _mm(
         _get_placement_value(value, coordinate_index) -
         (bounding_box.minPoint.asArray()[coordinate_index] + bounding_box.maxPoint.asArray()[coordinate_index]) / 2)
+
+
+def pointAt(name, value):
+    def calculate(occurrence, coordinate_index, bounding_box):
+        point = occurrence.component.constructionPoints.itemByName(name)
+        point = point.createForAssemblyContext(occurrence)
+        point = _get_construction_point(point)
+        return _mm(_get_placement_value(value, coordinate_index) - _get_placement_value(point, coordinate_index))
+    return calculate
 
 
 def atMin(*entities):
@@ -1339,6 +1385,13 @@ def atMid(*entities):
     bounding_box = _get_exact_bounding_box(entities)
     return lambda coordinate_index: _mm(
         (bounding_box.minPoint.asArray()[coordinate_index] + bounding_box.maxPoint.asArray()[coordinate_index]) / 2)
+
+
+def atPoint(occurrence, name):
+    point = occurrence.component.constructionPoints.itemByName(name)
+    point = point.createForAssemblyContext(occurrence)
+    point = _get_construction_point(point)
+    return lambda coordinate_index: _mm(point.asArray()[coordinate_index])
 
 
 def keep():
@@ -1414,6 +1467,9 @@ def _duplicate_occurrence(occurrence: adsk.fusion.Occurrence, parent_component=N
     for body in occurrence.bRepBodies:
         _mark_body_and_all_faces(body)
         body.copyToComponent(result_occurrence)
+    for construction_point in occurrence.component.constructionPoints:
+        point = _get_construction_point(construction_point.createForAssemblyContext(occurrence))
+        define_point(result_occurrence, *_mm(point.asArray()), name=construction_point.name)
     for child_occurrence in occurrence.childOccurrences:
         _duplicate_occurrence(child_occurrence, result_occurrence.component)
     return result_occurrence
@@ -1456,9 +1512,9 @@ def find_all_duplicates(occurrence):
 def place(occurrence, x=keep(), y=keep(), z=keep()) -> adsk.fusion.Occurrence:
     bounding_box = _get_exact_bounding_box(occurrence)
     translate(occurrence,
-              x(0, bounding_box),
-              y(1, bounding_box),
-              z(2, bounding_box))
+              x(occurrence, 0, bounding_box),
+              y(occurrence, 1, bounding_box),
+              z(occurrence, 2, bounding_box))
     return occurrence
 
 
@@ -1467,14 +1523,14 @@ class Translation(object):
         self.translation = (x, y, z)
 
     def apply(self, occurrence):
-        translate(occurrence, *self.translation)
+        return translate(occurrence, *self.translation)
 
 
 def get_placement(entity, x=keep(), y=keep(), z=keep()):
     bounding_box = _get_exact_bounding_box(entity)
-    return Translation(x(0, bounding_box),
-                       y(1, bounding_box),
-                       z(2, bounding_box))
+    return Translation(x(entity, 0, bounding_box),
+                       y(entity, 1, bounding_box),
+                       z(entity, 2, bounding_box))
 
 
 @_group_timeline
