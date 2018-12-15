@@ -18,6 +18,7 @@ import collections
 import contextlib
 import functools
 import math
+import time
 import traceback
 import types
 import sys
@@ -339,6 +340,19 @@ def _get_exact_bounding_box(entity):
         else:
             bounding_box.combine(entity_bounding_box)
     return bounding_box
+
+
+def _add_to_occurrence(occurrence, *bodies):
+    parametric = _is_parametric()
+    if not parametric:
+        set_parametric(True)
+    base_feature = occurrence.component.features.baseFeatures.add()
+    base_feature.startEdit()
+    for body in bodies:
+        occurrence.component.bRepBodies.add(body, base_feature)
+    base_feature.finishEdit()
+    if not parametric:
+        set_parametric(False)
 
 
 def _create_component(parent_component, *bodies, name):
@@ -1224,16 +1238,10 @@ def union(*occurrences, name=None):
     result_occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
 
     if len(bodies) > 1:
-        body_copies = []
-        for body in bodies:
-            body_copies.append(body.copyToComponent(result_occurrence))
-
-        combine_input = parent_component.features.combineFeatures.createInput(
-            body_copies[0], _collection_of(body_copies[1:]))
-        combine_input.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
-        combine_input.isKeepToolBodies = False
-        combine_input.isNewComponent = False
-        parent_component.features.combineFeatures.add(combine_input)
+        result_body = brep().copy(bodies[0])
+        for body in bodies[1:]:
+            brep().booleanOperation(result_body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+        _add_to_occurrence(result_occurrence, *[brep().copy(lump) for lump in result_body.lumps])
 
     for occurrence in occurrences:
         occurrence = occurrence.moveToComponent(result_occurrence)
