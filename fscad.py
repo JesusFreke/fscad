@@ -121,7 +121,17 @@ def _get_exact_bounding_box(entity):
     return bounding_box
 
 
+class Place(object):
+    def __init__(self, point: Point3D):
+        self._point = point
+
+    def __eq__(self, other: 'Place'):
+        return self._point.vectorTo(other._point)
+
+
 class Component(object):
+    _null_vector = Vector3D.create(0, 0, 0)
+
     name = ...  # type: Optional[str]
     parent = ...  # type: Component
 
@@ -135,10 +145,10 @@ class Component(object):
         self._cached_world_transform = None
 
     def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
-        pass
+        raise NotImplementedError()
 
     def children(self) -> Iterable['Component']:
-        pass
+        return ()
 
     def _default_name(self) -> str:
         return "Component"
@@ -182,6 +192,22 @@ class Component(object):
             (self._cached_bounding_box.minPoint.x + self._cached_bounding_box.maxPoint.x)/2,
             (self._cached_bounding_box.minPoint.y + self._cached_bounding_box.maxPoint.y)/2,
             (self._cached_bounding_box.minPoint.z + self._cached_bounding_box.maxPoint.z)/2)
+
+    def place(self, x=_null_vector, y=_null_vector, z=_null_vector):
+        transform = Matrix3D.create()
+        transform.translation = Vector3D.create(x.x, y.y, z.z)
+        self._local_transform.transformBy(transform)
+        self._reset_cache()
+        return self
+
+    def __neg__(self):
+        return Place(self.min())
+
+    def __pos__(self):
+        return Place(self.max())
+
+    def __invert__(self):
+        return Place(self.mid())
 
     def _reset_cache(self):
         self._cached_bodies = None

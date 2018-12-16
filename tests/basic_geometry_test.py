@@ -25,12 +25,25 @@ import test_utils
 class BasicGeometryTest(test_utils.FscadTestCase):
     def test_box(self):
         box1 = Box(1, 2, 3, "box1")
-        box1.create_occurrence()
 
         self.assertEqual(box1.size().asArray(), (1, 2, 3))
         self.assertEqual(box1.min().asArray(), (0, 0, 0))
         self.assertEqual(box1.mid().asArray(), (.5, 1, 1.5))
         self.assertEqual(box1.max().asArray(), (1, 2, 3))
+
+        box2 = Box(5, 6, 7, "box2")
+
+        box2.place(-box2 == ~box1,
+                   ~box2 == +box1,
+                   +box2 == -box1)
+
+        self.assertEqual(box2.size().asArray(), (5, 6, 7))
+        self.assertEqual(box2.min().asArray(), (.5, 2 - 6/2, -7))
+        self.assertEqual(box2.mid().asArray(), (.5 + 5/2, 2, -7/2))
+        self.assertEqual(box2.max().asArray(), (.5 + 5, 2 + 6/2, 0))
+
+        box1.create_occurrence()
+        box2.create_occurrence()
 
 
 from test_utils import load_tests
