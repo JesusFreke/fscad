@@ -317,6 +317,15 @@ class Union(Component):
     def _default_name(self):
         return "Union"
 
+    def add(self, *components: Component) -> Component:
+        for component in components:
+            for body in component.bodies():
+                brep().booleanOperation(self._body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+            component._parent = self
+            self._children.append(component)
+        self._reset_cache()
+        return self
+
 
 def setup_document(document_name="fSCAD-Preview"):
     preview_doc = None
