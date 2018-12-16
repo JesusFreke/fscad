@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from fscad import *
+
 import adsk.fusion
 import unittest
 import test_utils
@@ -19,13 +21,16 @@ import importlib
 importlib.reload(test_utils)
 import test_utils
 
-from fscad import *
-
 
 class BasicGeometryTest(test_utils.FscadTestCase):
     def test_box(self):
-        Box(1, 1, 1, "MyBox").create_occurrence()
+        box1 = Box(1, 2, 3, "box1")
+        box1.create_occurrence()
 
+        self.assertEqual(box1.size().asArray(), (1, 2, 3))
+        self.assertEqual(box1.min().asArray(), (0, 0, 0))
+        self.assertEqual(box1.mid().asArray(), (.5, 1, 1.5))
+        self.assertEqual(box1.max().asArray(), (1, 2, 3))
 
 
 from test_utils import load_tests

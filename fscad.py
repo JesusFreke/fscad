@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from adsk.core import Point3D, Vector3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D
-from typing import Iterable
+
+from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, Vector3D
+from typing import Iterable, Optional
 
 import adsk.core
 import adsk.fusion
@@ -75,29 +76,128 @@ def _create_component(parent_component, *bodies, name):
     return new_occurrence
 
 
+def _oriented_bounding_box_to_bounding_box(oriented: OrientedBoundingBox3D):
+    return BoundingBox3D.create(
+        Point3D.create(
+            oriented.centerPoint.x - oriented.length / 2.0,
+            oriented.centerPoint.y - oriented.width / 2.0,
+            oriented.centerPoint.z - oriented.height / 2.0),
+        Point3D.create(
+            oriented.centerPoint.x + oriented.length / 2.0,
+            oriented.centerPoint.y + oriented.width / 2.0,
+            oriented.centerPoint.z + oriented.height / 2.0)
+    )
+
+
+def _get_exact_bounding_box(entity):
+    vector1 = adsk.core.Vector3D.create(1.0, 0.0, 0.0)
+    vector2 = adsk.core.Vector3D.create(0.0, 1.0, 0.0)
+
+    if isinstance(entity, Component):
+        entities = entity.bodies()
+        # noinspection PyTypeChecker
+        return _get_exact_bounding_box(entities)
+
+    if hasattr(entity, "objectType"):
+        if entity.objectType.startswith("adsk::fusion::BRep"):
+            return _oriented_bounding_box_to_bounding_box(
+                app().measureManager.getOrientedBoundingBox(entity, vector1, vector2))
+        else:
+            raise TypeError("Cannot get bounding box for type %s" % type(entity).__name__)
+
+    try:
+        iter(entity)
+    except TypeError:
+        raise TypeError("Cannot get bounding box for type %s" % type(entity).__name__)
+    entities = entity
+
+    bounding_box = None
+    for entity in entities:
+        entity_bounding_box = _get_exact_bounding_box(entity)
+        if bounding_box is None:
+            bounding_box = entity_bounding_box
+        else:
+            bounding_box.combine(entity_bounding_box)
+    return bounding_box
+
+
 class Component(object):
+    name = ...  # type: Optional[str]
     parent = ...  # type: Component
 
     def __init__(self, name: str = None):
         self.parent = None
-        self.active = True
-        self.transform = Matrix3D.create()
+        self._active = True
+        self._local_transform = Matrix3D.create()
         self.name = name
+        self._cached_bounding_box = None
+        self._cached_bodies = None
+        self._cached_world_transform = None
+
+    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+        pass
+
+    def children(self) -> Iterable['Component']:
+        pass
+
+    def _default_name(self) -> str:
+        return "Component"
+
+    def active(self) -> bool:
+        return self._active
 
     def bodies(self) -> Iterable[adsk.fusion.BRepBody]:
-        pass
+        if self._cached_bodies is not None:
+            return self._cached_bodies
+
+        world_transform = self._get_world_transform()
+        bodies_copy = [brep().copy(body) for body in self._raw_bodies()]
+        for body in bodies_copy:
+            brep().transform(body, world_transform)
+        self._cached_bodies = bodies_copy
+        return bodies_copy
 
     def create_occurrence(self) -> adsk.fusion.Occurrence:
         return _create_component(root(), *self.bodies(), name=self.name or self._default_name())
 
+    def size(self):
+        if not self._cached_bounding_box:
+            self._cached_bounding_box = _get_exact_bounding_box(self)
+        return self._cached_bounding_box.minPoint.vectorTo(self._cached_bounding_box.maxPoint).asPoint()
+
+    def min(self):
+        if not self._cached_bounding_box:
+            self._cached_bounding_box = _get_exact_bounding_box(self)
+        return self._cached_bounding_box.minPoint
+
+    def max(self):
+        if not self._cached_bounding_box:
+            self._cached_bounding_box = _get_exact_bounding_box(self)
+        return self._cached_bounding_box.maxPoint
+
+    def mid(self):
+        if not self._cached_bounding_box:
+            self._cached_bounding_box = _get_exact_bounding_box(self)
+        return Point3D.create(
+            (self._cached_bounding_box.minPoint.x + self._cached_bounding_box.maxPoint.x)/2,
+            (self._cached_bounding_box.minPoint.y + self._cached_bounding_box.maxPoint.y)/2,
+            (self._cached_bounding_box.minPoint.z + self._cached_bounding_box.maxPoint.z)/2)
+
+    def _reset_cache(self):
+        self._cached_bodies = None
+        self._cached_bounding_box = None
+        self._cached_world_transform = None
+        for component in self.children():
+            component._reset_cache()
+
     def _get_world_transform(self) -> Matrix3D:
-        transform = self.transform.copy()
+        if self._cached_world_transform is not None:
+            return self._cached_world_transform
+        transform = self._local_transform.copy()
         if self.parent is not None:
             transform.transformBy(self.parent._get_world_transform())
+        self._cached_world_transform = transform
         return transform
-
-    def _default_name(self) -> str:
-        return "Component"
 
 
 class Box(Component):
@@ -113,19 +213,9 @@ class Box(Component):
             Point3D.create(x/2, y/2, z/2),
             Box._poz_x, Box._poz_y,
             x, y, z))
-        self._cached_transform = None
-        self._cached_body = None
 
-    def bodies(self):
-        world_transform = self._get_world_transform()
-        if world_transform == self._cached_transform:
-            return self._cached_body
-
-        body_copy = brep().copy(self.body)
-        brep().transform(body_copy, world_transform)
-        self._cached_transform = world_transform
-        self._cached_body = body_copy
-        return [body_copy]
+    def _raw_bodies(self):
+        return [self.body]
 
     def _default_name(self):
         return "Box"
