@@ -17,7 +17,8 @@ import importlib
 import unittest
 
 test_modules = [
-    "basic_geometry_test"
+    "basic_geometry_test",
+    "place_test"
 ]
 
 def run(context):
