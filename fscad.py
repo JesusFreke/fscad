@@ -199,8 +199,19 @@ class Component(object):
         self._cached_bodies = bodies_copy
         return bodies_copy
 
-    def create_occurrence(self) -> adsk.fusion.Occurrence:
-        return _create_component(root(), *self.bodies(), name=self.name or self._default_name())
+    def create_occurrence(self, create_children=False) -> adsk.fusion.Occurrence:
+        occurrence = _create_component(root(), *self.bodies(), name=self.name or self._default_name())
+        if create_children:
+            for child in self.children():
+                child._create_occurrence(occurrence)
+        return occurrence
+
+    def _create_occurrence(self, parent_occurrence):
+        occurrence = _create_component(
+            parent_occurrence.component, *self.bodies(), name=self.name or self._default_name())
+        occurrence.isLightBulbOn = False
+        for child in self.children():
+            child._create_occurrence(occurrence)
 
     def size(self):
         if not self._cached_bounding_box:
@@ -299,7 +310,6 @@ class Union(Component):
 
     def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
         return [self._body]
-        pass
 
     def children(self) -> Iterable['Component']:
         return tuple(self._children)
