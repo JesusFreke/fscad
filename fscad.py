@@ -121,12 +121,45 @@ def _get_exact_bounding_box(entity):
     return bounding_box
 
 
+class Translation(object):
+    def __init__(self, vector: Vector3D):
+        self._vector = vector
+
+    def vector(self):
+        return self.vector
+
+    def __add__(self, other):
+        self._vector.setWithArray((self._vector.x + other, self._vector.y + other, self._vector.z + other))
+        return self
+
+    def __sub__(self, other):
+        self._vector.setWithArray((self._vector.x - other, self._vector.y - other, self._vector.z - other))
+
+    def __mul__(self, other):
+        self._vector.setWithArray((self._vector.x * other, self._vector.y * other, self._vector.z * other))
+
+    def __div__(self, other):
+        self._vector.setWithArray((self._vector.x / other, self._vector.y / other, self._vector.z / other))
+
+    @property
+    def x(self):
+        return self._vector.x
+
+    @property
+    def y(self):
+        return self._vector.y
+
+    @property
+    def z(self):
+        return self._vector.z
+
+
 class Place(object):
     def __init__(self, point: Point3D):
         self._point = point
 
-    def __eq__(self, other: 'Place'):
-        return self._point.vectorTo(other._point)
+    def __eq__(self, other: 'Place') -> Translation:
+        return Translation(self._point.vectorTo(other._point))
 
 
 class Component(object):

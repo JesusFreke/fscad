@@ -45,6 +45,17 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         box1.create_occurrence()
         box2.create_occurrence()
 
+    def test_place_offset(self):
+        box1 = Box(1, 1, 1, "box1")
+        box2 = Box(1, 1, 1, "box2")
+        box2.place(
+            (-box2 == +box1) + 1,
+            ~box2 == ~box1,
+            ~box2 == ~box1)
+        box1.create_occurrence()
+        box2.create_occurrence()
+
+
 
 from test_utils import load_tests
 def run(context):
