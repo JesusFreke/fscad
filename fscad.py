@@ -17,9 +17,9 @@ from typing import Iterable, Optional
 
 import adsk.core
 import adsk.fusion
+import sys
 import traceback
 import types
-import sys
 
 
 def app():
@@ -166,11 +166,9 @@ class Component(object):
     _null_vector = Vector3D.create(0, 0, 0)
 
     name = ...  # type: Optional[str]
-    parent = ...  # type: Component
 
     def __init__(self, name: str = None):
-        self.parent = None
-        self._active = True
+        self._parent = None
         self._local_transform = Matrix3D.create()
         self.name = name
         self._cached_bounding_box = None
@@ -186,8 +184,9 @@ class Component(object):
     def _default_name(self) -> str:
         return "Component"
 
-    def active(self) -> bool:
-        return self._active
+    @property
+    def parent(self) -> 'Component':
+        return self._parent
 
     def bodies(self) -> Iterable[adsk.fusion.BRepBody]:
         if self._cached_bodies is not None:
@@ -278,6 +277,35 @@ class Box(Component):
 
     def _default_name(self):
         return "Box"
+
+
+class Union(Component):
+    def __init__(self, *components: Component, name=None):
+        super().__init__(name)
+        result_body = None
+        self._children = []
+        for component in components:
+            if component.parent is not None:
+                # TODO: need to make a copy
+                pass
+            for body in component.bodies():
+                if result_body is None:
+                    result_body = brep().copy(body)
+                else:
+                    brep().booleanOperation(result_body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+            component._parent = self
+            self._children.append(component)
+        self._body = result_body
+
+    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+        return [self._body]
+        pass
+
+    def children(self) -> Iterable['Component']:
+        return tuple(self._children)
+
+    def _default_name(self):
+        return "Union"
 
 
 def setup_document(document_name="fSCAD-Preview"):

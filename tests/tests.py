@@ -18,7 +18,8 @@ import unittest
 
 test_modules = [
     "basic_geometry_test",
-    "place_test"
+    "place_test",
+    "union_test",
 ]
 
 def run(context):
