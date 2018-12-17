@@ -469,6 +469,36 @@ class Union(ComponentWithChildren):
         return self
 
 
+class Difference(ComponentWithChildren):
+    def __init__(self, *components: Component, name: str = None):
+        super().__init__(name)
+        self._bodies = None
+
+        def process_child(child: Component):
+            if self._bodies is None:
+                self._bodies = [brep().copy(child_body) for child_body in child.bodies()]
+            else:
+                for target_body in self._bodies:
+                    for tool_body in child.bodies():
+                        brep().booleanOperation(target_body, tool_body, adsk.fusion.BooleanTypes.DifferenceBooleanType)
+        self._add_children(components, process_child)
+
+    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+        return tuple(self._bodies)
+
+    def _copy_to(self, copy: 'Difference'):
+        copy._bodies = [brep().copy(body) for body in self.bodies()]
+        super()._copy_to(copy)
+
+    def add(self, *components: Component) -> Component:
+        def process_child(child):
+            for target_body in self._bodies:
+                for tool_body in child.bodies():
+                    brep().booleanOperation(target_body, tool_body, adsk.fusion.BooleanTypes.DifferenceBooleanType)
+        self._add_children(components, process_child)
+        return self
+
+
 def setup_document(document_name="fSCAD-Preview"):
     preview_doc = None
     saved_camera = None
