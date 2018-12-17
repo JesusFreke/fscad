@@ -90,6 +90,86 @@ class BasicGeometryTest(test_utils.FscadTestCase):
 
         box1.create_occurrence()
 
+    def test_basic_cylinder(self):
+        cylinder = Cylinder(1, 1)
+
+        self.assertEqual(cylinder.size().asArray(), (2, 2, 1))
+        self.assertEqual(cylinder.min().asArray(), (-1, -1, 0))
+        self.assertEqual(cylinder.mid().asArray(), (0, 0, .5))
+        self.assertEqual(cylinder.max().asArray(), (1, 1, 1))
+
+        bottom = cylinder.bottom
+        self.assertTrue(bottom.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(bottom.pointOnFace.z, 0)
+
+        top = cylinder.top
+        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(top.pointOnFace.z, 1)
+
+        side = cylinder.side
+        self.assertTrue(isinstance(side.geometry, adsk.core.Cylinder))
+
+        cylinder.create_occurrence()
+
+    def test_partial_cone(self):
+        cylinder = Cylinder(1, 1, .5)
+
+        self.assertEqual(cylinder.size().asArray(), (2, 2, 1))
+        self.assertEqual(cylinder.min().asArray(), (-1, -1, 0))
+        self.assertEqual(cylinder.mid().asArray(), (0, 0, .5))
+        self.assertEqual(cylinder.max().asArray(), (1, 1, 1))
+
+        bottom = cylinder.bottom
+        self.assertTrue(bottom.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(bottom.pointOnFace.z, 0)
+
+        top = cylinder.top
+        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(top.pointOnFace.z, 1)
+
+        side = cylinder.side
+        self.assertTrue(isinstance(side.geometry, adsk.core.Cone))
+
+        cylinder.create_occurrence()
+
+    def test_cone(self):
+        cylinder = Cylinder(1, 1, 0)
+
+        self.assertEqual(cylinder.size().asArray(), (2, 2, 1))
+        self.assertEqual(cylinder.min().asArray(), (-1, -1, 0))
+        self.assertEqual(cylinder.mid().asArray(), (0, 0, .5))
+        self.assertEqual(cylinder.max().asArray(), (1, 1, 1))
+
+        bottom = cylinder.bottom
+        self.assertTrue(bottom.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(bottom.pointOnFace.z, 0)
+
+        self.assertIsNone(cylinder.top)
+
+        side = cylinder.side
+        self.assertTrue(isinstance(side.geometry, adsk.core.Cone))
+
+        cylinder.create_occurrence()
+
+    def test_inverse_cone(self):
+        cylinder = Cylinder(1, 0, 1)
+
+        self.assertEqual(cylinder.size().asArray(), (2, 2, 1))
+        self.assertEqual(cylinder.min().asArray(), (-1, -1, 0))
+        self.assertEqual(cylinder.mid().asArray(), (0, 0, .5))
+        self.assertEqual(cylinder.max().asArray(), (1, 1, 1))
+
+        self.assertIsNone(cylinder.bottom)
+
+        top = cylinder.top
+        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(top.pointOnFace.z, 1)
+
+        side = cylinder.side
+        self.assertTrue(isinstance(side.geometry, adsk.core.Cone))
+
+        cylinder.create_occurrence()
+
 
 from test_utils import load_tests
 def run(context):

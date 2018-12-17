@@ -163,6 +163,7 @@ class Place(object):
 
 
 class Component(object):
+    _origin = Point3D.create(0, 0, 0)
     _null_vector = Vector3D.create(0, 0, 0)
 
     name = ...  # type: Optional[str]
@@ -282,14 +283,14 @@ class Box(Component):
 
     def __init__(self, x: float, y: float, z: float, name: str = None):
         super().__init__(name)
-        self.body = brep().createBox(OrientedBoundingBox3D.create(
+        self._body = brep().createBox(OrientedBoundingBox3D.create(
             Point3D.create(x/2, y/2, z/2),
-            Box._poz_x, Box._poz_y,
+            self._poz_x, self._poz_y,
             x, y, z))
         self._top = self._bottom = self._right = self._left = self._front = self._back = None
 
     def _raw_bodies(self):
-        return [self.body]
+        return [self._body]
 
     def _default_name(self):
         return "Box"
@@ -299,31 +300,88 @@ class Box(Component):
 
     @property
     def top(self):
-        return self._cached_body().faces[Box._top_index]
+        return self._cached_body().faces[self._top_index]
 
     @property
     def bottom(self):
-        return self._cached_body().faces[Box._bottom_index]
+        return self._cached_body().faces[self._bottom_index]
 
     @property
     def left(self):
-        return self._cached_body().faces[Box._left_index]
+        return self._cached_body().faces[self._left_index]
 
     @property
     def right(self):
-        return self._cached_body().faces[Box._right_index]
+        return self._cached_body().faces[self._right_index]
 
     @property
     def front(self):
-        return self._cached_body().faces[Box._front_index]
+        return self._cached_body().faces[self._front_index]
 
     @property
     def back(self):
-        return self._cached_body().faces[Box._back_index]
+        return self._cached_body().faces[self._back_index]
 
     def _reset_cache(self):
         super()._reset_cache()
         self._top = self._bottom = self._right = self._left = self._front = self._back = None
+
+
+class Cylinder(Component):
+    _side_index = 0
+
+    def __init__(self, height: float, radius: float, top_radius: float = None, name: str = None):
+        super().__init__(name)
+        if radius == 0:
+            # The API doesn't support the bottom radius being 0, so create it in the opposite orientation and flip it
+            self._body = brep().createCylinderOrCone(self._origin, top_radius, Point3D.create(0, 0, height),
+                                                     radius)
+            # 180 degrees around the x axis
+            rotation = Matrix3D.create()
+            rotation.setCell(1, 1, -1)
+            rotation.setCell(2, 2, -1)
+            translation = Matrix3D.create()
+            translation.translation = Vector3D.create(0, 0, height)
+            rotation.transformBy(translation)
+            brep().transform(self._body, rotation)
+        else:
+            self._body = brep().createCylinderOrCone(self._origin, radius, Point3D.create(0, 0, height),
+                                                     top_radius if top_radius is not None else radius)
+        self._top = self._bottom = self._side = None
+        if radius == 0:
+            self._bottom_index = None
+            self._top_index = 1
+        elif top_radius == 0:
+            self._bottom_index = 1
+            self._top_index = None
+        else:
+            self._bottom_index = 1
+            self._top_index = 2
+
+    def _raw_bodies(self):
+        return [self._body]
+
+    def _default_name(self):
+        return "Cylinder"
+
+    def _cached_body(self):
+        return next(iter(self.bodies()))
+
+    @property
+    def top(self):
+        if self._top_index is None:
+            return None
+        return self._cached_body().faces[self._top_index]
+
+    @property
+    def bottom(self):
+        if self._bottom_index is None:
+            return None
+        return self._cached_body().faces[self._bottom_index]
+
+    @property
+    def side(self):
+        return self._cached_body().faces[self._side_index]
 
 
 class Union(Component):
