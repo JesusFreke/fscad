@@ -197,7 +197,7 @@ class Component(object):
         return ()
 
     def _default_name(self) -> str:
-        return "Component"
+        return self.__class__.__name__
 
     @property
     def parent(self) -> 'Component':
@@ -317,9 +317,6 @@ class Box(Shape):
             x, y, z))
         super().__init__(body, name)
 
-    def _default_name(self):
-        return "Box"
-
     @property
     def top(self):
         return self._cached_body().faces[self._top_index]
@@ -380,9 +377,6 @@ class Cylinder(Shape):
         copy._bottom_index = self._bottom_index
         copy._top_index = self._top_index
 
-    def _default_name(self) -> str:
-        return "Cylinder"
-
     @property
     def top(self):
         if self._top_index is None:
@@ -403,9 +397,6 @@ class Cylinder(Shape):
 class Sphere(Shape):
     def __init__(self, radius: float, name: str = None):
         super().__init__(brep().createSphere(self._origin, radius), name)
-
-    def _default_name(self):
-        return "Sphere"
 
     @property
     def surface(self):
@@ -434,9 +425,6 @@ class Union(Component):
 
     def children(self) -> Iterable['Component']:
         return tuple(self._children)
-
-    def _default_name(self):
-        return "Union"
 
     def _copy_to(self, copy: 'Union'):
         copy._body = brep().copy(self._body)
