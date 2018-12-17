@@ -384,6 +384,25 @@ class Cylinder(Component):
         return self._cached_body().faces[self._side_index]
 
 
+class Sphere(Component):
+    def __init__(self, radius: float, name: str = None):
+        super().__init__(name)
+        self._body = brep().createSphere(self._origin, radius)
+
+    def _raw_bodies(self):
+        return [self._body]
+
+    def _default_name(self):
+        return "Sphere"
+
+    def _cached_body(self):
+        return next(iter(self.bodies()))
+
+    @property
+    def surface(self):
+        return self._cached_body().faces[0]
+
+
 class Union(Component):
     def __init__(self, *components: Component, name=None):
         super().__init__(name)

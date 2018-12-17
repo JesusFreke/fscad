@@ -170,6 +170,17 @@ class BasicGeometryTest(test_utils.FscadTestCase):
 
         cylinder.create_occurrence()
 
+    def test_sphere(self):
+        sphere = Sphere(1)
+
+        self.assertEqual(sphere.size().asArray(), (2, 2, 2))
+        self.assertEqual(sphere.min().asArray(), (-1, -1, -1))
+        self.assertEqual(sphere.mid().asArray(), (0, 0, 0))
+        self.assertEqual(sphere.max().asArray(), (1, 1, 1))
+
+        self.assertTrue(isinstance(sphere.surface.geometry, adsk.core.Sphere))
+
+        sphere.create_occurrence()
 
 from test_utils import load_tests
 def run(context):
