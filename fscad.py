@@ -273,6 +273,13 @@ class Box(Component):
     _poz_x = Vector3D.create(1, 0, 0)
     _poz_y = Vector3D.create(0, 1, 0)
 
+    _top_index = 0
+    _bottom_index = 1
+    _front_index = 2
+    _left_index = 3
+    _back_index = 4
+    _right_index = 5
+
     def __init__(self, x: float, y: float, z: float, name: str = None):
         super().__init__(name)
         self.x = x
@@ -282,12 +289,44 @@ class Box(Component):
             Point3D.create(x/2, y/2, z/2),
             Box._poz_x, Box._poz_y,
             x, y, z))
+        self._top = self._bottom = self._right = self._left = self._front = self._back = None
 
     def _raw_bodies(self):
         return [self.body]
 
     def _default_name(self):
         return "Box"
+
+    def _cached_body(self):
+        return next(iter(self.bodies()))
+
+    @property
+    def top(self):
+        return self._cached_body().faces[Box._top_index]
+
+    @property
+    def bottom(self):
+        return self._cached_body().faces[Box._bottom_index]
+
+    @property
+    def left(self):
+        return self._cached_body().faces[Box._left_index]
+
+    @property
+    def right(self):
+        return self._cached_body().faces[Box._right_index]
+
+    @property
+    def front(self):
+        return self._cached_body().faces[Box._front_index]
+
+    @property
+    def back(self):
+        return self._cached_body().faces[Box._back_index]
+
+    def _reset_cache(self):
+        super()._reset_cache()
+        self._top = self._bottom = self._right = self._left = self._front = self._back = None
 
 
 class Union(Component):

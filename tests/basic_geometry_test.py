@@ -31,6 +31,63 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertEqual(box1.mid().asArray(), (.5, 1, 1.5))
         self.assertEqual(box1.max().asArray(), (1, 2, 3))
 
+        bottom = box1.bottom
+        self.assertTrue(bottom.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(bottom.pointOnFace.z, 0)
+
+        top = box1.top
+        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(top.pointOnFace.z, 3)
+
+        right = box1.right
+        self.assertTrue(right.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(right.pointOnFace.x, 1)
+
+        left = box1.left
+        self.assertTrue(left.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(left.pointOnFace.x, 0)
+
+        front = box1.front
+        self.assertTrue(front.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
+        self.assertEqual(front.pointOnFace.y, 0)
+
+        back = box1.back
+        self.assertTrue(back.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
+        self.assertEqual(back.pointOnFace.y, 2)
+
+        box1.create_occurrence()
+
+    def test_placed_box_faces(self):
+        box1 = Box(1, 2, 3, "box1")
+        box2 = Box(1, 1, 1, "box2")
+        box1.place(-box1 == +box2,
+                   -box1 == +box2,
+                   -box1 == +box2)
+
+        bottom = box1.bottom
+        self.assertTrue(bottom.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(bottom.pointOnFace.z, 1)
+
+        top = box1.top
+        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(top.pointOnFace.z, 4)
+
+        right = box1.right
+        self.assertTrue(right.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(right.pointOnFace.x, 2)
+
+        left = box1.left
+        self.assertTrue(left.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(left.pointOnFace.x, 1)
+
+        front = box1.front
+        self.assertTrue(front.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
+        self.assertEqual(front.pointOnFace.y, 1)
+
+        back = box1.back
+        self.assertTrue(back.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
+        self.assertEqual(back.pointOnFace.y, 3)
+
         box1.create_occurrence()
 
 
