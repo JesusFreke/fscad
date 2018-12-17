@@ -282,9 +282,6 @@ class Box(Component):
 
     def __init__(self, x: float, y: float, z: float, name: str = None):
         super().__init__(name)
-        self.x = x
-        self.y = y
-        self.z = z
         self.body = brep().createBox(OrientedBoundingBox3D.create(
             Point3D.create(x/2, y/2, z/2),
             Box._poz_x, Box._poz_y,
