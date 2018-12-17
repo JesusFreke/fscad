@@ -284,7 +284,22 @@ class Component(object):
         return transform.copy()
 
 
-class Box(Component):
+class Shape(Component):
+    def __init__(self, body: adsk.fusion.BRepBody, name: str):
+        super().__init__(name)
+        self._body = body
+
+    def _raw_bodies(self):
+        return [self._body]
+
+    def _copy_to(self, copy: 'Shape'):
+        copy._body = brep().copy(self._body)
+
+    def _cached_body(self):
+        return next(iter(self.bodies()))
+
+
+class Box(Shape):
     _poz_x = Vector3D.create(1, 0, 0)
     _poz_y = Vector3D.create(0, 1, 0)
 
@@ -296,23 +311,14 @@ class Box(Component):
     _right_index = 5
 
     def __init__(self, x: float, y: float, z: float, name: str = None):
-        super().__init__(name)
-        self._body = brep().createBox(OrientedBoundingBox3D.create(
+        body = brep().createBox(OrientedBoundingBox3D.create(
             Point3D.create(x/2, y/2, z/2),
             self._poz_x, self._poz_y,
             x, y, z))
-
-    def _raw_bodies(self):
-        return [self._body]
+        super().__init__(body, name)
 
     def _default_name(self):
         return "Box"
-
-    def _copy_to(self, copy: 'Cylinder'):
-        copy._body = brep().copy(self._body)
-
-    def _cached_body(self):
-        return next(iter(self.bodies()))
 
     @property
     def top(self):
@@ -339,15 +345,13 @@ class Box(Component):
         return self._cached_body().faces[self._back_index]
 
 
-class Cylinder(Component):
+class Cylinder(Shape):
     _side_index = 0
 
     def __init__(self, height: float, radius: float, top_radius: float = None, name: str = None):
-        super().__init__(name)
         if radius == 0:
             # The API doesn't support the bottom radius being 0, so create it in the opposite orientation and flip it
-            self._body = brep().createCylinderOrCone(self._origin, top_radius, Point3D.create(0, 0, height),
-                                                     radius)
+            body = brep().createCylinderOrCone(self._origin, top_radius, Point3D.create(0, 0, height), radius)
             # 180 degrees around the x axis
             rotation = Matrix3D.create()
             rotation.setCell(1, 1, -1)
@@ -355,10 +359,10 @@ class Cylinder(Component):
             translation = Matrix3D.create()
             translation.translation = Vector3D.create(0, 0, height)
             rotation.transformBy(translation)
-            brep().transform(self._body, rotation)
+            brep().transform(body, rotation)
         else:
-            self._body = brep().createCylinderOrCone(self._origin, radius, Point3D.create(0, 0, height),
-                                                     top_radius if top_radius is not None else radius)
+            body = brep().createCylinderOrCone(self._origin, radius, Point3D.create(0, 0, height),
+                                               top_radius if top_radius is not None else radius)
         if radius == 0:
             self._bottom_index = None
             self._top_index = 1
@@ -369,19 +373,15 @@ class Cylinder(Component):
             self._bottom_index = 1
             self._top_index = 2
 
-    def _raw_bodies(self):
-        return [self._body]
-
-    def _default_name(self):
-        return "Cylinder"
-
-    def _cached_body(self):
-        return next(iter(self.bodies()))
+        super().__init__(body, name)
 
     def _copy_to(self, copy: 'Cylinder'):
-        copy._body = brep().copy(self._body)
+        super()._copy_to(copy)
         copy._bottom_index = self._bottom_index
         copy._top_index = self._top_index
+
+    def _default_name(self) -> str:
+        return "Cylinder"
 
     @property
     def top(self):
@@ -400,22 +400,12 @@ class Cylinder(Component):
         return self._cached_body().faces[self._side_index]
 
 
-class Sphere(Component):
+class Sphere(Shape):
     def __init__(self, radius: float, name: str = None):
-        super().__init__(name)
-        self._body = brep().createSphere(self._origin, radius)
-
-    def _raw_bodies(self):
-        return [self._body]
+        super().__init__(brep().createSphere(self._origin, radius), name)
 
     def _default_name(self):
         return "Sphere"
-
-    def _cached_body(self):
-        return next(iter(self.bodies()))
-
-    def _copy_to(self, copy: 'Cylinder'):
-        copy._body = brep().copy(self._body)
 
     @property
     def surface(self):
