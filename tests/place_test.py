@@ -49,7 +49,28 @@ class PlaceTest(test_utils.FscadTestCase):
         box1.create_occurrence()
         box2.create_occurrence()
 
+    def test_place_children(self):
+        box1 = Box(1, 1, 1, "box1")
+        box2 = Box(1, 1, 1, "box2")
+        box2.place(
+            (-box2 == +box1),
+            ~box2 == ~box1,
+            ~box2 == ~box1)
+        union = Union(box1, box2)
 
+        box3 = Box(1, 1, 1, "box3")
+
+        union.place(-union == +box3,
+                    ~union == ~box3,
+                    ~union == ~box3)
+        union.add(box3)
+
+        self.assertEqual(box1.size().asArray(), (1, 1, 1))
+        self.assertEqual(box1.min().asArray(), (1, 0, 0))
+        self.assertEqual(box1.mid().asArray(), (1.5, .5, .5))
+        self.assertEqual(box1.max().asArray(), (2, 1, 1))
+
+        union.create_occurrence(True)
 
 from test_utils import load_tests
 def run(context):

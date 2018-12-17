@@ -261,12 +261,12 @@ class Component(object):
 
     def _get_world_transform(self) -> Matrix3D:
         if self._cached_world_transform is not None:
-            return self._cached_world_transform
+            return self._cached_world_transform.copy()
         transform = self._local_transform.copy()
         if self.parent is not None:
             transform.transformBy(self.parent._get_world_transform())
         self._cached_world_transform = transform
-        return transform
+        return transform.copy()
 
 
 class Box(Component):
@@ -318,7 +318,11 @@ class Union(Component):
         return "Union"
 
     def add(self, *components: Component) -> Component:
+        transform = self._get_world_transform()
+        transform.invert()
         for component in components:
+            component._local_transform.transformBy(transform)
+            component._reset_cache()
             for body in component.bodies():
                 brep().booleanOperation(self._body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
             component._parent = self
