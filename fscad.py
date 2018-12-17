@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, Vector3D
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 import adsk.core
 import adsk.fusion
@@ -403,54 +404,68 @@ class Sphere(Shape):
         return self._cached_body().faces[0]
 
 
-class Union(Component):
-    def __init__(self, *components: Component, name=None):
+class ComponentWithChildren(Component, ABC):
+    def __init__(self, name):
         super().__init__(name)
-        result_body = None
         self._children = []
-        for component in components:
-            if component.parent is not None:
-                component = component.copy()
-            for body in component.bodies():
-                if result_body is None:
-                    result_body = brep().copy(body)
-                else:
-                    brep().booleanOperation(result_body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
-            component._parent = self
-            self._children.append(component)
-        self._body = result_body
+        self._cached_inverse_transform = None
 
-    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
-        return [self._body]
+    def _inverse_transform(self):
+        if self._cached_inverse_transform is None:
+            self._cached_inverse_transform = self._get_world_transform()
+            self._cached_inverse_transform.invert()
+        return self._cached_inverse_transform
+
+    def _reset_cache(self):
+        super()._reset_cache()
+        self._cached_inverse_transform = None
+
+    def _add_children(self, children: Iterable[Component], func: Callable[[Component], None] = None):
+        for child in children:
+            if child.parent is not None:
+                child = child.copy()
+            child._local_transform.transformBy(self._inverse_transform())
+            child._reset_cache()
+            if func:
+                func(child)
+            child._parent = self
+            self._children.append(child)
+        self._reset_cache()
 
     def children(self) -> Iterable['Component']:
         return tuple(self._children)
 
+    def _copy_to(self, copy: 'ComponentWithChildren'):
+        copy._cached_inverse_transform = None
+        copy._children = []
+        copy._add_children([child.copy() for child in self._children])
+
+
+class Union(ComponentWithChildren):
+    def __init__(self, *components: Component, name: str = None):
+        super().__init__(name)
+        self._body = None
+
+        def process_child(child: Component):
+            for body in child.bodies():
+                if self._body is None:
+                    self._body = brep().copy(body)
+                else:
+                    brep().booleanOperation(self._body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+        self._add_children(components, process_child)
+
+    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+        return [self._body]
+
     def _copy_to(self, copy: 'Union'):
         copy._body = brep().copy(self._body)
-        copy._children = []
-        transform = copy._get_world_transform()
-        transform.invert()
-        for child in self._children:
-            child_copy = child.copy()
-            child_copy._local_transform.transformBy(transform)
-            child_copy._reset_cache()
-            child_copy._parent = copy
-            copy._children.append(child_copy)
+        super()._copy_to(copy)
 
     def add(self, *components: Component) -> Component:
-        transform = self._get_world_transform()
-        transform.invert()
-        for component in components:
-            if component.parent is not None:
-                component = component.copy()
-            component._local_transform.transformBy(transform)
-            component._reset_cache()
-            for body in component.bodies():
+        def process_child(child):
+            for body in child.bodies():
                 brep().booleanOperation(self._body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
-            component._parent = self
-            self._children.append(component)
-        self._reset_cache()
+        self._add_children(components, process_child)
         return self
 
 
