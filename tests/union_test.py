@@ -71,6 +71,22 @@ class UnionTest(test_utils.FscadTestCase):
 
         union.create_occurrence(True)
 
+    def test_union_subcomponent(self):
+        box1 = Box(2, 1, 1, "Box1")
+        box2 = Box(1, 2, 1, "Box2")
+        box2.place(~box2 == ~box1,
+                   -box2 == +box1,
+                   ~box2 == ~box1)
+        union = Union(box1, box2)
+        box3 = Box(1, 2, 1, "Box3")
+        box3.place(~box3 == ~box1,
+                   +box3 == -box1,
+                   ~box3 == ~box1)
+        union2 = Union(box1, box3)
+        union2.place(z=-union2 == +box1)
+
+        union.create_occurrence(True)
+        union2.create_occurrence(True)
 
 from test_utils import load_tests
 def run(context):

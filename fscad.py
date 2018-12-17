@@ -429,8 +429,7 @@ class Union(Component):
         self._children = []
         for component in components:
             if component.parent is not None:
-                # TODO: need to make a copy
-                pass
+                component = component.copy()
             for body in component.bodies():
                 if result_body is None:
                     result_body = brep().copy(body)
@@ -465,6 +464,8 @@ class Union(Component):
         transform = self._get_world_transform()
         transform.invert()
         for component in components:
+            if component.parent is not None:
+                component = component.copy()
             component._local_transform.transformBy(transform)
             component._reset_cache()
             for body in component.bodies():
