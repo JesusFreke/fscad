@@ -182,6 +182,16 @@ class BasicGeometryTest(test_utils.FscadTestCase):
 
         sphere.create_occurrence()
 
+    def test_rect(self):
+        rect = Rect(2, 3)
+
+        self.assertEqual(rect.size().asArray(), (2, 3, 0))
+        self.assertEqual(rect.min().asArray(), (0, 0, 0))
+        self.assertEqual(rect.mid().asArray(), (1, 1.5, 0))
+        self.assertEqual(rect.max().asArray(), (2, 3, 0))
+
+        rect.create_occurrence()
+
 from test_utils import load_tests
 def run(context):
     import sys

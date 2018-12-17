@@ -76,6 +76,161 @@ class DifferenceTest(test_utils.FscadTestCase):
         box3 = Box(1, 1, 1, "box3")
         Difference(difference1, box3, name="difference2").create_occurrence(True)
 
+    def test_simple_planar_difference(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(-rect2 == ~rect1)
+        diff = Difference(rect1, rect2)
+        diff.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(diff.get_plane()))
+
+    def test_disjoint_planar_difference(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place((-rect2 == +rect1) + 1)
+        diff = Difference(rect1, rect2)
+        diff.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(diff.get_plane()))
+
+    def test_adjoining_planar_difference(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(-rect2 == +rect1)
+        diff = Difference(rect1, rect2)
+        diff.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(diff.get_plane()))
+
+    def test_complete_planar_difference(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        diff = Difference(rect1, rect2)
+        diff.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(diff.get_plane()))
+
+    def test_empty_planar_difference(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        diff = Difference(rect1, rect2)
+        rect3 = Rect(1, 1, "rect3")
+        diff2 = Difference(diff, rect3, name="diff2")
+        diff2.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(diff2.get_plane()))
+
+    def test_complex_sketch_difference(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(.5, 1, "rect2")
+        rect2.place((-rect2 == -rect1) + .25)
+        diff1 = Difference(rect1, rect2, name="diff1")
+
+        rect3 = Rect(1, 1, "rect3")
+        rect4 = Rect(1, .5, "rect4")
+        rect4.place(y=(-rect4 == -rect1) + .25)
+        diff2 = Difference(rect3, rect4, name="diff2")
+
+        diff3 = Difference(diff1, diff2, name="diff3")
+        diff3.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(diff3.get_plane()))
+
+    def test_diff_3D_from_planar(self):
+        rect = Rect(1, 1)
+        box = Box(1, 1, 1)
+        box.place(-box == ~rect)
+        diff = Difference(rect, box)
+        diff.create_occurrence(True)
+        self.assertTrue(rect.get_plane().isCoPlanarTo(diff.get_plane()))
+
+    def test_planar_from_3D(self):
+        rect = Rect(1, 1)
+        box = Box(1, 1, 1)
+        box.place(-box == ~rect)
+        try:
+            diff = Difference(box, rect)
+            self.fail("Expected error did not occur")
+        except ValueError:
+            pass
+
+    def test_inside_hole_planar_difference(self):
+        outer = Rect(1, 1, "outer")
+        inner = Rect(.5, .5, "inner")
+        inner.place(~inner == ~outer, ~inner == ~outer, ~inner == ~outer)
+        diff = Difference(outer, inner)
+        diff.create_occurrence(True)
+        self.assertTrue(outer.get_plane().isCoPlanarTo(diff.get_plane()))
+
+    def test_non_coplanar_difference(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(z=(~rect2 == ~rect1) + 1)
+        try:
+            diff1 = Difference(rect1, rect2, name="diff1")
+            self.fail("Expected error did not occur")
+        except ValueError:
+            pass
+
+    def test_difference_with_inside_hole(self):
+        inner = Rect(1, 1, "inner")
+        inner_hole = Rect(.5, .5, "inner_hole")
+        inner_hole.place(~inner_hole == ~inner, ~inner_hole == ~inner, ~inner_hole == ~inner)
+        diff1 = Difference(inner, inner_hole, name="diff1")
+
+        outer = Rect(2, 2, "outer")
+        outer.place(~outer == ~inner, ~outer == ~inner, ~outer == ~inner)
+        diff2 = Difference(outer, diff1, name="diff2")
+        diff2.create_occurrence(True)
+        self.assertTrue(inner.get_plane().isCoPlanarTo(diff2.get_plane()))
+
+    def test_difference_add_planar(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(-rect2 == ~rect1)
+        diff = Difference(rect1, rect2)
+
+        rect3 = Rect(1, 1, "rect3")
+        rect3.place(y=+rect3 == ~rect1)
+        diff.add(rect3)
+        diff.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(diff.get_plane()))
+
+    def test_add_3D_to_planar_difference(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(-rect2 == ~rect1)
+        diff = Difference(rect1, rect2)
+
+        box = Box(1, 1, 1)
+        box.place(y=+box == ~rect1)
+        diff.add(box)
+        diff.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(diff.get_plane()))
+
+    def test_add_planar_to_3D_difference(self):
+        box1 = Box(1, 1, 1, "box1")
+        box2 = Box(1, 1, 1, "box2")
+        box2.place(-box2 == ~box1)
+        diff = Difference(box1, box2)
+
+        rect = Rect(1, 1)
+        rect.place(y=+rect == ~box1)
+        try:
+            diff.add(rect)
+            self.fail("Expected error did not occur")
+        except ValueError:
+            pass
+
+    def test_add_non_coplanar(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(-rect2 == ~rect1)
+        diff = Difference(rect1, rect2)
+
+        rect3 = Rect(1, 1, "rect3")
+        rect3.place(y=+rect3 == ~rect1, z=(~rect3 == ~rect1) + 1)
+        try:
+            diff.add(rect3)
+            self.fail("Expected error did not occur")
+        except ValueError:
+            pass
+
 
 from test_utils import load_tests
 def run(context):

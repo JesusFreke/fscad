@@ -75,6 +75,133 @@ class IntersectionTest(test_utils.FscadTestCase):
         box3 = Box(1, 1, 1, "box3")
         Intersection(difference, box3).create_occurrence(True)
 
+    def test_basic_planar_intersection(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(-rect2 == ~rect1, ~rect2 == ~rect1, ~rect2 == ~rect1)
+        intersection = Intersection(rect1, rect2)
+        intersection.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(intersection.get_plane()))
+
+    def test_disjoint_planar_intersection(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place((-rect2 == +rect1) + 1, ~rect2 == ~rect1, ~rect2 == ~rect1)
+        intersection = Intersection(rect1, rect2)
+        intersection.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(intersection.get_plane()))
+
+    def test_adjoining_planar_intersection(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(-rect2 == +rect1, ~rect2 == ~rect1, ~rect2 == ~rect1)
+        intersection = Intersection(rect1, rect2)
+        intersection.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(intersection.get_plane()))
+
+    def test_complete_planar_intersection(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        intersection = Intersection(rect1, rect2)
+        intersection.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(intersection.get_plane()))
+
+    def test_complex_planar_intersection(self):
+        rect1 = Rect(1, 3, "rect1")
+        rect2 = Rect(1, 3, "rect2")
+        rect2.place((-rect2 == +rect1) + 1,
+                    ~rect2 == ~rect1,
+                    ~rect2 == ~rect1)
+        union1 = Union(rect1, rect2, name="union1")
+
+        rect3 = Rect(3, 1, "rect3")
+        rect4 = Rect(3, 1, "rect3")
+        rect4.place(~rect4 == ~rect3,
+                    (-rect4 == +rect3) + 1,
+                    ~rect4 == ~rect3)
+        union2 = Union(rect3, rect4, name="union2")
+        intersection = Intersection(union1, union2)
+        intersection.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(intersection.get_plane()))
+
+    def test_planar_3d_intersection(self):
+        rect = Rect(1, 1)
+        box = Box(1, 1, 1)
+        box.place(-box == ~rect)
+        intersection = Intersection(rect, box)
+        intersection.create_occurrence(True)
+        self.assertTrue(rect.get_plane().isCoPlanarTo(intersection.get_plane()))
+
+    def test_3d_planar_intersection(self):
+        rect = Rect(1, 1)
+        box = Box(1, 1, 1)
+        box.place(-box == ~rect)
+        intersection = Intersection(box, rect)
+        intersection.create_occurrence(True)
+        self.assertTrue(rect.get_plane().isCoPlanarTo(intersection.get_plane()))
+
+    def test_planar_intersection_with_empty(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(-rect2 == +rect1)
+        empty_intersection = Intersection(rect1, rect2, name="empty_intersection")
+
+        rect3 = Rect(1, 1, "rect3")
+        intersection = Intersection(rect3, empty_intersection)
+        intersection.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(intersection.get_plane()))
+
+    def test_non_coplanar_intersection(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(z=(~rect2 == ~rect1) + 1)
+        try:
+            Intersection(rect1, rect2)
+            self.fail("Expected error did not occur")
+        except ValueError:
+            pass
+
+    def test_add_planar_intersection(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(-rect2 == ~rect1)
+
+        intersection = Intersection(rect1, rect2)
+
+        rect3 = Rect(1, 1, "rect3")
+        rect3.place(y=-rect2 == ~rect1)
+        intersection.add(rect3)
+        intersection.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(intersection.get_plane()))
+
+    def test_add_planar_to_3d_intersection(self):
+        box1 = Box(1, 1, 1, "box1")
+        box2 = Box(1, 1, 1, "box2")
+        box2.place(-box2 == ~box1)
+
+        intersection = Intersection(box1, box2)
+
+        self.assertIsNone(intersection.get_plane())
+
+        rect = Rect(1, 1)
+        rect.place(y=-rect == ~box1)
+        intersection.add(rect)
+        intersection.create_occurrence(True)
+        self.assertTrue(rect.get_plane().isCoPlanarTo(intersection.get_plane()))
+
+    def test_add_3d_to_planar_intersection(self):
+        rect1 = Rect(1, 1, "rect1")
+        rect2 = Rect(1, 1, "rect2")
+        rect2.place(-rect2 == ~rect1)
+
+        intersection = Intersection(rect1, rect2)
+
+        box = Box(1, 1, 1)
+        box.place(y=-box == ~rect1)
+        intersection.add(box)
+        intersection.create_occurrence(True)
+        self.assertTrue(rect1.get_plane().isCoPlanarTo(intersection.get_plane()))
+
 
 from test_utils import load_tests
 def run(context):

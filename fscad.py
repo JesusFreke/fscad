@@ -166,6 +166,9 @@ class Place(object):
 class Component(object):
     _origin = Point3D.create(0, 0, 0)
     _null_vector = Vector3D.create(0, 0, 0)
+    _pos_x = Vector3D.create(1, 0, 0)
+    _pos_y = Vector3D.create(0, 1, 0)
+    _pos_z = Vector3D.create(0, 0, 1)
 
     name = ...  # type: Optional[str]
 
@@ -284,8 +287,11 @@ class Component(object):
         self._cached_world_transform = transform
         return transform.copy()
 
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        return None
 
-class Shape(Component):
+
+class Shape(Component, ABC):
     def __init__(self, body: adsk.fusion.BRepBody, name: str):
         super().__init__(name)
         self._body = body
@@ -300,10 +306,15 @@ class Shape(Component):
         return next(iter(self.bodies()))
 
 
-class Box(Shape):
-    _poz_x = Vector3D.create(1, 0, 0)
-    _poz_y = Vector3D.create(0, 1, 0)
+class PlanarShape(Shape):
+    def __init__(self, body: adsk.fusion.BRepBody, name: str):
+        super().__init__(body, name)
 
+    def get_plane(self) -> adsk.core.Plane:
+        raise NotImplementedError()
+
+
+class Box(Shape):
     _top_index = 0
     _bottom_index = 1
     _front_index = 2
@@ -314,7 +325,7 @@ class Box(Shape):
     def __init__(self, x: float, y: float, z: float, name: str = None):
         body = brep().createBox(OrientedBoundingBox3D.create(
             Point3D.create(x/2, y/2, z/2),
-            self._poz_x, self._poz_y,
+            self._pos_x, self._pos_y,
             x, y, z))
         super().__init__(body, name)
 
@@ -404,6 +415,19 @@ class Sphere(Shape):
         return self._cached_body().faces[0]
 
 
+class Rect(PlanarShape):
+    def __init__(self, x: float, y: float, name: str = None):
+        # this is a bit faster than creating it from createWireFromCurves -> createFaceFromPlanarWires
+        box = brep().createBox(OrientedBoundingBox3D.create(
+            Point3D.create(x/2, y/2, .5),
+            self._pos_x, self._pos_y,
+            x, y, 1))
+        super().__init__(brep().copy(box.faces[Box._bottom_index]), name)
+
+    def get_plane(self) -> adsk.core.Plane:
+        return self._cached_body().faces[0].geometry
+
+
 class ComponentWithChildren(Component, ABC):
     def __init__(self, name):
         super().__init__(name)
@@ -447,9 +471,11 @@ class Union(ComponentWithChildren):
         self._body = None
 
         def process_child(child: Component):
+            self._check_coplanarity(child)
             for body in child.bodies():
                 if self._body is None:
                     self._body = brep().copy(body)
+                    self._plane = child.get_plane()
                 else:
                     brep().booleanOperation(self._body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
         self._add_children(components, process_child)
@@ -461,12 +487,33 @@ class Union(ComponentWithChildren):
         copy._body = brep().copy(self._body)
         super()._copy_to(copy)
 
+    def _check_coplanarity(self, child):
+        if self._body is not None:
+            plane = self.get_plane()
+            child_plane = child.get_plane()
+
+            if (child_plane is None) ^ (plane is None):
+                raise ValueError("Cannot union a planar entity with a 3d entity")
+            if plane is not None and not plane.isCoPlanarTo(child_plane):
+                raise ValueError("Cannot union planar entities that are non-coplanar")
+
     def add(self, *components: Component) -> Component:
         def process_child(child):
+            self._check_coplanarity(child)
             for body in child.bodies():
                 brep().booleanOperation(self._body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
         self._add_children(components, process_child)
         return self
+
+    def _first_child(self):
+        try:
+            return next(iter(self.children()))
+        except StopIteration:
+            return None
+
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        child = self._first_child()
+        return child.get_plane() if child is not None else None
 
 
 class Difference(ComponentWithChildren):
@@ -475,6 +522,7 @@ class Difference(ComponentWithChildren):
         self._bodies = None
 
         def process_child(child: Component):
+            self._check_coplanarity(child)
             if self._bodies is None:
                 self._bodies = [brep().copy(child_body) for child_body in child.bodies()]
             else:
@@ -490,21 +538,50 @@ class Difference(ComponentWithChildren):
         copy._bodies = [brep().copy(body) for body in self.bodies()]
         super()._copy_to(copy)
 
+    def _check_coplanarity(self, child):
+        if self._bodies is not None and len(self._bodies) > 0:
+            plane = self.get_plane()
+            child_plane = child.get_plane()
+
+            if plane is None:
+                if child_plane is not None:
+                    raise ValueError("Cannot subtract a planar entity from a 3d entity")
+            else:
+                if child_plane is not None and not plane.isCoPlanarTo(child_plane):
+                    raise ValueError("Cannot subtract planar entities that are non-coplanar")
+
     def add(self, *components: Component) -> Component:
         def process_child(child):
+            self._check_coplanarity(child)
             for target_body in self._bodies:
                 for tool_body in child.bodies():
                     brep().booleanOperation(target_body, tool_body, adsk.fusion.BooleanTypes.DifferenceBooleanType)
         self._add_children(components, process_child)
         return self
 
+    def _first_child(self):
+        try:
+            return next(iter(self.children()))
+        except StopIteration:
+            return None
+
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        child = self._first_child()
+        return child.get_plane() if child is not None else None
+
 
 class Intersection(ComponentWithChildren):
     def __init__(self, *components: Component, name: str = None):
         super().__init__(name)
         self._bodies = None
+        self._cached_plane = None
+        self._cached_plane_populated = False
+
+        plane = None
 
         def process_child(child: Component):
+            nonlocal plane
+            plane = self._check_coplanarity(child, plane)
             if self._bodies is None:
                 self._bodies = [brep().copy(child_body) for child_body in child.bodies()]
             else:
@@ -519,15 +596,49 @@ class Intersection(ComponentWithChildren):
 
     def _copy_to(self, copy: 'Difference'):
         copy._bodies = [brep().copy(body) for body in self.bodies()]
+        copy._cached_plane = None
+        copy._cached_plane_populated = False
         super()._copy_to(copy)
 
     def add(self, *components: Component) -> Component:
+        plane = self.get_plane()
+
         def process_child(child):
+            nonlocal plane
+            plane = self._check_coplanarity(child, plane)
             for target_body in self._bodies:
                 for tool_body in child.bodies():
                     brep().booleanOperation(target_body, tool_body, adsk.fusion.BooleanTypes.IntersectionBooleanType)
         self._add_children(components, process_child)
         return self
+
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        if not self._cached_plane_populated:
+            plane = None
+            for child in self.children():
+                plane = child.get_plane()
+                if plane:
+                    break
+            self._cached_plane = plane
+            self._cached_plane_populated = True
+        return self._cached_plane
+
+    def _check_coplanarity(self, child, plane):
+        if self._bodies is not None and len(self._bodies) > 0:
+            child_plane = child.get_plane()
+            if plane is not None:
+                if child_plane is not None and not plane.isCoPlanarTo(child_plane):
+                    raise ValueError("Cannot intersect planar entities that are non-coplanar")
+                return plane
+            elif child_plane is not None:
+                return child_plane
+        else:
+            return child.get_plane()
+
+    def _reset_cache(self):
+        super()._reset_cache()
+        self._cached_plane = None
+        self._cached_plane_populated = False
 
 
 def setup_document(document_name="fSCAD-Preview"):
