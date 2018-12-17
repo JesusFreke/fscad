@@ -179,6 +179,20 @@ class Component(object):
     def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
         raise NotImplementedError()
 
+    def copy(self) -> 'Component':
+        copy = Component()
+        copy.__class__ = self.__class__
+        copy._local_transform = self._get_world_transform()
+        copy._cached_bounding_box = None
+        copy._cached_bodies = None
+        copy._cached_world_transform = None
+        copy.name = self.name
+        self._copy_to(copy)
+        return copy
+
+    def _copy_to(self, copy: 'Component'):
+        raise NotImplementedError
+
     def children(self) -> Iterable['Component']:
         return ()
 
@@ -287,13 +301,15 @@ class Box(Component):
             Point3D.create(x/2, y/2, z/2),
             self._poz_x, self._poz_y,
             x, y, z))
-        self._top = self._bottom = self._right = self._left = self._front = self._back = None
 
     def _raw_bodies(self):
         return [self._body]
 
     def _default_name(self):
         return "Box"
+
+    def _copy_to(self, copy: 'Cylinder'):
+        copy._body = brep().copy(self._body)
 
     def _cached_body(self):
         return next(iter(self.bodies()))
@@ -322,10 +338,6 @@ class Box(Component):
     def back(self):
         return self._cached_body().faces[self._back_index]
 
-    def _reset_cache(self):
-        super()._reset_cache()
-        self._top = self._bottom = self._right = self._left = self._front = self._back = None
-
 
 class Cylinder(Component):
     _side_index = 0
@@ -347,7 +359,6 @@ class Cylinder(Component):
         else:
             self._body = brep().createCylinderOrCone(self._origin, radius, Point3D.create(0, 0, height),
                                                      top_radius if top_radius is not None else radius)
-        self._top = self._bottom = self._side = None
         if radius == 0:
             self._bottom_index = None
             self._top_index = 1
@@ -366,6 +377,11 @@ class Cylinder(Component):
 
     def _cached_body(self):
         return next(iter(self.bodies()))
+
+    def _copy_to(self, copy: 'Cylinder'):
+        copy._body = brep().copy(self._body)
+        copy._bottom_index = self._bottom_index
+        copy._top_index = self._top_index
 
     @property
     def top(self):
@@ -398,6 +414,9 @@ class Sphere(Component):
     def _cached_body(self):
         return next(iter(self.bodies()))
 
+    def _copy_to(self, copy: 'Cylinder'):
+        copy._body = brep().copy(self._body)
+
     @property
     def surface(self):
         return self._cached_body().faces[0]
@@ -429,6 +448,18 @@ class Union(Component):
 
     def _default_name(self):
         return "Union"
+
+    def _copy_to(self, copy: 'Union'):
+        copy._body = brep().copy(self._body)
+        copy._children = []
+        transform = copy._get_world_transform()
+        transform.invert()
+        for child in self._children:
+            child_copy = child.copy()
+            child_copy._local_transform.transformBy(transform)
+            child_copy._reset_cache()
+            child_copy._parent = copy
+            copy._children.append(child_copy)
 
     def add(self, *components: Component) -> Component:
         transform = self._get_world_transform()

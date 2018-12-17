@@ -18,6 +18,7 @@ import unittest
 
 test_modules = [
     "basic_geometry_test",
+    "copy_test",
     "place_test",
     "union_test",
 ]
