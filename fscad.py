@@ -345,6 +345,38 @@ class Component(object):
     def tz(self, tz: float) -> 'Component':
         return self.translate(tz=tz)
 
+    def scale(self, sx: float = 1, sy: float = 1, sz: float = 1,
+              center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None) -> 'Component':
+        scale = Matrix3D.create()
+        translation = Matrix3D.create()
+        if abs(sx) != abs(sy) or abs(sy) != abs(sz):
+            raise ValueError("Non-uniform scaling is not currently supported")
+
+        if center is None:
+            center_point = self._origin
+        elif isinstance(center, Point3D):
+            center_point = center
+        else:
+            center_coordinates = list(center)[0:3]
+            while len(center_coordinates) < 3:
+                center_coordinates.append(0)
+            center_point = Point3D.create(*center_coordinates)
+
+        translation.translation = center_point.asVector()
+        translation.invert()
+        self._local_transform.transformBy(translation)
+
+        scale.setCell(0, 0, sx)
+        scale.setCell(1, 1, sy)
+        scale.setCell(2, 2, sz)
+        self._local_transform.transformBy(scale)
+
+        translation.invert()
+        self._local_transform.transformBy(translation)
+
+        self._reset_cache()
+        return self
+
 
 class Shape(Component, ABC):
     def __init__(self, body: adsk.fusion.BRepBody, name: str):

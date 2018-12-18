@@ -22,7 +22,7 @@ importlib.reload(test_utils)
 import test_utils
 
 
-class TranslateRotationTest(test_utils.FscadTestCase):
+class TransformTest(test_utils.FscadTestCase):
     def test_simple_x_rotation(self):
         box1 = Box(1, 2, 3, "box1")
         box1.rotate(30)
@@ -89,6 +89,65 @@ class TranslateRotationTest(test_utils.FscadTestCase):
         self.assertEqual(box1.min().asArray(), (1, 2, 3))
         self.assertEqual(box1.mid().asArray(), (1.5, 3, 4.5))
         self.assertEqual(box1.max().asArray(), (2, 4, 6))
+
+    def test_basic_uniform_scale(self):
+        box = Box(1, 2, 3)
+        box.scale(2, 2, 2)
+        box.create_occurrence()
+
+        self.assertEqual(box.size().asArray(), (2, 4, 6))
+        self.assertEqual(box.min().asArray(), (0, 0, 0))
+        self.assertEqual(box.mid().asArray(), (1, 2, 3))
+        self.assertEqual(box.max().asArray(), (2, 4, 6))
+
+    def test_non_uniform_scale(self):
+        box = Box(1, 2, 3)
+
+        try:
+            box.scale(2, 1, 1)
+            self.fail("Expected error did not occur")
+        except ValueError:
+            pass
+
+    def test_uniform_scale_with_center(self):
+        box = Box(1, 2, 3)
+        box.scale(2, 2, 2, (1, 2, 3))
+        box.create_occurrence()
+
+        self.assertEqual(box.size().asArray(), (2, 4, 6))
+        self.assertEqual(box.min().asArray(), (-1, -2, -3))
+        self.assertEqual(box.mid().asArray(), (0, 0, 0))
+        self.assertEqual(box.max().asArray(), (1, 2, 3))
+
+    def test_basic_mirror(self):
+        box = Box(1, 2, 3)
+        box.scale(-1, 1, 1)
+        box.create_occurrence()
+
+        self.assertEqual(box.size().asArray(), (1, 2, 3))
+        self.assertEqual(box.min().asArray(), (-1, 0, 0))
+        self.assertEqual(box.mid().asArray(), (-.5, 1, 1.5))
+        self.assertEqual(box.max().asArray(), (0, 2, 3))
+
+    def test_mirror_with_center(self):
+        box = Box(1, 2, 3)
+        box.scale(-1, 1, 1, (1, 0, 0))
+        box.create_occurrence()
+
+        self.assertEqual(box.size().asArray(), (1, 2, 3))
+        self.assertEqual(box.min().asArray(), (1, 0, 0))
+        self.assertEqual(box.mid().asArray(), (1.5, 1, 1.5))
+        self.assertEqual(box.max().asArray(), (2, 2, 3))
+
+    def test_mixed_scale_mirror(self):
+        box = Box(1, 2, 3)
+        box.scale(-2, 2, 2, (1, 0, 0))
+        box.create_occurrence()
+
+        self.assertEqual(box.size().asArray(), (2, 4, 6))
+        self.assertEqual(box.min().asArray(), (1, 0, 0))
+        self.assertEqual(box.mid().asArray(), (2, 2, 3))
+        self.assertEqual(box.max().asArray(), (3, 4, 6))
 
 
 from test_utils import load_tests
