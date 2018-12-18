@@ -192,6 +192,16 @@ class BasicGeometryTest(test_utils.FscadTestCase):
 
         rect.create_occurrence()
 
+    def test_circle(self):
+        circle = Circle(2)
+
+        self.assertEqual(circle.size().asArray(), (4, 4, 0))
+        self.assertEqual(circle.min().asArray(), (-2, -2, 0))
+        self.assertEqual(circle.mid().asArray(), (0, 0, 0))
+        self.assertEqual(circle.max().asArray(), (2, 2, 0))
+
+        circle.create_occurrence()
+
 from test_utils import load_tests
 def run(context):
     import sys

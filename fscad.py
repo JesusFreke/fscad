@@ -428,6 +428,19 @@ class Rect(PlanarShape):
         return self._cached_body().faces[0].geometry
 
 
+class Circle(PlanarShape):
+    _top_index = 2
+
+    def __init__(self, radius: float, name: str = None):
+        # this is a bit faster than creating it from createWireFromCurves -> createFaceFromPlanarWires
+        cylinder = brep().createCylinderOrCone(
+            Point3D.create(0, 0, -1), radius, self._origin, radius)
+        super().__init__(brep().copy(cylinder.faces[self._top_index]), name)
+
+    def get_plane(self) -> adsk.core.Plane:
+        return self._cached_body().faces[0].geometry
+
+
 class ComponentWithChildren(Component, ABC):
     def __init__(self, name):
         super().__init__(name)
