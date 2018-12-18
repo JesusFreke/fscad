@@ -72,6 +72,19 @@ class PlaceTest(test_utils.FscadTestCase):
 
         union.create_occurrence(True)
 
+    def test_place_at_value(self):
+        box1 = Box(1, 1, 1, "box1")
+        box1.place(
+            -box1 == 1,
+            ~box1 == Point3D.create(1, 2, 3),
+            +box1 == 1)
+        box1.create_occurrence()
+
+        self.assertEqual(box1.size().asArray(), (1, 1, 1))
+        self.assertEqual(box1.min().asArray(), (1, 1.5, 0))
+        self.assertEqual(box1.mid().asArray(), (1.5, 2, .5))
+        self.assertEqual(box1.max().asArray(), (2, 2.5, 1))
+
 from test_utils import load_tests
 def run(context):
     import sys

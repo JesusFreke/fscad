@@ -160,8 +160,17 @@ class Place(object):
     def __init__(self, point: Point3D):
         self._point = point
 
-    def __eq__(self, other: 'Place') -> Translation:
-        return Translation(self._point.vectorTo(other._point))
+    def __eq__(self, other: typing.Union['Place', float, int, Point3D]) -> Translation:
+        if isinstance(other, Point3D):
+            point = other
+        elif isinstance(other, float) or isinstance(other, int):
+            point = Point3D.create(other, other, other)
+        elif isinstance(other, Place):
+            point = other._point
+        else:
+            raise ValueError("Unsupported type: %s" % type(other).__name__)
+
+        return Translation(self._point.vectorTo(point))
 
 
 class Component(object):
