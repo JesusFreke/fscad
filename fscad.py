@@ -63,17 +63,16 @@ def _collection_of(collection):
 
 def _create_component(parent_component, *bodies, name):
     parametric = _is_parametric()
-    if not parametric:
-        set_parametric(True)
     new_occurrence = parent_component.occurrences.addNewComponent(Matrix3D.create())
     new_occurrence.component.name = name
-    base_feature = new_occurrence.component.features.baseFeatures.add()
-    base_feature.startEdit()
+    base_feature = None
+    if parametric:
+        base_feature = new_occurrence.component.features.baseFeatures.add()
+        base_feature.startEdit()
     for body in bodies:
         new_occurrence.component.bRepBodies.add(body, base_feature)
-    base_feature.finishEdit()
-    if not parametric:
-        set_parametric(False)
+    if base_feature:
+        base_feature.finishEdit()
     return new_occurrence
 
 
