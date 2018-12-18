@@ -653,6 +653,63 @@ class Intersection(ComponentWithChildren):
         self._cached_plane_populated = False
 
 
+class Loft(ComponentWithChildren):
+    _top_index = 0
+    _bottom_index = 1
+
+    def __init__(self, *components: Component, name: str = None):
+        super().__init__(name)
+
+        loft_sections = []
+
+        def process_child(child: Component):
+            nonlocal loft_sections
+            if child.get_plane() is None:
+                raise ValueError("Only planar geometry can be used with Loft")
+
+            component_face = None
+            for child_body in child.bodies():
+                for face in child_body.faces:
+                    if component_face is None:
+                        component_face = face
+                    else:
+                        raise ValueError("A loft section must have only 1 face")
+            loft_sections.append(brep().copy(component_face))
+
+        self._add_children(components, process_child)
+
+        occurrence = _create_component(root(), *loft_sections, name="loft_temp")
+        loft_feature_input = occurrence.component.features.loftFeatures.createInput(
+            adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+        for body in occurrence.bRepBodies:
+            loft_feature_input.loftSections.add(body.faces[0])
+        occurrence.component.features.loftFeatures.add(loft_feature_input)
+        self._body = brep().copy(occurrence.bRepBodies[-1])
+        occurrence.deleteMe()
+
+    def _cached_body(self):
+        return next(iter(self.bodies()))
+
+    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+        return self._body,
+
+    def _copy_to(self, copy: 'Loft'):
+        copy._body = brep().copy(self._body)
+        super()._copy_to(copy)
+
+    @property
+    def bottom(self) -> adsk.fusion.BRepFace:
+        return self._cached_body().faces[self._bottom_index]
+
+    @property
+    def top(self) -> adsk.fusion.BRepFace:
+        return self._cached_body().faces[self._top_index]
+
+    @property
+    def sides(self) -> Iterable[adsk.fusion.BRepFace]:
+        return tuple(self._cached_body().faces[self._bottom_index+1:])
+
+
 def setup_document(document_name="fSCAD-Preview"):
     preview_doc = None
     saved_camera = None
