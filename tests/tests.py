@@ -21,7 +21,9 @@ test_modules = [
     "copy_test",
     "difference_test",
     "intersection_test",
+    "loft_test",
     "place_test",
+    "rotation_test"
     "union_test",
 ]
 

@@ -18,9 +18,11 @@ from typing import Callable, Iterable, Optional
 
 import adsk.core
 import adsk.fusion
+import math
 import sys
 import traceback
 import types
+import typing
 
 
 def app():
@@ -288,6 +290,43 @@ class Component(object):
 
     def get_plane(self) -> Optional[adsk.core.Plane]:
         return None
+
+    def rotate(self, rx: float = 0, ry: float = 0, rz: float = 0,
+               center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None):
+        transform = self._local_transform
+
+        if center is None:
+            center_point = self._origin
+        elif isinstance(center, Point3D):
+            center_point = center
+        else:
+            center_coordinates = list(center)[0:3]
+            while len(center_coordinates) < 3:
+                center_coordinates.append(0)
+            center_point = Point3D.create(*center_coordinates)
+
+        if rx != 0:
+            rotation = Matrix3D.create()
+            rotation.setToRotation(math.radians(rx), self._pos_x, center_point)
+            transform.transformBy(rotation)
+        if ry != 0:
+            rotation = Matrix3D.create()
+            rotation.setToRotation(math.radians(ry), self._pos_y, center_point)
+            transform.transformBy(rotation)
+        if rz != 0:
+            rotation = Matrix3D.create()
+            rotation.setToRotation(math.radians(rz), self._pos_z, center_point)
+            transform.transformBy(rotation)
+        self._reset_cache()
+
+    def rx(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None):
+        self.rotate(angle, center=center)
+
+    def ry(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None):
+        self.rotate(ry=angle, center=center)
+
+    def rz(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None):
+        self.rotate(rz=angle, center=center)
 
 
 class Shape(Component, ABC):
