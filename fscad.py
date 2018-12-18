@@ -136,12 +136,15 @@ class Translation(object):
 
     def __sub__(self, other):
         self._vector.setWithArray((self._vector.x - other, self._vector.y - other, self._vector.z - other))
+        return self
 
     def __mul__(self, other):
         self._vector.setWithArray((self._vector.x * other, self._vector.y * other, self._vector.z * other))
+        return self
 
     def __div__(self, other):
         self._vector.setWithArray((self._vector.x / other, self._vector.y / other, self._vector.z / other))
+        return self
 
     @property
     def x(self):
