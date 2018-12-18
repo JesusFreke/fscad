@@ -292,7 +292,7 @@ class Component(object):
         return None
 
     def rotate(self, rx: float = 0, ry: float = 0, rz: float = 0,
-               center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None):
+               center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None) -> 'Component':
         transform = self._local_transform
 
         if center is None:
@@ -318,15 +318,32 @@ class Component(object):
             rotation.setToRotation(math.radians(rz), self._pos_z, center_point)
             transform.transformBy(rotation)
         self._reset_cache()
+        return self
 
-    def rx(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None):
-        self.rotate(angle, center=center)
+    def rx(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None) -> 'Component':
+        return self.rotate(angle, center=center)
 
-    def ry(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None):
-        self.rotate(ry=angle, center=center)
+    def ry(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None) -> 'Component':
+        return self.rotate(ry=angle, center=center)
 
-    def rz(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None):
-        self.rotate(rz=angle, center=center)
+    def rz(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None) -> 'Component':
+        return self.rotate(rz=angle, center=center)
+
+    def translate(self, tx: float = 0, ty: float = 0, tz: float = 0) -> 'Component':
+        translation = Matrix3D.create()
+        translation.translation = adsk.core.Vector3D.create(tx, ty, tz)
+        self._local_transform.transformBy(translation)
+        self._reset_cache()
+        return self
+
+    def tx(self, tx: float) -> 'Component':
+        return self.translate(tx)
+
+    def ty(self, ty: float) -> 'Component':
+        return self.translate(ty=ty)
+
+    def tz(self, tz: float) -> 'Component':
+        return self.translate(tz=tz)
 
 
 class Shape(Component, ABC):

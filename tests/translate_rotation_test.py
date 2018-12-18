@@ -22,7 +22,7 @@ importlib.reload(test_utils)
 import test_utils
 
 
-class RotationTest(test_utils.FscadTestCase):
+class TranslateRotationTest(test_utils.FscadTestCase):
     def test_simple_x_rotation(self):
         box1 = Box(1, 2, 3, "box1")
         box1.rotate(30)
@@ -58,6 +58,37 @@ class RotationTest(test_utils.FscadTestCase):
         box1.rotate(rz=45)
         box1.rotate(rz=45)
         box1.create_occurrence()
+
+    def test_rxryrz(self):
+        box1 = Box(1, 2, 3, "box1")
+        box1.rx(30).ry(30).rz(30)
+        box1.create_occurrence()
+
+    def test_rx_with_center(self):
+        box1 = Box(1, 2, 3, "box1")
+        center = Point3D.create(1, 2, 3)
+        box1.rx(30, center)
+        box1.create_occurrence()
+
+    def test_translation(self):
+        box1 = Box(1, 2, 3, "box1")
+        box1.translate(1, 2, 3)
+        box1.create_occurrence()
+
+        self.assertEqual(box1.size().asArray(), (1, 2, 3))
+        self.assertEqual(box1.min().asArray(), (1, 2, 3))
+        self.assertEqual(box1.mid().asArray(), (1.5, 3, 4.5))
+        self.assertEqual(box1.max().asArray(), (2, 4, 6))
+
+    def test_txtytz(self):
+        box1 = Box(1, 2, 3, "box1")
+        box1.tx(1).ty(2).tz(3)
+        box1.create_occurrence()
+
+        self.assertEqual(box1.size().asArray(), (1, 2, 3))
+        self.assertEqual(box1.min().asArray(), (1, 2, 3))
+        self.assertEqual(box1.mid().asArray(), (1.5, 3, 4.5))
+        self.assertEqual(box1.max().asArray(), (2, 4, 6))
 
 
 from test_utils import load_tests
