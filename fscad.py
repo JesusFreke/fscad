@@ -16,6 +16,7 @@ from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, ValueInput, Vector3D
 from adsk.fusion import BRepBody, BRepFace
 from typing import Callable, Iterable, List, Optional
+from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
 import adsk.core
 import adsk.fusion
@@ -23,7 +24,12 @@ import math
 import sys
 import traceback
 import types
-import typing
+
+# recursive type hints don't actually work yet, so let's expand the recursion a few levels and call it good
+_face_selector_types = Onion['Component', BRepBody, BRepFace, Iterable[
+    Onion['Component', BRepBody, BRepFace, Iterable[
+        Onion['Component', BRepBody, BRepFace, Iterable[
+            Onion['Component', BRepBody, BRepFace, Iterable['_face_selector_types']]]]]]]]
 
 
 def app():
@@ -135,6 +141,111 @@ def _map_face(face, new_body):
     return new_body.faces[_face_index(face)]
 
 
+def _flatten_face_selectors(selector: _face_selector_types) -> Iterable[BRepFace]:
+    faces = []
+    if isinstance(selector, Iterable):
+        for subselector in selector:
+            for face in _flatten_face_selectors(subselector):
+                if face not in faces:
+                    faces.append(face)
+        return faces
+    if isinstance(selector, Component):
+        return _flatten_face_selectors(selector.bodies())
+    if isinstance(selector, BRepBody):
+        return selector.faces
+    return [selector]
+
+
+def _check_face_intersection(face1, face2):
+    face_body1 = brep().copy(face1)
+    face_body2 = brep().copy(face2)
+    brep().booleanOperation(face_body1, face_body2, adsk.fusion.BooleanTypes.IntersectionBooleanType)
+    return face_body1.faces.count > 0
+
+
+def _point_vector_to_line(point, vector):
+    return adsk.core.Line3D.create(point,
+                                   adsk.core.Point3D.create(point.x + vector.x,
+                                                            point.y + vector.y,
+                                                            point.z + vector.z))
+
+
+def _check_face_geometry(face1, face2):
+    """Does some quick sanity checks of the face geometry, to rule out easy cases of non-equality.
+
+    A return value of True does not guarantee the geometry is the same, but a return value of False does
+    guarantee they are not.
+    """
+    geometry1 = face1.geometry
+    geometry2 = face2.geometry
+    if isinstance(geometry1, adsk.core.Cylinder):
+        if not math.isclose(geometry1.radius, geometry2.radius):
+            return False
+        line1 = _point_vector_to_line(geometry1.origin, geometry1.axis)
+        line2 = _point_vector_to_line(geometry2.origin, geometry2.axis)
+        return line1.isColinearTo(line2)
+    if isinstance(geometry1, adsk.core.Sphere):
+        if not math.isclose(geometry1.radius, geometry2.radius):
+            return False
+        return geometry1.origin.isEqualTo(geometry2.origin)
+    if isinstance(geometry1, adsk.core.Torus):
+        if not geometry1.origin.isEqualTo(geometry2.origin):
+            return False
+        if not geometry1.axis.isParallelTo(geometry2.axis):
+            return False
+        if not math.isclose(geometry1.majorRadius, geometry2.majorRadius):
+            return False
+        return math.isclose(geometry1.minorRadius, geometry2.minorRadius)
+    if isinstance(geometry1, adsk.core.EllipticalCylinder):
+        line1 = _point_vector_to_line(geometry1.origin, geometry1.axis)
+        line2 = _point_vector_to_line(geometry2.origin, geometry2.axis)
+        if not line1.isColinearTo(line2):
+            return False
+        if not geometry1.majorAxis.isParallelTo(geometry2.majorAxis):
+            return False
+        if not math.isclose(geometry1.majorRadius, geometry2.majorRadius):
+            return False
+        return math.isclose(geometry1.minorRadius, geometry2.minorRadius)
+    # It's a bit harder to check the remaining types. We'll just fallback to doing the
+    # full face intersection check.
+    return True
+
+
+def _check_face_coincidence(face1, face2):
+    if face1.geometry.surfaceType != face2.geometry.surfaceType:
+        return False
+    if face1.geometry.surfaceType == adsk.core.SurfaceTypes.PlaneSurfaceType:
+        if not face1.geometry.isCoPlanarTo(face2.geometry):
+            return False
+        return _check_face_intersection(face1, face2)
+    else:
+        if not _check_face_geometry(face1, face2):
+            return False
+        return _check_face_intersection(face1, face2)
+
+
+def _find_coincident_faces_on_body(body: BRepBody, faces: Iterable[BRepFace]) -> Iterable[BRepFace]:
+    coincident_faces = []
+    for face in faces:
+        face_bounding_box = face.boundingBox
+        expanded_bounding_box = adsk.core.BoundingBox3D.create(
+            adsk.core.Point3D.create(
+                face_bounding_box.minPoint.x - app().pointTolerance,
+                face_bounding_box.minPoint.y - app().pointTolerance,
+                face_bounding_box.minPoint.z - app().pointTolerance),
+            adsk.core.Point3D.create(
+                face_bounding_box.maxPoint.x + app().pointTolerance,
+                face_bounding_box.maxPoint.y + app().pointTolerance,
+                face_bounding_box.maxPoint.z + app().pointTolerance),
+        )
+        if body.boundingBox.intersects(expanded_bounding_box):
+            for body_face in body.faces:
+                if body_face.boundingBox.intersects(expanded_bounding_box):
+                    if _check_face_coincidence(face, body_face):
+                        coincident_faces.append(body_face)
+    return coincident_faces
+
+
 class Translation(object):
     def __init__(self, vector: Vector3D):
         self._vector = vector
@@ -175,7 +286,7 @@ class Place(object):
     def __init__(self, point: Point3D):
         self._point = point
 
-    def __eq__(self, other: typing.Union['Place', float, int, Point3D]) -> Translation:
+    def __eq__(self, other: Onion['Place', float, int, Point3D]) -> Translation:
         if isinstance(other, Point3D):
             point = other
         elif isinstance(other, float) or isinstance(other, int):
@@ -316,7 +427,7 @@ class Component(object):
         return None
 
     def rotate(self, rx: float = 0, ry: float = 0, rz: float = 0,
-               center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None) -> 'Component':
+               center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
         transform = self._local_transform
 
         if center is None:
@@ -344,13 +455,13 @@ class Component(object):
         self._reset_cache()
         return self
 
-    def rx(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None) -> 'Component':
+    def rx(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
         return self.rotate(angle, center=center)
 
-    def ry(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None) -> 'Component':
+    def ry(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
         return self.rotate(ry=angle, center=center)
 
-    def rz(self, angle: float, center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None) -> 'Component':
+    def rz(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
         return self.rotate(rz=angle, center=center)
 
     def translate(self, tx: float = 0, ty: float = 0, tz: float = 0) -> 'Component':
@@ -370,7 +481,7 @@ class Component(object):
         return self.translate(tz=tz)
 
     def scale(self, sx: float = 1, sy: float = 1, sz: float = 1,
-              center: typing.Union[Iterable[typing.Union[float, int]], Point3D]=None) -> 'Component':
+              center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
         scale = Matrix3D.create()
         translation = Matrix3D.create()
         if abs(sx) != abs(sy) or abs(sy) != abs(sz):
@@ -400,6 +511,13 @@ class Component(object):
 
         self._reset_cache()
         return self
+
+    def find_faces(self, selector: _face_selector_types) -> Iterable[BRepFace]:
+        selector_faces = _flatten_face_selectors(selector)
+        result = []
+        for body in self.bodies():
+            result.extend(_find_coincident_faces_on_body(body, selector_faces))
+        return result
 
 
 class Shape(Component, ABC):
@@ -934,7 +1052,7 @@ class Extrude(ExtrudeBase):
 
 class ExtrudeTo(ExtrudeBase):
     def __init__(self, component: Component,
-                 to_entity: typing.Union[Component, BRepFace, BRepBody],
+                 to_entity: Onion[Component, BRepFace, BRepBody],
                  name: str = None):
         if component.get_plane() is None:
             raise ValueError("Can't extrude non-planar geometry with Extrude. Consider using ExtrudeFace")
