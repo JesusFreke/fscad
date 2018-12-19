@@ -535,6 +535,11 @@ class Shape(Component, ABC):
         return next(iter(self.bodies()))
 
 
+class BRepComponent(Shape):
+    def __init__(self, brep_entity: Onion[BRepBody, BRepFace], name: str = None):
+        super().__init__(brep().copy(brep_entity), name)
+
+
 class PlanarShape(Shape):
     def __init__(self, body: BRepBody, name: str):
         super().__init__(body, name)
