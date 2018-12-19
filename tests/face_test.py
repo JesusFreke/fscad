@@ -33,7 +33,7 @@ class FaceTest(test_utils.FscadTestCase):
                    ~box2 == ~box1,
                    ~box2 == ~box1)
 
-        faces = list(box1.find_faces(box2.left))
+        faces = box1.find_faces(box2.left)
         self.assertEqual(len(faces), 1)
         self.assertTrue(faces[0].geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
         self.assertEqual(faces[0].pointOnFace.x, 1)
@@ -46,27 +46,27 @@ class FaceTest(test_utils.FscadTestCase):
                    ~hole == ~box)
         diff = Difference(box, hole)
 
-        faces = list(diff.find_faces(hole.left))
+        faces = diff.find_faces(hole.left)
         self.assertEqual(len(faces), 1)
         self.assertTrue(faces[0].geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
         self.assertEqual(faces[0].pointOnFace.x, .5)
 
-        faces = list(diff.find_faces(hole))
+        faces = diff.find_faces(hole)
         self.assertEqual(len(faces), 5)
         for face in faces:
             self.assertEqual(face.area, .5*.5)
 
-        faces = list(diff.find_faces([hole]))
+        faces = diff.find_faces([hole])
         self.assertEqual(len(faces), 5)
         for face in faces:
             self.assertEqual(face.area, .5*.5)
 
-        faces = list(diff.find_faces([list(hole.bodies()[0].faces)]))
+        faces = diff.find_faces([list(hole.bodies()[0].faces)])
         self.assertEqual(len(faces), 5)
         for face in faces:
             self.assertEqual(face.area, .5*.5)
 
-        faces = list(diff.find_faces(hole.bodies()[0]))
+        faces = diff.find_faces(hole.bodies()[0])
         self.assertEqual(len(faces), 5)
         for face in faces:
             self.assertEqual(face.area, .5*.5)
@@ -79,7 +79,7 @@ class FaceTest(test_utils.FscadTestCase):
                      ~sphere == ~box)
         diff = Difference(box, sphere)
 
-        faces = list(diff.find_faces(sphere.surface))
+        faces = diff.find_faces(sphere.surface)
         self.assertEqual(len(faces), 1)
         self.assertTrue(isinstance(faces[0].geometry, adsk.core.Sphere))
 

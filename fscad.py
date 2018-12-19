@@ -512,7 +512,7 @@ class Component(object):
         self._reset_cache()
         return self
 
-    def find_faces(self, selector: _face_selector_types) -> Iterable[BRepFace]:
+    def find_faces(self, selector: _face_selector_types) -> Sequence[BRepFace]:
         selector_faces = _flatten_face_selectors(selector)
         result = []
         for body in self.bodies():
