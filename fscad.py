@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from abc import ABC
-from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, Vector3D
-from typing import Callable, Iterable, Optional
+from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, ValueInput, Vector3D
+from typing import Callable, Iterable, List, Optional
 
 import adsk.core
 import adsk.fusion
@@ -121,6 +121,17 @@ def _get_exact_bounding_box(entity):
         else:
             bounding_box.combine(entity_bounding_box)
     return bounding_box
+
+
+def _face_index(face):
+    for i, candidate_face in enumerate(face.body.faces):
+        if candidate_face == face:
+            return i
+    assert False
+
+
+def _map_face(face, new_body):
+    return new_body.faces[_face_index(face)]
 
 
 class Translation(object):
@@ -518,10 +529,10 @@ class Rect(PlanarShape):
     def __init__(self, x: float, y: float, name: str = None):
         # this is a bit faster than creating it from createWireFromCurves -> createFaceFromPlanarWires
         box = brep().createBox(OrientedBoundingBox3D.create(
-            Point3D.create(x/2, y/2, .5),
+            Point3D.create(x/2, y/2, -.5),
             self._pos_x, self._pos_y,
             x, y, 1))
-        super().__init__(brep().copy(box.faces[Box._bottom_index]), name)
+        super().__init__(brep().copy(box.faces[Box._top_index]), name)
 
     def get_plane(self) -> adsk.core.Plane:
         return self._cached_body().faces[0].geometry
@@ -783,6 +794,7 @@ class Loft(ComponentWithChildren):
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         for body in occurrence.bRepBodies:
             loft_feature_input.loftSections.add(body.faces[0])
+        # TODO: do we get a feature in direct mode? If so, we can use as a better way to find the various bodies/faces
         occurrence.component.features.loftFeatures.add(loft_feature_input)
         self._body = brep().copy(occurrence.bRepBodies[-1])
         occurrence.deleteMe()
@@ -808,6 +820,115 @@ class Loft(ComponentWithChildren):
     @property
     def sides(self) -> Iterable[adsk.fusion.BRepFace]:
         return tuple(self._cached_body().faces[self._bottom_index+1:])
+
+
+class ExtrudeBase(ComponentWithChildren):
+    def __init__(self, component: Component, faces: Iterable[adsk.fusion.BRepFace], extent, name: str = None):
+        super().__init__(name)
+
+        input_bodies = []
+        for face in faces:
+            if face.body not in input_bodies:
+                input_bodies.append(face.body)
+        temp_occurrence = _create_component(root(), *input_bodies, name="temp")
+
+        temp_bodies = list(temp_occurrence.bRepBodies)
+
+        temp_faces = []
+        for face in faces:
+            body_index = input_bodies.index(face.body)
+            temp_body = temp_bodies[body_index]
+            temp_faces.append(_map_face(face, temp_body))
+
+        extrude_input = temp_occurrence.component.features.extrudeFeatures.createInput(
+            _collection_of(temp_faces), adsk.fusion.FeatureOperations.JoinFeatureOperation)
+        extrude_input.setOneSideExtent(
+            extent, adsk.fusion.ExtentDirections.PositiveExtentDirection, ValueInput.createByReal(0))
+        feature = temp_occurrence.component.features.extrudeFeatures.add(extrude_input)
+
+        self._bodies = []
+        feature_bodies = list(feature.bodies)
+        for body in feature_bodies:
+            self._bodies.append(brep().copy(body))
+
+        self._start_face_indices = []
+        for face in feature.startFaces:
+            body_index = feature_bodies.index(face.body)
+            self._start_face_indices.append((body_index, _face_index(face)))
+
+        self._end_face_indices = []
+        for face in feature.endFaces:
+            body_index = feature_bodies.index(face.body)
+            self._end_face_indices.append((body_index, _face_index(face)))
+
+        self._side_face_indices = []
+        for face in feature.sideFaces:
+            body_index = feature_bodies.index(face.body)
+            self._side_face_indices.append((body_index, _face_index(face)))
+
+        self._add_children([component])
+
+        self._cached_start_faces = None
+        self._cached_end_faces = None
+        self._cached_side_faces = None
+
+        temp_occurrence.deleteMe()
+
+    def _copy_to(self, copy: 'Component'):
+        copy._bodies = []
+        for body in self._bodies:
+            # TODO: since we don't modify bodies once they are created, do we actually need to make a copy here
+            # (and elsewhere?) maybe we could use body identity as a way to identify duplicated components?
+            copy._bodies.append(brep().copy(body))
+        copy._start_face_indices = list(self._start_face_indices)
+        copy._end_face_indices = list(self._end_face_indices)
+        copy._side_face_indices = list(self._side_face_indices)
+
+    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+        return list(self._bodies)
+
+    def _reset_cache(self):
+        super()._reset_cache()
+        self._cached_start_faces = None
+        self._cached_end_faces = None
+        self._cached_side_faces = None
+
+    def _get_faces(self, indices):
+        result = []
+        bodies = list(self.bodies())
+        for body_index, face_index in indices:
+            result.append(bodies[body_index].faces[face_index])
+        return result
+
+    @property
+    def start_faces(self) -> List[adsk.fusion.BRepFace]:
+        if not self._cached_start_faces:
+            self._cached_start_faces = self._get_faces(self._start_face_indices)
+        return list(self._cached_start_faces)
+
+    @property
+    def end_faces(self) -> List[adsk.fusion.BRepFace]:
+        if not self._cached_end_faces:
+            self._cached_end_faces = self._get_faces(self._end_face_indices)
+        return list(self._cached_end_faces)
+
+    @property
+    def side_faces(self) -> List[adsk.fusion.BRepFace]:
+        if not self._cached_side_faces:
+            self._cached_side_faces = self._get_faces(self._side_face_indices)
+        return list(self._cached_side_faces)
+
+
+class Extrude(ExtrudeBase):
+    def __init__(self, component: Component, height: float, name: str = None):
+        if component.get_plane() is None:
+            raise ValueError("Can't extrude non-planar geometry with Extrude. Consider using ExtrudeFace")
+        faces = []
+        for body in component.bodies():
+            faces.extend(body.faces)
+        super().__init__(
+            component, faces, adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(height)),
+            name)
 
 
 def setup_document(document_name="fSCAD-Preview"):
