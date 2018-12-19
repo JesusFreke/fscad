@@ -20,10 +20,12 @@ test_modules = [
     "basic_geometry_test",
     "copy_test",
     "difference_test",
+    "extrude_test",
+    "face_test",
     "intersection_test",
     "loft_test",
     "place_test",
-    "rotation_test"
+    "transform_test",
     "union_test",
 ]
 
