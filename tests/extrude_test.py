@@ -50,6 +50,33 @@ class ExtrudeTest(test_utils.FscadTestCase):
         self.assertEqual(extrude.end_faces[1].pointOnFace.z, 1)
         self.assertEqual(len(extrude.side_faces), 8)
 
+    def test_extrude_to(self):
+        rect = Rect(1, 1)
+
+        sphere = Sphere(5)
+        sphere.tz(10)
+
+        extrude = ExtrudeTo(rect, sphere)
+        extrude.create_occurrence(True)
+
+    def test_extrude_to_body(self):
+        rect = Rect(1, 1)
+
+        sphere = Sphere(5)
+        sphere.tz(10)
+
+        extrude = ExtrudeTo(rect, list(sphere.bodies())[0])
+        extrude.create_occurrence(True)
+
+    def test_extrude_to_face(self):
+        rect = Rect(1, 1)
+
+        sphere = Sphere(5)
+        sphere.tz(10)
+
+        extrude = ExtrudeTo(rect, list(sphere.bodies())[0].faces[0])
+        extrude.create_occurrence(True)
+
 
 from test_utils import load_tests
 def run(context):

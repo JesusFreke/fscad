@@ -931,6 +931,38 @@ class Extrude(ExtrudeBase):
             name)
 
 
+class ExtrudeTo(ExtrudeBase):
+    def __init__(self, component: Component,
+                 to_entity: typing.Union[Component, adsk.fusion.BRepFace, adsk.fusion.BRepBody],
+                 name: str = None):
+        if component.get_plane() is None:
+            raise ValueError("Can't extrude non-planar geometry with Extrude. Consider using ExtrudeFace")
+        faces = []
+        for body in component.bodies():
+            faces.extend(body.faces)
+        component_to_add = None
+        if isinstance(to_entity, Component):
+            bodies = list(to_entity.bodies())
+            if len(bodies) > 1:
+                raise ValueError("If to_entity is a component, it must contain only a single body")
+            component_to_add = to_entity.copy()
+            temp_occurrence = to_entity.create_occurrence(False)
+            to_entity = temp_occurrence.bRepBodies[0]
+        elif isinstance(to_entity, adsk.fusion.BRepBody):
+            temp_occurrence = _create_component(root(), to_entity, name="temp")
+            to_entity = temp_occurrence.bRepBodies[0]
+        else:
+            temp_occurrence = _create_component(root(), to_entity.body, name="temp")
+            to_entity = temp_occurrence.bRepBodies[0].faces[_face_index(to_entity)]
+
+        super().__init__(component, faces, adsk.fusion.ToEntityExtentDefinition.create(to_entity, False), name)
+        # TODO: is there any way we could find the component if a face or body is passed in?
+        # Maybe a face/body wrapper class, instead of passing around the raw bodies/faces?
+        if component_to_add:
+            self._add_children([component_to_add])
+        temp_occurrence.deleteMe()
+
+
 def setup_document(document_name="fSCAD-Preview"):
     preview_doc = None
     saved_camera = None
