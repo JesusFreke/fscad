@@ -15,7 +15,7 @@
 from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, ValueInput, Vector3D
 from adsk.fusion import BRepBody, BRepFace
-from typing import Callable, Iterable, List, Optional
+from typing import Callable, Iterable, List, Optional, Sequence
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
 import adsk.core
@@ -343,7 +343,7 @@ class Component(object):
     def parent(self) -> 'Component':
         return self._parent
 
-    def bodies(self) -> Iterable[BRepBody]:
+    def bodies(self) -> Sequence[BRepBody]:
         if self._cached_bodies is not None:
             return self._cached_bodies
 
@@ -351,7 +351,7 @@ class Component(object):
         bodies_copy = [brep().copy(body) for body in self._raw_bodies()]
         for body in bodies_copy:
             brep().transform(body, world_transform)
-        self._cached_bodies = bodies_copy
+        self._cached_bodies = tuple(bodies_copy)
         return bodies_copy
 
     def create_occurrence(self, create_children=False) -> adsk.fusion.Occurrence:
@@ -526,13 +526,10 @@ class Shape(Component, ABC):
         self._body = body
 
     def _raw_bodies(self):
-        return [self._body]
+        return self._body,
 
     def _copy_to(self, copy: 'Shape'):
         copy._body = brep().copy(self._body)
-
-    def _cached_body(self):
-        return next(iter(self.bodies()))
 
 
 class BRepComponent(Shape):
@@ -565,27 +562,27 @@ class Box(Shape):
 
     @property
     def top(self):
-        return self._cached_body().faces[self._top_index]
+        return self.bodies()[0].faces[self._top_index]
 
     @property
     def bottom(self):
-        return self._cached_body().faces[self._bottom_index]
+        return self.bodies()[0].faces[self._bottom_index]
 
     @property
     def left(self):
-        return self._cached_body().faces[self._left_index]
+        return self.bodies()[0].faces[self._left_index]
 
     @property
     def right(self):
-        return self._cached_body().faces[self._right_index]
+        return self.bodies()[0].faces[self._right_index]
 
     @property
     def front(self):
-        return self._cached_body().faces[self._front_index]
+        return self.bodies()[0].faces[self._front_index]
 
     @property
     def back(self):
-        return self._cached_body().faces[self._back_index]
+        return self.bodies()[0].faces[self._back_index]
 
 
 class Cylinder(Shape):
@@ -627,17 +624,17 @@ class Cylinder(Shape):
     def top(self):
         if self._top_index is None:
             return None
-        return self._cached_body().faces[self._top_index]
+        return self.bodies()[0].faces[self._top_index]
 
     @property
     def bottom(self):
         if self._bottom_index is None:
             return None
-        return self._cached_body().faces[self._bottom_index]
+        return self.bodies()[0].faces[self._bottom_index]
 
     @property
     def side(self):
-        return self._cached_body().faces[self._side_index]
+        return self.bodies()[0].faces[self._side_index]
 
 
 class Sphere(Shape):
@@ -646,7 +643,7 @@ class Sphere(Shape):
 
     @property
     def surface(self):
-        return self._cached_body().faces[0]
+        return self.bodies()[0].faces[0]
 
 
 class Rect(PlanarShape):
@@ -659,7 +656,7 @@ class Rect(PlanarShape):
         super().__init__(brep().copy(box.faces[Box._top_index]), name)
 
     def get_plane(self) -> adsk.core.Plane:
-        return self._cached_body().faces[0].geometry
+        return self.bodies()[0].faces[0].geometry
 
 
 class Circle(PlanarShape):
@@ -672,7 +669,7 @@ class Circle(PlanarShape):
         super().__init__(brep().copy(cylinder.faces[self._top_index]), name)
 
     def get_plane(self) -> adsk.core.Plane:
-        return self._cached_body().faces[0].geometry
+        return self.bodies()[0].faces[0].geometry
 
 
 class ComponentWithChildren(Component, ABC):
@@ -728,7 +725,7 @@ class Union(ComponentWithChildren):
         self._add_children(components, process_child)
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
-        return [self._body]
+        return self._body,
 
     def _copy_to(self, copy: 'Union'):
         copy._body = brep().copy(self._body)
@@ -779,7 +776,7 @@ class Difference(ComponentWithChildren):
         self._add_children(components, process_child)
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
-        return tuple(self._bodies)
+        return self._bodies
 
     def _copy_to(self, copy: 'Difference'):
         copy._bodies = [brep().copy(body) for body in self.bodies()]
@@ -839,7 +836,7 @@ class Intersection(ComponentWithChildren):
         self._add_children(components, process_child)
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
-        return tuple(self._bodies)
+        return self._bodies
 
     def _copy_to(self, copy: 'Difference'):
         copy._bodies = [brep().copy(body) for body in self.bodies()]
@@ -923,9 +920,6 @@ class Loft(ComponentWithChildren):
         self._body = brep().copy(occurrence.bRepBodies[-1])
         occurrence.deleteMe()
 
-    def _cached_body(self):
-        return next(iter(self.bodies()))
-
     def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._body,
 
@@ -935,15 +929,15 @@ class Loft(ComponentWithChildren):
 
     @property
     def bottom(self) -> BRepFace:
-        return self._cached_body().faces[self._bottom_index]
+        return self.bodies()[0].faces[self._bottom_index]
 
     @property
     def top(self) -> BRepFace:
-        return self._cached_body().faces[self._top_index]
+        return self.bodies()[0].faces[self._top_index]
 
     @property
     def sides(self) -> Iterable[BRepFace]:
-        return tuple(self._cached_body().faces[self._bottom_index+1:])
+        return tuple(self.bodies()[0].faces[self._bottom_index+1:])
 
 
 class ExtrudeBase(ComponentWithChildren):
@@ -1009,7 +1003,7 @@ class ExtrudeBase(ComponentWithChildren):
         copy._side_face_indices = list(self._side_face_indices)
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
-        return list(self._bodies)
+        return self._bodies
 
     def _reset_cache(self):
         super()._reset_cache()
@@ -1019,9 +1013,8 @@ class ExtrudeBase(ComponentWithChildren):
 
     def _get_faces(self, indices):
         result = []
-        bodies = list(self.bodies())
         for body_index, face_index in indices:
-            result.append(bodies[body_index].faces[face_index])
+            result.append(self.bodies()[body_index].faces[face_index])
         return result
 
     @property
@@ -1066,7 +1059,7 @@ class ExtrudeTo(ExtrudeBase):
             faces.extend(body.faces)
         component_to_add = None
         if isinstance(to_entity, Component):
-            bodies = list(to_entity.bodies())
+            bodies = to_entity.bodies()
             if len(bodies) > 1:
                 raise ValueError("If to_entity is a component, it must contain only a single body")
             component_to_add = to_entity.copy()

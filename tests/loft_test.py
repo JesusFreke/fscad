@@ -19,6 +19,7 @@ import unittest
 import test_utils
 import importlib
 importlib.reload(test_utils)
+import math
 import test_utils
 
 
@@ -34,7 +35,7 @@ class LoftTest(test_utils.FscadTestCase):
         loft.create_occurrence(True)
 
         self.assertEqual(loft.bottom.pointOnFace.z, 0)
-        self.assertEqual(loft.top.pointOnFace.z, 1)
+        self.assertTrue(math.isclose(loft.top.pointOnFace.z, 1))
         self.assertEqual(len(list(loft.sides)), 4)
 
     def test_loft_with_hole(self):
