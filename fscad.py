@@ -14,6 +14,7 @@
 
 from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, ValueInput, Vector3D
+from adsk.fusion import BRepBody, BRepFace
 from typing import Callable, Iterable, List, Optional
 
 import adsk.core
@@ -204,7 +205,7 @@ class Component(object):
         self._cached_bodies = None
         self._cached_world_transform = None
 
-    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+    def _raw_bodies(self) -> Iterable[BRepBody]:
         raise NotImplementedError()
 
     def copy(self) -> 'Component':
@@ -231,7 +232,7 @@ class Component(object):
     def parent(self) -> 'Component':
         return self._parent
 
-    def bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+    def bodies(self) -> Iterable[BRepBody]:
         if self._cached_bodies is not None:
             return self._cached_bodies
 
@@ -402,7 +403,7 @@ class Component(object):
 
 
 class Shape(Component, ABC):
-    def __init__(self, body: adsk.fusion.BRepBody, name: str):
+    def __init__(self, body: BRepBody, name: str):
         super().__init__(name)
         self._body = body
 
@@ -417,7 +418,7 @@ class Shape(Component, ABC):
 
 
 class PlanarShape(Shape):
-    def __init__(self, body: adsk.fusion.BRepBody, name: str):
+    def __init__(self, body: BRepBody, name: str):
         super().__init__(body, name)
 
     def get_plane(self) -> adsk.core.Plane:
@@ -603,7 +604,7 @@ class Union(ComponentWithChildren):
                     brep().booleanOperation(self._body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
         self._add_children(components, process_child)
 
-    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+    def _raw_bodies(self) -> Iterable[BRepBody]:
         return [self._body]
 
     def _copy_to(self, copy: 'Union'):
@@ -654,7 +655,7 @@ class Difference(ComponentWithChildren):
                         brep().booleanOperation(target_body, tool_body, adsk.fusion.BooleanTypes.DifferenceBooleanType)
         self._add_children(components, process_child)
 
-    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+    def _raw_bodies(self) -> Iterable[BRepBody]:
         return tuple(self._bodies)
 
     def _copy_to(self, copy: 'Difference'):
@@ -714,7 +715,7 @@ class Intersection(ComponentWithChildren):
                                                 adsk.fusion.BooleanTypes.IntersectionBooleanType)
         self._add_children(components, process_child)
 
-    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+    def _raw_bodies(self) -> Iterable[BRepBody]:
         return tuple(self._bodies)
 
     def _copy_to(self, copy: 'Difference'):
@@ -802,7 +803,7 @@ class Loft(ComponentWithChildren):
     def _cached_body(self):
         return next(iter(self.bodies()))
 
-    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+    def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._body,
 
     def _copy_to(self, copy: 'Loft'):
@@ -810,20 +811,20 @@ class Loft(ComponentWithChildren):
         super()._copy_to(copy)
 
     @property
-    def bottom(self) -> adsk.fusion.BRepFace:
+    def bottom(self) -> BRepFace:
         return self._cached_body().faces[self._bottom_index]
 
     @property
-    def top(self) -> adsk.fusion.BRepFace:
+    def top(self) -> BRepFace:
         return self._cached_body().faces[self._top_index]
 
     @property
-    def sides(self) -> Iterable[adsk.fusion.BRepFace]:
+    def sides(self) -> Iterable[BRepFace]:
         return tuple(self._cached_body().faces[self._bottom_index+1:])
 
 
 class ExtrudeBase(ComponentWithChildren):
-    def __init__(self, component: Component, faces: Iterable[adsk.fusion.BRepFace], extent, name: str = None):
+    def __init__(self, component: Component, faces: Iterable[BRepFace], extent, name: str = None):
         super().__init__(name)
 
         input_bodies = []
@@ -884,7 +885,7 @@ class ExtrudeBase(ComponentWithChildren):
         copy._end_face_indices = list(self._end_face_indices)
         copy._side_face_indices = list(self._side_face_indices)
 
-    def _raw_bodies(self) -> Iterable[adsk.fusion.BRepBody]:
+    def _raw_bodies(self) -> Iterable[BRepBody]:
         return list(self._bodies)
 
     def _reset_cache(self):
@@ -901,19 +902,19 @@ class ExtrudeBase(ComponentWithChildren):
         return result
 
     @property
-    def start_faces(self) -> List[adsk.fusion.BRepFace]:
+    def start_faces(self) -> List[BRepFace]:
         if not self._cached_start_faces:
             self._cached_start_faces = self._get_faces(self._start_face_indices)
         return list(self._cached_start_faces)
 
     @property
-    def end_faces(self) -> List[adsk.fusion.BRepFace]:
+    def end_faces(self) -> List[BRepFace]:
         if not self._cached_end_faces:
             self._cached_end_faces = self._get_faces(self._end_face_indices)
         return list(self._cached_end_faces)
 
     @property
-    def side_faces(self) -> List[adsk.fusion.BRepFace]:
+    def side_faces(self) -> List[BRepFace]:
         if not self._cached_side_faces:
             self._cached_side_faces = self._get_faces(self._side_face_indices)
         return list(self._cached_side_faces)
@@ -933,7 +934,7 @@ class Extrude(ExtrudeBase):
 
 class ExtrudeTo(ExtrudeBase):
     def __init__(self, component: Component,
-                 to_entity: typing.Union[Component, adsk.fusion.BRepFace, adsk.fusion.BRepBody],
+                 to_entity: typing.Union[Component, BRepFace, BRepBody],
                  name: str = None):
         if component.get_plane() is None:
             raise ValueError("Can't extrude non-planar geometry with Extrude. Consider using ExtrudeFace")
@@ -948,7 +949,7 @@ class ExtrudeTo(ExtrudeBase):
             component_to_add = to_entity.copy()
             temp_occurrence = to_entity.create_occurrence(False)
             to_entity = temp_occurrence.bRepBodies[0]
-        elif isinstance(to_entity, adsk.fusion.BRepBody):
+        elif isinstance(to_entity, BRepBody):
             temp_occurrence = _create_component(root(), to_entity, name="temp")
             to_entity = temp_occurrence.bRepBodies[0]
         else:
