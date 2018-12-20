@@ -434,6 +434,19 @@ class Face(BRepEntity):
         return self._body
 
 
+class Point(BoundedEntity):
+    def __init__(self, point: Point3D):
+        super().__init__()
+        self._point = point
+
+    @property
+    def point(self) -> Point3D:
+        return self._point.copy()
+
+    def _calculate_bounding_box(self) -> BoundingBox3D:
+        return BoundingBox3D.create(self._point, self._point)
+
+
 class Component(BoundedEntity):
     _origin = Point3D.create(0, 0, 0)
     _null_vector = Vector3D.create(0, 0, 0)
@@ -467,6 +480,7 @@ class Component(BoundedEntity):
         copy._cached_bodies = None
         copy._cached_world_transform = None
         copy._cached_inverse_transform = None
+        copy._named_points = dict(self._named_points)
         copy.name = self.name
         self._copy_to(copy)
         return copy
@@ -500,6 +514,11 @@ class Component(BoundedEntity):
         if create_children:
             for child in self.children():
                 child._create_occurrence(occurrence)
+        for name in self._named_points.keys():
+            construction_point_input = occurrence.component.constructionPoints.createInput()
+            construction_point_input.setByPoint(self.point(name))
+            construction_point = occurrence.component.constructionPoints.add()
+            construction_point.name = name
         return occurrence
 
     def _create_occurrence(self, parent_occurrence):
@@ -508,6 +527,11 @@ class Component(BoundedEntity):
         occurrence.isLightBulbOn = False
         for child in self.children():
             child._create_occurrence(occurrence)
+        for name in self._named_points.keys():
+            construction_point_input = occurrence.component.constructionPoints.createInput()
+            construction_point_input.setByPoint(self.point(name).point)
+            construction_point = occurrence.component.constructionPoints.add(construction_point_input)
+            construction_point.name = name
 
     def place(self, x=_null_vector, y=_null_vector, z=_null_vector):
         transform = Matrix3D.create()
@@ -550,6 +574,8 @@ class Component(BoundedEntity):
             center_point = self._origin
         elif isinstance(center, Point3D):
             center_point = center
+        elif isinstance(center, Point):
+            center_point = center.point
         else:
             center_coordinates = list(center)[0:3]
             while len(center_coordinates) < 3:
@@ -607,6 +633,8 @@ class Component(BoundedEntity):
             center_point = self._origin
         elif isinstance(center, Point3D):
             center_point = center
+        elif isinstance(center, Point):
+            center_point = center.point
         else:
             center_coordinates = list(center)[0:3]
             while len(center_coordinates) < 3:
@@ -636,21 +664,23 @@ class Component(BoundedEntity):
                 result.append(Face(face, body))
         return result
 
-    def add_point(self, name: str, point: Onion[Sequence[float], Point3D]):
-        if not isinstance(point, Point3D):
-            point = Point3D.create(*point)
-        else:
+    def add_point(self, name: str, point: Onion[Sequence[float], Point3D, Point]):
+        if isinstance(point, Point):
+            point = point.point
+        if isinstance(point, Point3D):
             point = point.copy()
+        else:
+            point = Point3D.create(*point)
         point.transformBy(self._inverse_world_transform())
         self._named_points[name] = point
 
-    def point(self, name) -> Optional[Point3D]:
+    def point(self, name) -> Optional[Point]:
         point = self._named_points.get(name)
         if not point:
             return None
         point = point.copy()
         point.transformBy(self._get_world_transform())
-        return point
+        return Point(point)
 
 
 class Shape(Component, ABC):
@@ -891,7 +921,7 @@ class Difference(ComponentWithChildren):
         return self._bodies
 
     def _copy_to(self, copy: 'Difference'):
-        copy._bodies = [brep().copy(body) for body in self.bodies()]
+        copy._bodies = [brep().copy(body.brep) for body in self.bodies()]
         super()._copy_to(copy)
 
     def _check_coplanarity(self, child):
@@ -951,7 +981,7 @@ class Intersection(ComponentWithChildren):
         return self._bodies
 
     def _copy_to(self, copy: 'Difference'):
-        copy._bodies = [brep().copy(body) for body in self.bodies()]
+        copy._bodies = [brep().copy(body.brep) for body in self.bodies()]
         copy._cached_plane = None
         copy._cached_plane_populated = False
         super()._copy_to(copy)
@@ -1108,7 +1138,8 @@ class ExtrudeBase(ComponentWithChildren):
 
         temp_occurrence.deleteMe()
 
-    def _copy_to(self, copy: 'Component'):
+    def _copy_to(self, copy: 'ComponentWithChildren'):
+        super()._copy_to(copy)
         copy._bodies = list(self._bodies)
         copy._start_face_indices = list(self._start_face_indices)
         copy._end_face_indices = list(self._end_face_indices)
