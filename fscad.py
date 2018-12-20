@@ -1227,7 +1227,7 @@ class ExtrudeBase(ComponentWithChildren):
 
 
 class Extrude(ExtrudeBase):
-    def __init__(self, entity: Onion[Component, Face], height: float, name: str = None):
+    def __init__(self, entity: Onion[Component, Face, Iterable[Face]], height: float, name: str = None):
         if isinstance(entity, Component):
             component = entity
             if component.get_plane() is None:
@@ -1238,6 +1238,15 @@ class Extrude(ExtrudeBase):
         elif isinstance(entity, Face):
             component = entity.component
             faces = [entity.brep]
+        elif isinstance(entity, Iterable):
+            component = None
+            faces = []
+            for face in entity:
+                if component is None:
+                    component = face.component
+                elif face.component != component:
+                    raise ValueError("All faces must be from the same component")
+                faces.append(face.brep)
         else:
             raise ValueError("Unsupported object type for extrude: %s" % entity.__class__.__name__)
         super().__init__(
@@ -1246,7 +1255,7 @@ class Extrude(ExtrudeBase):
 
 
 class ExtrudeTo(ExtrudeBase):
-    def __init__(self, entity: Onion[Face, Component],
+    def __init__(self, entity: Onion[Face, Component, Iterable[Face]],
                  to_entity: Onion[Component, Face, Body],
                  name: str = None):
         if isinstance(entity, Component):
@@ -1259,6 +1268,15 @@ class ExtrudeTo(ExtrudeBase):
         elif isinstance(entity, Face):
             component = entity.component
             faces = [entity.brep]
+        elif isinstance(entity, Iterable):
+            component = None
+            faces = []
+            for face in entity:
+                if component is None:
+                    component = face.component
+                elif face.component != component:
+                    raise ValueError("All faces must be from the same component")
+                faces.append(face.brep)
         else:
             raise ValueError("Unsupported object type for extrude: %s" % entity.__class__.__name__)
 

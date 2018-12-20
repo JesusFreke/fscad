@@ -91,6 +91,44 @@ class ExtrudeTest(test_utils.FscadTestCase):
         extrude = ExtrudeTo(box.top, sphere)
         extrude.create_occurrence(True)
 
+    def test_multiple_split_face_extrude(self):
+        box1 = Box(1, 1, 1, "box1")
+        box2 = Box(1, 1, 1, "box2")
+        box2.place(-box2 == +box1)
+        circle1 = Circle(.5, "circle1")
+        circle1.place(~circle1 == ~box1,
+                      ~circle1 == ~box1,
+                      ~circle1 == +box1)
+        circle2 = Circle(.5, "circle2")
+        circle2.place(~circle2 == ~box2,
+                      ~circle2 == ~box2,
+                      ~circle2 == +box2)
+        box = Union(box1, box2)
+        split = SplitFace(box, Union(circle1, circle2))
+        extrude = Extrude(split.find_faces((circle1, circle2)), 1)
+        extrude.create_occurrence(True)
+
+    def test_multiple_split_face_extrude_to(self):
+        box1 = Box(1, 1, 1, "box1")
+        box2 = Box(1, 1, 1, "box2")
+        box2.place(-box2 == +box1)
+        circle1 = Circle(.5, "circle1")
+        circle1.place(~circle1 == ~box1,
+                      ~circle1 == ~box1,
+                      ~circle1 == +box1)
+        circle2 = Circle(.5, "circle2")
+        circle2.place(~circle2 == ~box2,
+                      ~circle2 == ~box2,
+                      ~circle2 == +box2)
+        box = Union(box1, box2)
+        split = SplitFace(box, Union(circle1, circle2))
+
+        sphere = Sphere(2)
+        sphere.place(~sphere == ~box, ~sphere == ~box, (-sphere == +box) + 2)
+
+        extrude = ExtrudeTo(split.find_faces((circle1, circle2)), sphere)
+        extrude.create_occurrence(True)
+
 
 from test_utils import load_tests
 def run(context):
