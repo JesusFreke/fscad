@@ -14,7 +14,7 @@
 
 from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, ValueInput, Vector3D
-from adsk.fusion import BRepBody, BRepFace, BRepFaces, BRepVertex
+from adsk.fusion import BRepBody, BRepFace, BRepFaces
 from typing import Any, Callable, Iterable, Optional, Sequence, Iterator
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
@@ -472,7 +472,7 @@ class Component(BoundedEntity):
     def _raw_bodies(self) -> Iterable[BRepBody]:
         raise NotImplementedError()
 
-    def copy(self) -> 'Component':
+    def copy(self, copy_children=True) -> 'Component':
         copy = Component()
         copy.__class__ = self.__class__
         copy._local_transform = self._get_world_transform()
@@ -482,10 +482,10 @@ class Component(BoundedEntity):
         copy._cached_inverse_transform = None
         copy._named_points = dict(self._named_points)
         copy.name = self.name
-        self._copy_to(copy)
+        self._copy_to(copy, copy_children)
         return copy
 
-    def _copy_to(self, copy: 'Component'):
+    def _copy_to(self, copy: 'Component', copy_children: bool):
         raise NotImplementedError
 
     def children(self) -> Iterable['Component']:
@@ -691,7 +691,7 @@ class Shape(Component, ABC):
     def _raw_bodies(self):
         return self._body,
 
-    def _copy_to(self, copy: 'Shape'):
+    def _copy_to(self, copy: 'Shape', copy_children: bool):
         copy._body = brep().copy(self._body)
 
 
@@ -773,8 +773,8 @@ class Cylinder(Shape):
 
         super().__init__(body, name)
 
-    def _copy_to(self, copy: 'Cylinder'):
-        super()._copy_to(copy)
+    def _copy_to(self, copy: 'Cylinder', copy_children: bool):
+        super()._copy_to(copy, copy_children)
         copy._bottom_index = self._bottom_index
         copy._top_index = self._top_index
 
@@ -844,10 +844,11 @@ class ComponentWithChildren(Component, ABC):
     def children(self) -> Iterable['Component']:
         return tuple(self._children)
 
-    def _copy_to(self, copy: 'ComponentWithChildren'):
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
         copy._cached_inverse_transform = None
         copy._children = []
-        copy._add_children([child.copy() for child in self._children])
+        if copy_children:
+            copy._add_children([child.copy() for child in self._children])
 
 
 class Union(ComponentWithChildren):
@@ -868,9 +869,9 @@ class Union(ComponentWithChildren):
     def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._body,
 
-    def _copy_to(self, copy: 'Union'):
+    def _copy_to(self, copy: 'Union', copy_children: bool):
         copy._body = brep().copy(self._body)
-        super()._copy_to(copy)
+        super()._copy_to(copy, copy_children)
 
     def _check_coplanarity(self, child):
         if self._body is not None:
@@ -920,9 +921,9 @@ class Difference(ComponentWithChildren):
     def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._bodies
 
-    def _copy_to(self, copy: 'Difference'):
+    def _copy_to(self, copy: 'Difference', copy_children: bool):
         copy._bodies = [brep().copy(body.brep) for body in self.bodies()]
-        super()._copy_to(copy)
+        super()._copy_to(copy, copy_children)
 
     def _check_coplanarity(self, child):
         if self._bodies is not None and len(self._bodies) > 0:
@@ -980,11 +981,11 @@ class Intersection(ComponentWithChildren):
     def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._bodies
 
-    def _copy_to(self, copy: 'Difference'):
+    def _copy_to(self, copy: 'Difference', copy_children: bool):
         copy._bodies = [brep().copy(body.brep) for body in self.bodies()]
         copy._cached_plane = None
         copy._cached_plane_populated = False
-        super()._copy_to(copy)
+        super()._copy_to(copy, copy_children)
 
     def add(self, *components: Component) -> Component:
         plane = self.get_plane()
@@ -1066,9 +1067,9 @@ class Loft(ComponentWithChildren):
     def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._body,
 
-    def _copy_to(self, copy: 'Loft'):
+    def _copy_to(self, copy: 'Loft', copy_children: bool):
         copy._body = brep().copy(self._body)
-        super()._copy_to(copy)
+        super()._copy_to(copy, copy_children)
 
     @property
     def bottom(self) -> Face:
@@ -1107,7 +1108,10 @@ class ExtrudeBase(ComponentWithChildren):
             _collection_of(temp_faces), adsk.fusion.FeatureOperations.JoinFeatureOperation)
         extrude_input.setOneSideExtent(
             extent, adsk.fusion.ExtentDirections.PositiveExtentDirection, ValueInput.createByReal(0))
-        feature = temp_occurrence.component.features.extrudeFeatures.add(extrude_input)
+        temp_occurrence.component.features.extrudeFeatures.add(extrude_input)
+        # extrudeFeatures.add sometimes returns a feature with the wrong body? wth?
+        # Getting it by index seems to work at least.
+        feature = temp_occurrence.component.features.extrudeFeatures[-1]
 
         bodies = []
         feature_bodies = list(feature.bodies)
@@ -1138,8 +1142,8 @@ class ExtrudeBase(ComponentWithChildren):
 
         temp_occurrence.deleteMe()
 
-    def _copy_to(self, copy: 'ComponentWithChildren'):
-        super()._copy_to(copy)
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        super()._copy_to(copy, copy_children)
         copy._bodies = list(self._bodies)
         copy._start_face_indices = list(self._start_face_indices)
         copy._end_face_indices = list(self._end_face_indices)

@@ -57,6 +57,29 @@ class CopyTest(test_utils.FscadTestCase):
         union2.create_occurrence(True)
         union2_copy.create_occurrence(True)
 
+    def test_shallow_copy(self):
+        box = Box(1, 1, 1)
+        box2 = Box(1, 1, 1, "Box2")
+        box2.place(-box2 == +box,
+                   ~box2 == ~box,
+                   ~box2 == ~box)
+        union = Union(box, box2)
+
+        box3 = Box(1, 1, 1, "Box3")
+        box3.place(-box3 == +box2,
+                   ~box3 == ~box2,
+                   ~box3 == ~box2)
+
+        union2 = Union(union, box3, name="Union2")
+
+        union2_copy = union2.copy(False)
+        union2_copy.place((-union2_copy == +union2) + 1,
+                          ~union2_copy == ~union2,
+                          ~union2_copy == ~union2)
+
+        union2.create_occurrence(True)
+        union2_copy.create_occurrence(True)
+
 
 from test_utils import load_tests
 def run(context):
