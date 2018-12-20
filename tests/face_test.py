@@ -35,8 +35,8 @@ class FaceTest(test_utils.FscadTestCase):
 
         faces = box1.find_faces(box2.left)
         self.assertEqual(len(faces), 1)
-        self.assertTrue(faces[0].geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
-        self.assertEqual(faces[0].pointOnFace.x, 1)
+        self.assertTrue(faces[0].brep.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(faces[0].brep.pointOnFace.x, 1)
 
     def test_diff_coincident_face(self):
         box = Box(1, 1, 1)
@@ -48,28 +48,28 @@ class FaceTest(test_utils.FscadTestCase):
 
         faces = diff.find_faces(hole.left)
         self.assertEqual(len(faces), 1)
-        self.assertTrue(faces[0].geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
-        self.assertEqual(faces[0].pointOnFace.x, .5)
+        self.assertTrue(faces[0].brep.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(faces[0].brep.pointOnFace.x, .5)
 
         faces = diff.find_faces(hole)
         self.assertEqual(len(faces), 5)
         for face in faces:
-            self.assertEqual(face.area, .5*.5)
+            self.assertEqual(face.brep.area, .5*.5)
 
         faces = diff.find_faces([hole])
         self.assertEqual(len(faces), 5)
         for face in faces:
-            self.assertEqual(face.area, .5*.5)
+            self.assertEqual(face.brep.area, .5*.5)
 
         faces = diff.find_faces([list(hole.bodies()[0].faces)])
         self.assertEqual(len(faces), 5)
         for face in faces:
-            self.assertEqual(face.area, .5*.5)
+            self.assertEqual(face.brep.area, .5*.5)
 
         faces = diff.find_faces(hole.bodies()[0])
         self.assertEqual(len(faces), 5)
         for face in faces:
-            self.assertEqual(face.area, .5*.5)
+            self.assertEqual(face.brep.area, .5*.5)
 
     def test_spherical_coincident_face(self):
         box = Box(1, 1, 1)
@@ -81,7 +81,7 @@ class FaceTest(test_utils.FscadTestCase):
 
         faces = diff.find_faces(sphere.surface)
         self.assertEqual(len(faces), 1)
-        self.assertTrue(isinstance(faces[0].geometry, adsk.core.Sphere))
+        self.assertTrue(isinstance(faces[0].brep.geometry, adsk.core.Sphere))
 
 
 from test_utils import load_tests

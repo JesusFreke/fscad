@@ -30,9 +30,9 @@ class ExtrudeTest(test_utils.FscadTestCase):
         extrude.create_occurrence(True)
 
         self.assertEqual(len(extrude.start_faces), 1)
-        self.assertEqual(extrude.start_faces[0].pointOnFace.z, 0)
+        self.assertEqual(extrude.start_faces[0].brep.pointOnFace.z, 0)
         self.assertEqual(len(extrude.end_faces), 1)
-        self.assertEqual(extrude.end_faces[0].pointOnFace.z, 1)
+        self.assertEqual(extrude.end_faces[0].brep.pointOnFace.z, 1)
         self.assertEqual(len(extrude.side_faces), 4)
 
     def test_two_face_extrude(self):
@@ -43,11 +43,11 @@ class ExtrudeTest(test_utils.FscadTestCase):
         extrude = Extrude(split, 1)
         extrude.create_occurrence(True)
         self.assertEqual(len(extrude.start_faces), 2)
-        self.assertEqual(extrude.start_faces[0].pointOnFace.z, 0)
-        self.assertEqual(extrude.start_faces[1].pointOnFace.z, 0)
+        self.assertEqual(extrude.start_faces[0].brep.pointOnFace.z, 0)
+        self.assertEqual(extrude.start_faces[1].brep.pointOnFace.z, 0)
         self.assertEqual(len(extrude.end_faces), 2)
-        self.assertEqual(extrude.end_faces[0].pointOnFace.z, 1)
-        self.assertEqual(extrude.end_faces[1].pointOnFace.z, 1)
+        self.assertEqual(extrude.end_faces[0].brep.pointOnFace.z, 1)
+        self.assertEqual(extrude.end_faces[1].brep.pointOnFace.z, 1)
         self.assertEqual(len(extrude.side_faces), 8)
 
     def test_extrude_to(self):

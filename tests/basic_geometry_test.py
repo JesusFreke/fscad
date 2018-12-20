@@ -32,28 +32,28 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertEqual(box1.max().asArray(), (1, 2, 3))
 
         bottom = box1.bottom
-        self.assertTrue(bottom.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
-        self.assertEqual(bottom.pointOnFace.z, 0)
+        self.assertTrue(bottom.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(bottom.brep.pointOnFace.z, 0)
 
         top = box1.top
-        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
-        self.assertEqual(top.pointOnFace.z, 3)
+        self.assertTrue(top.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(top.brep.pointOnFace.z, 3)
 
         right = box1.right
-        self.assertTrue(right.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
-        self.assertEqual(right.pointOnFace.x, 1)
+        self.assertTrue(right.brep.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(right.brep.pointOnFace.x, 1)
 
         left = box1.left
-        self.assertTrue(left.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
-        self.assertEqual(left.pointOnFace.x, 0)
+        self.assertTrue(left.brep.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(left.brep.pointOnFace.x, 0)
 
         front = box1.front
-        self.assertTrue(front.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
-        self.assertEqual(front.pointOnFace.y, 0)
+        self.assertTrue(front.brep.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
+        self.assertEqual(front.brep.pointOnFace.y, 0)
 
         back = box1.back
-        self.assertTrue(back.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
-        self.assertEqual(back.pointOnFace.y, 2)
+        self.assertTrue(back.brep.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
+        self.assertEqual(back.brep.pointOnFace.y, 2)
 
         box1.create_occurrence()
 
@@ -65,28 +65,28 @@ class BasicGeometryTest(test_utils.FscadTestCase):
                    -box1 == +box2)
 
         bottom = box1.bottom
-        self.assertTrue(bottom.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
-        self.assertEqual(bottom.pointOnFace.z, 1)
+        self.assertTrue(bottom.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(bottom.brep.pointOnFace.z, 1)
 
         top = box1.top
-        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
-        self.assertEqual(top.pointOnFace.z, 4)
+        self.assertTrue(top.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(top.brep.pointOnFace.z, 4)
 
         right = box1.right
-        self.assertTrue(right.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
-        self.assertEqual(right.pointOnFace.x, 2)
+        self.assertTrue(right.brep.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(right.brep.pointOnFace.x, 2)
 
         left = box1.left
-        self.assertTrue(left.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
-        self.assertEqual(left.pointOnFace.x, 1)
+        self.assertTrue(left.brep.geometry.normal.isParallelTo(Vector3D.create(1, 0, 0)))
+        self.assertEqual(left.brep.pointOnFace.x, 1)
 
         front = box1.front
-        self.assertTrue(front.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
-        self.assertEqual(front.pointOnFace.y, 1)
+        self.assertTrue(front.brep.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
+        self.assertEqual(front.brep.pointOnFace.y, 1)
 
         back = box1.back
-        self.assertTrue(back.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
-        self.assertEqual(back.pointOnFace.y, 3)
+        self.assertTrue(back.brep.geometry.normal.isParallelTo(Vector3D.create(0, 1, 0)))
+        self.assertEqual(back.brep.pointOnFace.y, 3)
 
         box1.create_occurrence()
 
@@ -99,15 +99,15 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertEqual(cylinder.max().asArray(), (1, 1, 1))
 
         bottom = cylinder.bottom
-        self.assertTrue(bottom.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
-        self.assertEqual(bottom.pointOnFace.z, 0)
+        self.assertTrue(bottom.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(bottom.brep.pointOnFace.z, 0)
 
         top = cylinder.top
-        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
-        self.assertEqual(top.pointOnFace.z, 1)
+        self.assertTrue(top.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(top.brep.pointOnFace.z, 1)
 
         side = cylinder.side
-        self.assertTrue(isinstance(side.geometry, adsk.core.Cylinder))
+        self.assertTrue(isinstance(side.brep.geometry, adsk.core.Cylinder))
 
         cylinder.create_occurrence()
 
@@ -120,15 +120,15 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertEqual(cylinder.max().asArray(), (1, 1, 1))
 
         bottom = cylinder.bottom
-        self.assertTrue(bottom.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
-        self.assertEqual(bottom.pointOnFace.z, 0)
+        self.assertTrue(bottom.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(bottom.brep.pointOnFace.z, 0)
 
         top = cylinder.top
-        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
-        self.assertEqual(top.pointOnFace.z, 1)
+        self.assertTrue(top.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(top.brep.pointOnFace.z, 1)
 
         side = cylinder.side
-        self.assertTrue(isinstance(side.geometry, adsk.core.Cone))
+        self.assertTrue(isinstance(side.brep.geometry, adsk.core.Cone))
 
         cylinder.create_occurrence()
 
@@ -141,13 +141,13 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertEqual(cylinder.max().asArray(), (1, 1, 1))
 
         bottom = cylinder.bottom
-        self.assertTrue(bottom.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
-        self.assertEqual(bottom.pointOnFace.z, 0)
+        self.assertTrue(bottom.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(bottom.brep.pointOnFace.z, 0)
 
         self.assertIsNone(cylinder.top)
 
         side = cylinder.side
-        self.assertTrue(isinstance(side.geometry, adsk.core.Cone))
+        self.assertTrue(isinstance(side.brep.geometry, adsk.core.Cone))
 
         cylinder.create_occurrence()
 
@@ -162,11 +162,11 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertIsNone(cylinder.bottom)
 
         top = cylinder.top
-        self.assertTrue(top.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
-        self.assertEqual(top.pointOnFace.z, 1)
+        self.assertTrue(top.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        self.assertEqual(top.brep.pointOnFace.z, 1)
 
         side = cylinder.side
-        self.assertTrue(isinstance(side.geometry, adsk.core.Cone))
+        self.assertTrue(isinstance(side.brep.geometry, adsk.core.Cone))
 
         cylinder.create_occurrence()
 
@@ -178,7 +178,7 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertEqual(sphere.mid().asArray(), (0, 0, 0))
         self.assertEqual(sphere.max().asArray(), (1, 1, 1))
 
-        self.assertTrue(isinstance(sphere.surface.geometry, adsk.core.Sphere))
+        self.assertTrue(isinstance(sphere.surface.brep.geometry, adsk.core.Sphere))
 
         sphere.create_occurrence()
 

@@ -14,8 +14,8 @@
 
 from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, ValueInput, Vector3D
-from adsk.fusion import BRepBody, BRepFace
-from typing import Callable, Iterable, List, Optional, Sequence
+from adsk.fusion import BRepBody, BRepFace, BRepFaces
+from typing import Any, Callable, Iterable, Optional, Sequence, Iterator
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
 import adsk.core
@@ -26,10 +26,10 @@ import traceback
 import types
 
 # recursive type hints don't actually work yet, so let's expand the recursion a few levels and call it good
-_face_selector_types = Onion['Component', BRepBody, BRepFace, Iterable[
-    Onion['Component', BRepBody, BRepFace, Iterable[
-        Onion['Component', BRepBody, BRepFace, Iterable[
-            Onion['Component', BRepBody, BRepFace, Iterable['_face_selector_types']]]]]]]]
+_face_selector_types = Onion['Component', 'Body', 'Face', Iterable[
+    Onion['Component', 'Body', 'Face', Iterable[
+        Onion['Component', 'Body', 'Face', Iterable[
+            Onion['Component', 'Body', 'Face', Iterable['_face_selector_types']]]]]]]]
 
 
 def app():
@@ -70,7 +70,7 @@ def _collection_of(collection):
     return object_collection
 
 
-def _create_component(parent_component, *bodies, name):
+def _create_component(parent_component, *bodies: Onion[BRepBody, 'Body'], name):
     parametric = _is_parametric()
     new_occurrence = parent_component.occurrences.addNewComponent(Matrix3D.create())
     new_occurrence.component.name = name
@@ -79,6 +79,8 @@ def _create_component(parent_component, *bodies, name):
         base_feature = new_occurrence.component.features.baseFeatures.add()
         base_feature.startEdit()
     for body in bodies:
+        if isinstance(body, Body):
+            body = body.brep
         new_occurrence.component.bRepBodies.add(body, base_feature)
     if base_feature:
         base_feature.finishEdit()
@@ -107,6 +109,9 @@ def _get_exact_bounding_box(entity):
         # noinspection PyTypeChecker
         return _get_exact_bounding_box(entities)
 
+    if isinstance(entity, BRepEntity):
+        return _get_exact_bounding_box(entity.brep)
+
     if hasattr(entity, "objectType"):
         if entity.objectType.startswith("adsk::fusion::BRep"):
             return _oriented_bounding_box_to_bounding_box(
@@ -130,7 +135,9 @@ def _get_exact_bounding_box(entity):
     return bounding_box
 
 
-def _face_index(face):
+def _face_index(face: Onion[BRepFace, 'Face']):
+    if isinstance(face, Face):
+        return _face_index(face.brep)
     for i, candidate_face in enumerate(face.body.faces):
         if candidate_face == face:
             return i
@@ -144,16 +151,16 @@ def _map_face(face, new_body):
 def _flatten_face_selectors(selector: _face_selector_types) -> Iterable[BRepFace]:
     faces = []
     if isinstance(selector, Iterable):
-        for subselector in selector:
-            for face in _flatten_face_selectors(subselector):
+        for sub_selector in selector:
+            for face in _flatten_face_selectors(sub_selector):
                 if face not in faces:
                     faces.append(face)
         return faces
     if isinstance(selector, Component):
         return _flatten_face_selectors(selector.bodies())
-    if isinstance(selector, BRepBody):
-        return selector.faces
-    return [selector]
+    if isinstance(selector, Body):
+        return selector.brep.faces
+    return selector.brep,
 
 
 def _check_face_intersection(face1, face2):
@@ -299,7 +306,135 @@ class Place(object):
         return Translation(self._point.vectorTo(point))
 
 
-class Component(object):
+class BoundedEntity(object):
+    def __init__(self):
+        self._cached_bounding_box = None
+
+    @property
+    def bounding_box(self) -> BoundingBox3D:
+        if self._cached_bounding_box is None:
+            self._cached_bounding_box = self._calculate_bounding_box()
+        return self._cached_bounding_box
+
+    def _calculate_bounding_box(self) -> BoundingBox3D:
+        raise NotImplementedError()
+
+    def _reset_cache(self):
+        self._cached_bounding_box = None
+
+    def size(self):
+        return self.bounding_box.minPoint.vectorTo(self._cached_bounding_box.maxPoint).asPoint()
+
+    def min(self):
+        return self.bounding_box.minPoint
+
+    def max(self):
+        return self.bounding_box.maxPoint
+
+    def mid(self):
+        return Point3D.create(
+            (self.bounding_box.minPoint.x + self.bounding_box.maxPoint.x)/2,
+            (self.bounding_box.minPoint.y + self.bounding_box.maxPoint.y)/2,
+            (self.bounding_box.minPoint.z + self.bounding_box.maxPoint.z)/2)
+
+    def __neg__(self):
+        return Place(self.min())
+
+    def __pos__(self):
+        return Place(self.max())
+
+    def __invert__(self):
+        return Place(self.mid())
+
+
+class BRepEntity(BoundedEntity, ABC):
+    def __init__(self, component: 'Component'):
+        super().__init__()
+        self._component = component
+
+    @property
+    def brep(self) -> Any:  # TODO: define union of all possible brep types?
+        raise NotImplementedError
+
+    @property
+    def component(self) -> 'Component':
+        return self._component
+
+    def _calculate_bounding_box(self) -> BoundingBox3D:
+        return _get_exact_bounding_box(self.brep)
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return brep == other.brep
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return True
+        return brep != other.brep
+
+
+class Body(BRepEntity):
+    def __init__(self, body: BRepBody, component: 'Component'):
+        super().__init__(component)
+        self._body = body
+
+    @property
+    def brep(self) -> BRepBody:
+        return self._body
+
+    @property
+    def faces(self) -> Sequence['Face']:
+        class Faces(Sequence['Face']):
+            def __init__(self, faces: Onion[Sequence[BRepFace], BRepFaces], body: 'Body'):
+                self._faces = faces
+                self._body = body
+
+            def __getitem__(self, i: Onion[int, slice]) -> Onion['Face', Sequence['Face']]:
+                if isinstance(i, slice):
+                    return Faces(self._faces[i], self._body)
+                return Face(self._faces[i], self._body)
+
+            def __iter__(self) -> Iterator['Face']:
+                # Sequence's __iter__ is implemented via a generator, which doesn't currently place nice with
+                # fusion 360's SWIG objects
+                class FaceIter(object):
+                    def __init__(self, faces):
+                        self._faces = faces
+                        self._index = 0
+
+                    def __iter__(self):
+                        self._index = 0
+
+                    def __next__(self):
+                        if self._index < len(self._faces):
+                            result = self._faces[self._index]
+                            self._index += 1
+                            return result
+                        raise StopIteration()
+                return FaceIter(self)
+
+            def __len__(self) -> int:
+                return len(self._faces)
+        return Faces(self._body.faces, self)
+
+
+class Face(BRepEntity):
+    def __init__(self, face: BRepFace, body: Body):
+        super().__init__(body.component)
+        self._face = face
+        self._body = body
+
+    @property
+    def brep(self) -> BRepFace:
+        return self._face
+
+    @property
+    def body(self) -> Body:
+        return self._body
+
+
+class Component(BoundedEntity):
     _origin = Point3D.create(0, 0, 0)
     _null_vector = Vector3D.create(0, 0, 0)
     _pos_x = Vector3D.create(1, 0, 0)
@@ -309,12 +444,15 @@ class Component(object):
     name = ...  # type: Optional[str]
 
     def __init__(self, name: str = None):
+        super().__init__()
         self._parent = None
         self._local_transform = Matrix3D.create()
         self.name = name
-        self._cached_bounding_box = None
         self._cached_bodies = None
         self._cached_world_transform = None
+
+    def _calculate_bounding_box(self) -> BoundingBox3D:
+        return _get_exact_bounding_box(self.bodies())
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
         raise NotImplementedError()
@@ -343,14 +481,14 @@ class Component(object):
     def parent(self) -> 'Component':
         return self._parent
 
-    def bodies(self) -> Sequence[BRepBody]:
+    def bodies(self) -> Sequence[Body]:
         if self._cached_bodies is not None:
             return self._cached_bodies
 
         world_transform = self._get_world_transform()
-        bodies_copy = [brep().copy(body) for body in self._raw_bodies()]
+        bodies_copy = [Body(brep().copy(body), self) for body in self._raw_bodies()]
         for body in bodies_copy:
-            brep().transform(body, world_transform)
+            brep().transform(body.brep, world_transform)
         self._cached_bodies = tuple(bodies_copy)
         return bodies_copy
 
@@ -368,29 +506,6 @@ class Component(object):
         for child in self.children():
             child._create_occurrence(occurrence)
 
-    def size(self):
-        if not self._cached_bounding_box:
-            self._cached_bounding_box = _get_exact_bounding_box(self)
-        return self._cached_bounding_box.minPoint.vectorTo(self._cached_bounding_box.maxPoint).asPoint()
-
-    def min(self):
-        if not self._cached_bounding_box:
-            self._cached_bounding_box = _get_exact_bounding_box(self)
-        return self._cached_bounding_box.minPoint
-
-    def max(self):
-        if not self._cached_bounding_box:
-            self._cached_bounding_box = _get_exact_bounding_box(self)
-        return self._cached_bounding_box.maxPoint
-
-    def mid(self):
-        if not self._cached_bounding_box:
-            self._cached_bounding_box = _get_exact_bounding_box(self)
-        return Point3D.create(
-            (self._cached_bounding_box.minPoint.x + self._cached_bounding_box.maxPoint.x)/2,
-            (self._cached_bounding_box.minPoint.y + self._cached_bounding_box.maxPoint.y)/2,
-            (self._cached_bounding_box.minPoint.z + self._cached_bounding_box.maxPoint.z)/2)
-
     def place(self, x=_null_vector, y=_null_vector, z=_null_vector):
         transform = Matrix3D.create()
         transform.translation = Vector3D.create(x.x, y.y, z.z)
@@ -398,18 +513,9 @@ class Component(object):
         self._reset_cache()
         return self
 
-    def __neg__(self):
-        return Place(self.min())
-
-    def __pos__(self):
-        return Place(self.max())
-
-    def __invert__(self):
-        return Place(self.mid())
-
     def _reset_cache(self):
+        super()._reset_cache()
         self._cached_bodies = None
-        self._cached_bounding_box = None
         self._cached_world_transform = None
         for component in self.children():
             component._reset_cache()
@@ -512,11 +618,12 @@ class Component(object):
         self._reset_cache()
         return self
 
-    def find_faces(self, selector: _face_selector_types) -> Sequence[BRepFace]:
+    def find_faces(self, selector: _face_selector_types) -> Sequence[Face]:
         selector_faces = _flatten_face_selectors(selector)
         result = []
         for body in self.bodies():
-            result.extend(_find_coincident_faces_on_body(body, selector_faces))
+            for face in _find_coincident_faces_on_body(body.brep, selector_faces):
+                result.append(Face(face, body))
         return result
 
 
@@ -532,17 +639,12 @@ class Shape(Component, ABC):
         copy._body = brep().copy(self._body)
 
 
-class BRepComponent(Shape):
-    def __init__(self, brep_entity: Onion[BRepBody, BRepFace], name: str = None):
-        super().__init__(brep().copy(brep_entity), name)
-
-
 class PlanarShape(Shape):
     def __init__(self, body: BRepBody, name: str):
         super().__init__(body, name)
 
     def get_plane(self) -> adsk.core.Plane:
-        raise NotImplementedError()
+        return self.bodies()[0].faces[0].brep.geometry
 
 
 class Box(Shape):
@@ -655,9 +757,6 @@ class Rect(PlanarShape):
             x, y, 1))
         super().__init__(brep().copy(box.faces[Box._top_index]), name)
 
-    def get_plane(self) -> adsk.core.Plane:
-        return self.bodies()[0].faces[0].geometry
-
 
 class Circle(PlanarShape):
     _top_index = 2
@@ -667,9 +766,6 @@ class Circle(PlanarShape):
         cylinder = brep().createCylinderOrCone(
             Point3D.create(0, 0, -1), radius, self._origin, radius)
         super().__init__(brep().copy(cylinder.faces[self._top_index]), name)
-
-    def get_plane(self) -> adsk.core.Plane:
-        return self.bodies()[0].faces[0].geometry
 
 
 class ComponentWithChildren(Component, ABC):
@@ -718,10 +814,10 @@ class Union(ComponentWithChildren):
             self._check_coplanarity(child)
             for body in child.bodies():
                 if self._body is None:
-                    self._body = brep().copy(body)
+                    self._body = brep().copy(body.brep)
                     self._plane = child.get_plane()
                 else:
-                    brep().booleanOperation(self._body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+                    brep().booleanOperation(self._body, body.brep, adsk.fusion.BooleanTypes.UnionBooleanType)
         self._add_children(components, process_child)
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
@@ -745,7 +841,7 @@ class Union(ComponentWithChildren):
         def process_child(child):
             self._check_coplanarity(child)
             for body in child.bodies():
-                brep().booleanOperation(self._body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+                brep().booleanOperation(self._body, body.brep, adsk.fusion.BooleanTypes.UnionBooleanType)
         self._add_children(components, process_child)
         return self
 
@@ -768,11 +864,12 @@ class Difference(ComponentWithChildren):
         def process_child(child: Component):
             self._check_coplanarity(child)
             if self._bodies is None:
-                self._bodies = [brep().copy(child_body) for child_body in child.bodies()]
+                self._bodies = [brep().copy(child_body.brep) for child_body in child.bodies()]
             else:
                 for target_body in self._bodies:
                     for tool_body in child.bodies():
-                        brep().booleanOperation(target_body, tool_body, adsk.fusion.BooleanTypes.DifferenceBooleanType)
+                        brep().booleanOperation(target_body, tool_body.brep,
+                                                adsk.fusion.BooleanTypes.DifferenceBooleanType)
         self._add_children(components, process_child)
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
@@ -799,7 +896,7 @@ class Difference(ComponentWithChildren):
             self._check_coplanarity(child)
             for target_body in self._bodies:
                 for tool_body in child.bodies():
-                    brep().booleanOperation(target_body, tool_body, adsk.fusion.BooleanTypes.DifferenceBooleanType)
+                    brep().booleanOperation(target_body, tool_body.brep, adsk.fusion.BooleanTypes.DifferenceBooleanType)
         self._add_children(components, process_child)
         return self
 
@@ -827,11 +924,11 @@ class Intersection(ComponentWithChildren):
             nonlocal plane
             plane = self._check_coplanarity(child, plane)
             if self._bodies is None:
-                self._bodies = [brep().copy(child_body) for child_body in child.bodies()]
+                self._bodies = [brep().copy(child_body.brep) for child_body in child.bodies()]
             else:
                 for target_body in self._bodies:
                     for tool_body in child.bodies():
-                        brep().booleanOperation(target_body, tool_body,
+                        brep().booleanOperation(target_body, tool_body.brep,
                                                 adsk.fusion.BooleanTypes.IntersectionBooleanType)
         self._add_children(components, process_child)
 
@@ -852,7 +949,8 @@ class Intersection(ComponentWithChildren):
             plane = self._check_coplanarity(child, plane)
             for target_body in self._bodies:
                 for tool_body in child.bodies():
-                    brep().booleanOperation(target_body, tool_body, adsk.fusion.BooleanTypes.IntersectionBooleanType)
+                    brep().booleanOperation(target_body, tool_body.brep,
+                                            adsk.fusion.BooleanTypes.IntersectionBooleanType)
         self._add_children(components, process_child)
         return self
 
@@ -906,7 +1004,7 @@ class Loft(ComponentWithChildren):
                         component_face = face
                     else:
                         raise ValueError("A loft section must have only 1 face")
-            loft_sections.append(brep().copy(component_face))
+            loft_sections.append(brep().copy(component_face.brep))
 
         self._add_children(components, process_child)
 
@@ -928,19 +1026,21 @@ class Loft(ComponentWithChildren):
         super()._copy_to(copy)
 
     @property
-    def bottom(self) -> BRepFace:
+    def bottom(self) -> Face:
         return self.bodies()[0].faces[self._bottom_index]
 
     @property
-    def top(self) -> BRepFace:
+    def top(self) -> Face:
         return self.bodies()[0].faces[self._top_index]
 
     @property
-    def sides(self) -> Iterable[BRepFace]:
+    def sides(self) -> Iterable[Face]:
         return tuple(self.bodies()[0].faces[self._bottom_index+1:])
 
 
 class ExtrudeBase(ComponentWithChildren):
+    _bodies = ...  # type: Sequence[BRepBody]
+
     def __init__(self, component: Component, faces: Iterable[BRepFace], extent, name: str = None):
         super().__init__(name)
 
@@ -964,10 +1064,11 @@ class ExtrudeBase(ComponentWithChildren):
             extent, adsk.fusion.ExtentDirections.PositiveExtentDirection, ValueInput.createByReal(0))
         feature = temp_occurrence.component.features.extrudeFeatures.add(extrude_input)
 
-        self._bodies = []
+        bodies = []
         feature_bodies = list(feature.bodies)
         for body in feature_bodies:
-            self._bodies.append(brep().copy(body))
+            bodies.append(brep().copy(body))
+        self._bodies = bodies
 
         self._start_face_indices = []
         for face in feature.startFaces:
@@ -993,11 +1094,7 @@ class ExtrudeBase(ComponentWithChildren):
         temp_occurrence.deleteMe()
 
     def _copy_to(self, copy: 'Component'):
-        copy._bodies = []
-        for body in self._bodies:
-            # TODO: since we don't modify bodies once they are created, do we actually need to make a copy here
-            # (and elsewhere?) maybe we could use body identity as a way to identify duplicated components?
-            copy._bodies.append(brep().copy(body))
+        copy._bodies = list(self._bodies)
         copy._start_face_indices = list(self._start_face_indices)
         copy._end_face_indices = list(self._end_face_indices)
         copy._side_face_indices = list(self._side_face_indices)
@@ -1011,26 +1108,26 @@ class ExtrudeBase(ComponentWithChildren):
         self._cached_end_faces = None
         self._cached_side_faces = None
 
-    def _get_faces(self, indices):
+    def _get_faces(self, indices) -> Sequence[Face]:
         result = []
         for body_index, face_index in indices:
             result.append(self.bodies()[body_index].faces[face_index])
         return result
 
     @property
-    def start_faces(self) -> List[BRepFace]:
+    def start_faces(self) -> Sequence[Face]:
         if not self._cached_start_faces:
             self._cached_start_faces = self._get_faces(self._start_face_indices)
         return list(self._cached_start_faces)
 
     @property
-    def end_faces(self) -> List[BRepFace]:
+    def end_faces(self) -> Sequence[Face]:
         if not self._cached_end_faces:
             self._cached_end_faces = self._get_faces(self._end_face_indices)
         return list(self._cached_end_faces)
 
     @property
-    def side_faces(self) -> List[BRepFace]:
+    def side_faces(self) -> Sequence[Face]:
         if not self._cached_side_faces:
             self._cached_side_faces = self._get_faces(self._side_face_indices)
         return list(self._cached_side_faces)
@@ -1042,7 +1139,7 @@ class Extrude(ExtrudeBase):
             raise ValueError("Can't extrude non-planar geometry with Extrude. Consider using ExtrudeFace")
         faces = []
         for body in component.bodies():
-            faces.extend(body.faces)
+            faces.extend(body.brep.faces)
         super().__init__(
             component, faces, adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(height)),
             name)
@@ -1050,14 +1147,13 @@ class Extrude(ExtrudeBase):
 
 class ExtrudeTo(ExtrudeBase):
     def __init__(self, component: Component,
-                 to_entity: Onion[Component, BRepFace, BRepBody],
+                 to_entity: Onion[Component, Face, Body],
                  name: str = None):
         if component.get_plane() is None:
             raise ValueError("Can't extrude non-planar geometry with Extrude. Consider using ExtrudeFace")
         faces = []
         for body in component.bodies():
-            faces.extend(body.faces)
-        component_to_add = None
+            faces.extend(body.brep.faces)
         if isinstance(to_entity, Component):
             bodies = to_entity.bodies()
             if len(bodies) > 1:
@@ -1065,18 +1161,19 @@ class ExtrudeTo(ExtrudeBase):
             component_to_add = to_entity.copy()
             temp_occurrence = to_entity.create_occurrence(False)
             to_entity = temp_occurrence.bRepBodies[0]
-        elif isinstance(to_entity, BRepBody):
-            temp_occurrence = _create_component(root(), to_entity, name="temp")
+        elif isinstance(to_entity, Body):
+            temp_occurrence = _create_component(root(), to_entity.brep, name="temp")
+            component_to_add = to_entity.component
             to_entity = temp_occurrence.bRepBodies[0]
-        else:
-            temp_occurrence = _create_component(root(), to_entity.body, name="temp")
+        elif isinstance(to_entity, Face):
+            temp_occurrence = _create_component(root(), to_entity.body.brep, name="temp")
+            component_to_add = to_entity.component
             to_entity = temp_occurrence.bRepBodies[0].faces[_face_index(to_entity)]
+        else:
+            raise ValueError("Unsupported type for to_entity: %s" % to_entity.__class__.__name__)
 
         super().__init__(component, faces, adsk.fusion.ToEntityExtentDefinition.create(to_entity, False), name)
-        # TODO: is there any way we could find the component if a face or body is passed in?
-        # Maybe a face/body wrapper class, instead of passing around the raw bodies/faces?
-        if component_to_add:
-            self._add_children([component_to_add])
+        self._add_children([component_to_add])
         temp_occurrence.deleteMe()
 
 

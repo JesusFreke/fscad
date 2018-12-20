@@ -34,8 +34,8 @@ class LoftTest(test_utils.FscadTestCase):
         loft = Loft(rect, circle)
         loft.create_occurrence(True)
 
-        self.assertEqual(loft.bottom.pointOnFace.z, 0)
-        self.assertTrue(math.isclose(loft.top.pointOnFace.z, 1))
+        self.assertEqual(loft.bottom.brep.pointOnFace.z, 0)
+        self.assertTrue(math.isclose(loft.top.brep.pointOnFace.z, 1))
         self.assertEqual(len(list(loft.sides)), 4)
 
     def test_loft_with_hole(self):
@@ -53,8 +53,8 @@ class LoftTest(test_utils.FscadTestCase):
         loft = Loft(bottom, top)
         loft.create_occurrence(True)
 
-        self.assertEqual(loft.bottom.pointOnFace.z, 0)
-        self.assertEqual(loft.top.pointOnFace.z, 1)
+        self.assertEqual(loft.bottom.brep.pointOnFace.z, 0)
+        self.assertEqual(loft.top.brep.pointOnFace.z, 1)
         self.assertEqual(len(list(loft.sides)), 1)
 
     def test_triple_loft(self):
@@ -71,8 +71,8 @@ class LoftTest(test_utils.FscadTestCase):
         loft = Loft(rect1, circle, rect2)
         loft.create_occurrence(True)
 
-        self.assertEqual(loft.bottom.pointOnFace.z, 0)
-        self.assertEqual(loft.top.pointOnFace.z, 2)
+        self.assertEqual(loft.bottom.brep.pointOnFace.z, 0)
+        self.assertEqual(loft.top.brep.pointOnFace.z, 2)
         self.assertEqual(len(list(loft.sides)), 4)
 
 
