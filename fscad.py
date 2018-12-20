@@ -52,17 +52,6 @@ def design():
     return adsk.fusion.Design.cast(app().activeProduct)
 
 
-def _is_parametric():
-    return design().designType == adsk.fusion.DesignTypes.ParametricDesignType
-
-
-def set_parametric(parametric):
-    if parametric:
-        design().designType = adsk.fusion.DesignTypes.ParametricDesignType
-    else:
-        design().designType = adsk.fusion.DesignTypes.DirectDesignType
-
-
 def _collection_of(collection):
     object_collection = ObjectCollection.create()
     for obj in collection:
@@ -71,19 +60,12 @@ def _collection_of(collection):
 
 
 def _create_component(parent_component, *bodies: Onion[BRepBody, 'Body'], name):
-    parametric = _is_parametric()
     new_occurrence = parent_component.occurrences.addNewComponent(Matrix3D.create())
     new_occurrence.component.name = name
-    base_feature = None
-    if parametric:
-        base_feature = new_occurrence.component.features.baseFeatures.add()
-        base_feature.startEdit()
     for body in bodies:
         if isinstance(body, Body):
             body = body.brep
-        new_occurrence.component.bRepBodies.add(body, base_feature)
-    if base_feature:
-        base_feature.finishEdit()
+        new_occurrence.component.bRepBodies.add(body)
     return new_occurrence
 
 
@@ -1328,13 +1310,9 @@ class SplitFace(ComponentWithChildren):
             _collection_of(faces_to_split), _collection_of(splitting_entities), False)
         temp_occurrence.component.features.splitFaceFeatures.add(split_face_input)
 
-        if _is_parametric():
-            feature = temp_occurrence.component.features.splitFaceFeatures[-1]
-            result_faces = feature.faces
-        else:
-            result_faces = []
-            for body in temp_occurrence.component.bRepBodies:
-                result_faces.extend(body.faces)
+        result_faces = []
+        for body in temp_occurrence.component.bRepBodies:
+            result_faces.extend(body.faces)
 
         temp_occurrence_bodies = list(temp_occurrence.component.bRepBodies)
         bodies = []
@@ -1407,6 +1385,7 @@ def setup_document(document_name="fSCAD-Preview"):
         app().activeViewport.camera = saved_camera
         saved_camera.isSmoothTransition = is_smooth_transition_bak
         app().activeViewport.camera = saved_camera
+    design().designType = adsk.fusion.DesignTypes.DirectDesignType
 
 
 def run_design(design_func, message_box_on_error=True, document_name="fSCAD-Preview"):
