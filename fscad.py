@@ -14,7 +14,7 @@
 
 from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, ValueInput, Vector3D
-from adsk.fusion import BRepBody, BRepFace, BRepFaces
+from adsk.fusion import BRepBody, BRepFace, BRepFaces, BRepVertex
 from typing import Any, Callable, Iterable, Optional, Sequence, Iterator
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
@@ -450,6 +450,8 @@ class Component(BoundedEntity):
         self.name = name
         self._cached_bodies = None
         self._cached_world_transform = None
+        self._cached_inverse_transform = None
+        self._named_points = {}
 
     def _calculate_bounding_box(self) -> BoundingBox3D:
         return _get_exact_bounding_box(self.bodies())
@@ -464,6 +466,7 @@ class Component(BoundedEntity):
         copy._cached_bounding_box = None
         copy._cached_bodies = None
         copy._cached_world_transform = None
+        copy._cached_inverse_transform = None
         copy.name = self.name
         self._copy_to(copy)
         return copy
@@ -517,6 +520,7 @@ class Component(BoundedEntity):
         super()._reset_cache()
         self._cached_bodies = None
         self._cached_world_transform = None
+        self._cached_inverse_transform = None
         for component in self.children():
             component._reset_cache()
 
@@ -528,6 +532,12 @@ class Component(BoundedEntity):
             transform.transformBy(self.parent._get_world_transform())
         self._cached_world_transform = transform
         return transform.copy()
+
+    def _inverse_world_transform(self):
+        if self._cached_inverse_transform is None:
+            self._cached_inverse_transform = self._get_world_transform()
+            self._cached_inverse_transform.invert()
+        return self._cached_inverse_transform
 
     def get_plane(self) -> Optional[adsk.core.Plane]:
         return None
@@ -625,6 +635,22 @@ class Component(BoundedEntity):
             for face in _find_coincident_faces_on_body(body.brep, selector_faces):
                 result.append(Face(face, body))
         return result
+
+    def add_point(self, name: str, point: Onion[Sequence[float], Point3D]):
+        if not isinstance(point, Point3D):
+            point = Point3D.create(*point)
+        else:
+            point = point.copy()
+        point.transformBy(self._inverse_world_transform())
+        self._named_points[name] = point
+
+    def point(self, name) -> Optional[Point3D]:
+        point = self._named_points.get(name)
+        if not point:
+            return None
+        point = point.copy()
+        point.transformBy(self._get_world_transform())
+        return point
 
 
 class Shape(Component, ABC):
@@ -772,23 +798,12 @@ class ComponentWithChildren(Component, ABC):
     def __init__(self, name):
         super().__init__(name)
         self._children = []
-        self._cached_inverse_transform = None
-
-    def _inverse_transform(self):
-        if self._cached_inverse_transform is None:
-            self._cached_inverse_transform = self._get_world_transform()
-            self._cached_inverse_transform.invert()
-        return self._cached_inverse_transform
-
-    def _reset_cache(self):
-        super()._reset_cache()
-        self._cached_inverse_transform = None
 
     def _add_children(self, children: Iterable[Component], func: Callable[[Component], None] = None):
         for child in children:
             if child.parent is not None:
                 child = child.copy()
-            child._local_transform.transformBy(self._inverse_transform())
+            child._local_transform.transformBy(self._inverse_world_transform())
             child._reset_cache()
             if func:
                 func(child)
