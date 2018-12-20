@@ -15,7 +15,7 @@
 from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, ValueInput, Vector3D
 from adsk.fusion import BRepBody, BRepFace, BRepFaces
-from typing import Any, Callable, Iterable, Optional, Sequence, Iterator
+from typing import Any, Callable, Iterable, Iterator, Optional, Sequence, Tuple
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
 import adsk.core
@@ -163,11 +163,11 @@ def _flatten_face_selectors(selector: _face_selector_types) -> Iterable[BRepFace
     return selector.brep,
 
 
-def _check_face_intersection(face1, face2):
-    face_body1 = brep().copy(face1)
-    face_body2 = brep().copy(face2)
-    brep().booleanOperation(face_body1, face_body2, adsk.fusion.BooleanTypes.IntersectionBooleanType)
-    return face_body1.faces.count > 0
+def _check_intersection(entity1, entity2):
+    entity1_copy = brep().copy(entity1)
+    entity2_copy = brep().copy(entity2)
+    brep().booleanOperation(entity1_copy, entity2_copy, adsk.fusion.BooleanTypes.IntersectionBooleanType)
+    return entity1_copy.faces.count > 0
 
 
 def _point_vector_to_line(point, vector):
@@ -224,11 +224,11 @@ def _check_face_coincidence(face1, face2):
     if face1.geometry.surfaceType == adsk.core.SurfaceTypes.PlaneSurfaceType:
         if not face1.geometry.isCoPlanarTo(face2.geometry):
             return False
-        return _check_face_intersection(face1, face2)
+        return _check_intersection(face1, face2)
     else:
         if not _check_face_geometry(face1, face2):
             return False
-        return _check_face_intersection(face1, face2)
+        return _check_intersection(face1, face2)
 
 
 def _find_coincident_faces_on_body(body: BRepBody, faces: Iterable[BRepFace]) -> Iterable[BRepFace]:
@@ -684,18 +684,21 @@ class Component(BoundedEntity):
         point.transformBy(self._get_world_transform())
         return Point(point)
 
+    def _find_face_index(self, face: Face) -> Tuple[int, int]:
+        face_index = _face_index(face)
+        body_index = None
+        for i, body in enumerate(self.bodies()):
+            if body == face.body:
+                body_index = i
+                break
+        if body_index is None:
+            raise ValueError("Could not find face in component")
+        return body_index, face_index
+
     def add_faces(self, name: str, *faces: Face):
         face_index_list = []
-        for i, face in enumerate(faces):
-            face_index = _face_index(face)
-            body_index = None
-            for j, body in enumerate(self.bodies()):
-                if body == face.body:
-                    body_index = j
-                    break
-            if body_index is None:
-                raise ValueError("Could not find face #%d in component" % i)
-            face_index_list.append((body_index, face_index))
+        for face in faces:
+            face_index_list.append(self._find_face_index(face))
         self._named_faces[name] = face_index_list
 
     def faces(self, name) -> Optional[Sequence[Face]]:
@@ -1203,6 +1206,9 @@ class ExtrudeBase(ComponentWithChildren):
         copy._start_face_indices = list(self._start_face_indices)
         copy._end_face_indices = list(self._end_face_indices)
         copy._side_face_indices = list(self._side_face_indices)
+        self._cached_start_faces = None
+        self._cached_end_faces = None
+        self._cached_side_faces = None
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._bodies
@@ -1295,6 +1301,89 @@ class ExtrudeTo(ExtrudeBase):
         super().__init__(component, faces, adsk.fusion.ToEntityExtentDefinition.create(to_entity, False), name)
         self._add_children([component_to_add])
         temp_occurrence.deleteMe()
+
+
+class SplitFace(ComponentWithChildren):
+    def __init__(self, component: Component, splitting_tool: Onion[Face, Component], name: str = None):
+        super().__init__(name)
+
+        temp_occurrence = component.create_occurrence(False)
+        faces_to_split = []
+        for body in temp_occurrence.bRepBodies:
+            faces_to_split.extend(body.faces)
+
+        if isinstance(splitting_tool, Face):
+            splitting_component = splitting_tool.component
+            body_index, face_index = splitting_component._find_face_index(splitting_tool)
+            temp_splitting_occurrence = splitting_component.create_occurrence(False)
+            splitting_entities = [temp_splitting_occurrence.bRepBodies[body_index].faces[face_index]]
+        elif isinstance(splitting_tool, Component):
+            splitting_component = splitting_tool
+            temp_splitting_occurrence = splitting_component.create_occurrence(False)
+            splitting_entities = list(temp_splitting_occurrence.bRepBodies)
+        else:
+            raise ValueError("Invalid type for splitting tool: %s" % splitting_tool.__class__.__name__)
+
+        split_face_input = temp_occurrence.component.features.splitFaceFeatures.createInput(
+            _collection_of(faces_to_split), _collection_of(splitting_entities), False)
+        temp_occurrence.component.features.splitFaceFeatures.add(split_face_input)
+
+        if _is_parametric():
+            feature = temp_occurrence.component.features.splitFaceFeatures[-1]
+            result_faces = feature.faces
+        else:
+            result_faces = []
+            for body in temp_occurrence.component.bRepBodies:
+                result_faces.extend(body.faces)
+
+        temp_occurrence_bodies = list(temp_occurrence.component.bRepBodies)
+        bodies = []
+        for body in temp_occurrence_bodies:
+            bodies.append(brep().copy(body))
+        self._bodies = bodies
+
+        self._split_face_indices = []
+        for face in result_faces:
+            for splitting_entity in splitting_entities:
+                if isinstance(splitting_entity, BRepBody):
+                    if _check_intersection(face, splitting_entity):
+                        body_index = temp_occurrence_bodies.index(face.body)
+                        self._split_face_indices.append((body_index, _face_index(face)))
+                else:
+                    if _check_face_coincidence(face, splitting_entity):
+                        body_index = temp_occurrence_bodies.index(face.body)
+                        self._split_face_indices.append((body_index, _face_index(face)))
+
+        temp_occurrence.deleteMe()
+        temp_splitting_occurrence.deleteMe()
+
+        self._add_children((component, splitting_component))
+        self._cached_split_faces = None
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._bodies = list(self._bodies)
+        copy._start_face_indices = list(self._split_face_indices)
+        copy._cached_split_faces = None
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._bodies
+
+    def _reset_cache(self):
+        super()._reset_cache()
+        self._cached_split_faces = None
+
+    def _get_faces(self, indices) -> Sequence[Face]:
+        result = []
+        for body_index, face_index in indices:
+            result.append(self.bodies()[body_index].faces[face_index])
+        return result
+
+    @property
+    def split_faces(self) -> Sequence[Face]:
+        if not self._cached_split_faces:
+            self._cached_split_faces = self._get_faces(self._split_face_indices)
+        return list(self._cached_split_faces)
 
 
 def setup_document(document_name="fSCAD-Preview"):

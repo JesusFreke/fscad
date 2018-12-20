@@ -25,6 +25,7 @@ test_modules = [
     "intersection_test",
     "loft_test",
     "place_test",
+    "split_face_test",
     "transform_test",
     "union_test",
 ]
