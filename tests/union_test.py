@@ -212,6 +212,26 @@ class UnionTest(test_utils.FscadTestCase):
         except ValueError:
             pass
 
+    def test_named_face_after_union_add(self):
+        box1 = Box(1, 1, 1, "box1")
+        box2 = Box(1, 1, 1, "box2")
+        box2.place(-box2 == +box1)
+        union = Union(box1, box2)
+        box3 = Box(1, 1, 1, "box3")
+        box3.place(-box3 == +box2)
+
+        union.add_faces("right", *union.find_faces(box2.right))
+        union.add_faces("bottom", *union.find_faces(box2.bottom))
+
+        union.add(box3)
+        union.create_occurrence(True)
+
+        self.assertIsNone(union.faces("right"))
+        bottom_faces = union.faces("bottom")
+        self.assertEqual(len(bottom_faces), 1)
+        self.assertEqual(bottom_faces[0].size().asArray(), (3, 1, 0))
+
+
 from test_utils import load_tests
 def run(context):
     import sys

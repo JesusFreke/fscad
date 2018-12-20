@@ -202,9 +202,35 @@ class IntersectionTest(test_utils.FscadTestCase):
         intersection.create_occurrence(True)
         self.assertTrue(rect1.get_plane().isCoPlanarTo(intersection.get_plane()))
 
+    def test_named_face_after_intersection_add(self):
+        box1 = Box(1, 1, 1, "box1")
+        box2 = Box(1, 1, 1, "box2")
+        box2.place(~box2 == +box1,
+                   ~box2 == ~box1,
+                   ~box2 == ~box1)
+        intersection = Intersection(box1, box2)
+
+        intersection.add_faces("right", *intersection.find_faces(box1.right))
+        intersection.add_faces("bottom", *intersection.find_faces(box1.bottom))
+
+        box3 = Box(1, 1, 1, "box3")
+        box3.place(~box3 == ~box2,
+                   ~box3 == ~box2,
+                   ~box3 == +box2)
+
+        intersection.add(box3)
+        intersection.create_occurrence(True)
+
+        self.assertIsNone(intersection.faces("bottom"))
+        right_faces = intersection.faces("right")
+        self.assertEqual(len(right_faces), 1)
+        self.assertEqual(right_faces[0].size().asArray(), (0, 1, .5))
+
 
 from test_utils import load_tests
 def run(context):
     import sys
-    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]
+                                                                #, pattern="named_face_after_intersection_add"
+                                                                )
     unittest.TextTestRunner(failfast=True).run(test_suite)

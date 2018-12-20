@@ -366,7 +366,7 @@ class BRepEntity(BoundedEntity, ABC):
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        return brep == other.brep
+        return self.brep == other.brep
 
     def __ne__(self, other):
         if not isinstance(other, self.__class__):
@@ -465,6 +465,7 @@ class Component(BoundedEntity):
         self._cached_world_transform = None
         self._cached_inverse_transform = None
         self._named_points = {}
+        self._named_faces = {}
 
     def _calculate_bounding_box(self) -> BoundingBox3D:
         return _get_exact_bounding_box(self.bodies())
@@ -481,6 +482,7 @@ class Component(BoundedEntity):
         copy._cached_world_transform = None
         copy._cached_inverse_transform = None
         copy._named_points = dict(self._named_points)
+        copy._named_faces = dict(self._named_faces)
         copy.name = self.name
         self._copy_to(copy, copy_children)
         return copy
@@ -681,6 +683,55 @@ class Component(BoundedEntity):
         point = point.copy()
         point.transformBy(self._get_world_transform())
         return Point(point)
+
+    def add_faces(self, name: str, *faces: Face):
+        face_index_list = []
+        for i, face in enumerate(faces):
+            face_index = _face_index(face)
+            body_index = None
+            for j, body in enumerate(self.bodies()):
+                if body == face.body:
+                    body_index = j
+                    break
+            if body_index is None:
+                raise ValueError("Could not find face #%d in component" % i)
+            face_index_list.append((body_index, face_index))
+        self._named_faces[name] = face_index_list
+
+    def faces(self, name) -> Optional[Sequence[Face]]:
+        face_index_list = self._named_faces.get(name)
+        if face_index_list is None:
+            return None
+        result = []
+        for face_index in face_index_list:
+            result.append(self.bodies()[face_index[0]].faces[face_index[1]])
+        return result
+
+    def _recalculate_faces(self):
+        class Context(object):
+            def __init__(self, component: Component):
+                self._component = component
+                self._saved_faces = {}
+
+            def __enter__(self):
+                for name in self._component._named_faces.keys():
+                    faces = self._component.faces(name)
+                    face_copies = []
+                    for face in faces:
+                        face_copies.append(brep().copy(face.brep))
+                    self._saved_faces[name] = face_copies
+
+            def __exit__(self, _, __, ___):
+                self._component._named_faces = {}
+                for key, saved_face_list in self._saved_faces.items():
+                    new_face_list = []
+                    for saved_face in saved_face_list:
+                        new_face = self._component.find_faces(Body(saved_face, self._component))
+                        if new_face is not None:
+                            new_face_list.extend(new_face)
+                    if new_face_list:
+                        self._component.add_faces(key, *new_face_list)
+        return Context(self)
 
 
 class Shape(Component, ABC):
@@ -884,11 +935,12 @@ class Union(ComponentWithChildren):
                 raise ValueError("Cannot union planar entities that are non-coplanar")
 
     def add(self, *components: Component) -> Component:
-        def process_child(child):
-            self._check_coplanarity(child)
-            for body in child.bodies():
-                brep().booleanOperation(self._body, body.brep, adsk.fusion.BooleanTypes.UnionBooleanType)
-        self._add_children(components, process_child)
+        with self._recalculate_faces():
+            def process_child(child):
+                self._check_coplanarity(child)
+                for body in child.bodies():
+                    brep().booleanOperation(self._body, body.brep, adsk.fusion.BooleanTypes.UnionBooleanType)
+            self._add_children(components, process_child)
         return self
 
     def _first_child(self):
@@ -938,12 +990,14 @@ class Difference(ComponentWithChildren):
                     raise ValueError("Cannot subtract planar entities that are non-coplanar")
 
     def add(self, *components: Component) -> Component:
-        def process_child(child):
-            self._check_coplanarity(child)
-            for target_body in self._bodies:
-                for tool_body in child.bodies():
-                    brep().booleanOperation(target_body, tool_body.brep, adsk.fusion.BooleanTypes.DifferenceBooleanType)
-        self._add_children(components, process_child)
+        with self._recalculate_faces():
+            def process_child(child):
+                self._check_coplanarity(child)
+                for target_body in self._bodies:
+                    for tool_body in child.bodies():
+                        brep().booleanOperation(target_body, tool_body.brep,
+                                                adsk.fusion.BooleanTypes.DifferenceBooleanType)
+            self._add_children(components, process_child)
         return self
 
     def _first_child(self):
@@ -988,16 +1042,17 @@ class Intersection(ComponentWithChildren):
         super()._copy_to(copy, copy_children)
 
     def add(self, *components: Component) -> Component:
-        plane = self.get_plane()
+        with self._recalculate_faces():
+            plane = self.get_plane()
 
-        def process_child(child):
-            nonlocal plane
-            plane = self._check_coplanarity(child, plane)
-            for target_body in self._bodies:
-                for tool_body in child.bodies():
-                    brep().booleanOperation(target_body, tool_body.brep,
-                                            adsk.fusion.BooleanTypes.IntersectionBooleanType)
-        self._add_children(components, process_child)
+            def process_child(child):
+                nonlocal plane
+                plane = self._check_coplanarity(child, plane)
+                for target_body in self._bodies:
+                    for tool_body in child.bodies():
+                        brep().booleanOperation(target_body, tool_body.brep,
+                                                adsk.fusion.BooleanTypes.IntersectionBooleanType)
+            self._add_children(components, process_child)
         return self
 
     def get_plane(self) -> Optional[adsk.core.Plane]:
