@@ -1180,26 +1180,41 @@ class ExtrudeBase(ComponentWithChildren):
 
 
 class Extrude(ExtrudeBase):
-    def __init__(self, component: Component, height: float, name: str = None):
-        if component.get_plane() is None:
-            raise ValueError("Can't extrude non-planar geometry with Extrude. Consider using ExtrudeFace")
-        faces = []
-        for body in component.bodies():
-            faces.extend(body.brep.faces)
+    def __init__(self, entity: Onion[Component, Face], height: float, name: str = None):
+        if isinstance(entity, Component):
+            component = entity
+            if component.get_plane() is None:
+                raise ValueError("Can't extrude non-planar geometry with Extrude.")
+            faces = []
+            for body in component.bodies():
+                faces.extend(body.brep.faces)
+        elif isinstance(entity, Face):
+            component = entity.component
+            faces = [entity.brep]
+        else:
+            raise ValueError("Unsupported object type for extrude: %s" % entity.__class__.__name__)
         super().__init__(
             component, faces, adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(height)),
             name)
 
 
 class ExtrudeTo(ExtrudeBase):
-    def __init__(self, component: Component,
+    def __init__(self, entity: Onion[Face, Component],
                  to_entity: Onion[Component, Face, Body],
                  name: str = None):
-        if component.get_plane() is None:
-            raise ValueError("Can't extrude non-planar geometry with Extrude. Consider using ExtrudeFace")
-        faces = []
-        for body in component.bodies():
-            faces.extend(body.brep.faces)
+        if isinstance(entity, Component):
+            component = entity
+            if entity.get_plane() is None:
+                raise ValueError("Can't extrude non-planar geometry with Extrude.")
+            faces = []
+            for body in entity.bodies():
+                faces.extend(body.brep.faces)
+        elif isinstance(entity, Face):
+            component = entity.component
+            faces = [entity.brep]
+        else:
+            raise ValueError("Unsupported object type for extrude: %s" % entity.__class__.__name__)
+
         if isinstance(to_entity, Component):
             bodies = to_entity.bodies()
             if len(bodies) > 1:

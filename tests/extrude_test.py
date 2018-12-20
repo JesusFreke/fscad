@@ -77,6 +77,20 @@ class ExtrudeTest(test_utils.FscadTestCase):
         extrude = ExtrudeTo(rect, sphere.bodies()[0].faces[0])
         extrude.create_occurrence(True)
 
+    def test_extrude_face(self):
+        box = Box(1, 1, 1)
+        extrude = Extrude(box.right, 1)
+        extrude.create_occurrence(True)
+
+    def test_extrude_face_to(self):
+        box = Box(1, 1, 1)
+
+        sphere = Sphere(5)
+        sphere.tz(10)
+
+        extrude = ExtrudeTo(box.top, sphere)
+        extrude.create_occurrence(True)
+
 
 from test_utils import load_tests
 def run(context):
