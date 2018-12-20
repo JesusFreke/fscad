@@ -518,8 +518,8 @@ class Component(BoundedEntity):
                 child._create_occurrence(occurrence)
         for name in self._named_points.keys():
             construction_point_input = occurrence.component.constructionPoints.createInput()
-            construction_point_input.setByPoint(self.point(name))
-            construction_point = occurrence.component.constructionPoints.add()
+            construction_point_input.setByPoint(self.point(name).point)
+            construction_point = occurrence.component.constructionPoints.add(construction_point_input)
             construction_point.name = name
         return occurrence
 
