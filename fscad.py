@@ -731,6 +731,23 @@ class Shape(Component, ABC):
         copy._body = brep().copy(self._body)
 
 
+class BRepComponent(Shape):
+    def __init__(self, brep_entity: Onion[BRepBody, BRepFace], name: str = None):
+        super().__init__(brep().copy(brep_entity), name)
+
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        plane = None
+        for body in self.bodies():
+            for face in body.faces:
+                if not isinstance(face.brep.geometry, adsk.core.Plane):
+                    return None
+                if plane is None:
+                    plane = face.brep.geometry
+                elif not plane.isCoPlanarTo(face.brep.geometry):
+                    return None
+        return plane
+
+
 class PlanarShape(Shape):
     def __init__(self, body: BRepBody, name: str):
         super().__init__(body, name)
@@ -877,7 +894,7 @@ class ComponentWithChildren(Component, ABC):
             self._children.append(child)
         self._reset_cache()
 
-    def children(self) -> Iterable['Component']:
+    def children(self) -> Sequence['Component']:
         return tuple(self._children)
 
     def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
