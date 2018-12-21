@@ -202,6 +202,21 @@ class BasicGeometryTest(test_utils.FscadTestCase):
 
         circle.create_occurrence()
 
+    def test_polygon(self):
+        Polygon((0, 0),
+                (1, 0),
+                (1, 1),
+                (0, 1)).create_occurrence(True)
+
+    def test_regular_polygon_outer(self):
+        RegularPolygon(6, 1, True).create_occurrence(True)
+
+    def test_regular_polygon_inner_even(self):
+        RegularPolygon(6, 1, False).create_occurrence(True)
+
+    def test_regular_polygon_inner_odd(self):
+        RegularPolygon(7, 1, False).create_occurrence(True)
+
 from test_utils import load_tests
 def run(context):
     import sys

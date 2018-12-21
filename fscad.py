@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from abc import ABC
-from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point3D, ValueInput, Vector3D
+from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point2D, Point3D, ValueInput,\
+    Vector3D
 from adsk.fusion import BRepBody, BRepFace, BRepFaces
 from typing import Any, Callable, Iterable, Iterator, Optional, Sequence, Tuple
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
@@ -233,6 +234,23 @@ def _find_coincident_faces_on_body(body: BRepBody, faces: Iterable[BRepFace]) ->
                     if _check_face_coincidence(face, body_face):
                         coincident_faces.append(body_face)
     return coincident_faces
+
+
+def _point_3d(point: Onion[Point2D, Point3D, Tuple[float, float], Tuple[float, float, float], 'Point']):
+    if isinstance(point, Point3D):
+        return point
+    if isinstance(point, Point2D):
+        return Point3D.create(point.x, point.y, 0)
+    if isinstance(point, Point):
+        return point.point
+    if isinstance(point, tuple):
+        if len(point) >= 3:
+            return Point3D.create(*point[0:3])
+        elif len(point) == 2:
+            return Point3D.create(*point, 0)
+        else:
+            raise ValueError("tuples must have at least 2 values")
+    raise ValueError("Unsupported type: %s" % point.__class__.__name__)
 
 
 class Translation(object):
@@ -875,6 +893,34 @@ class Circle(PlanarShape):
         cylinder = brep().createCylinderOrCone(
             Point3D.create(0, 0, -1), radius, self._origin, radius)
         super().__init__(brep().copy(cylinder.faces[self._top_index]), name)
+
+
+class Polygon(PlanarShape):
+    def __init__(self, *points: Onion[Tuple[float, float], Point2D, Point3D, Point], name: str = None):
+        lines = []
+        for i in range(-1, len(points)-1):
+            lines.append(adsk.core.Line3D.create(_point_3d(points[i]), _point_3d(points[i+1])))
+        wire, _ = brep().createWireFromCurves(lines)
+        super().__init__(brep().createFaceFromPlanarWires((wire,)), name)
+
+
+class RegularPolygon(Polygon):
+    def __init__(self, sides: int, radius: float, is_outer_radius: bool = True, name: str = None):
+        step_angle = 360 / sides
+        points = []
+        if not is_outer_radius:
+            if sides % 2 == 0:
+                radius = radius / (math.cos(math.radians(180) / sides))
+            else:
+                radius = 2 * radius / (1 + math.cos(math.radians(180) / sides))
+
+        for i in range(0, sides):
+            angle = step_angle / 2 + step_angle * i
+            points.append(Point3D.create(
+                radius * math.sin(math.radians(angle)),
+                -radius * math.cos(math.radians(angle)),
+                0))
+        super().__init__(*points, name=name)
 
 
 class ComponentWithChildren(Component, ABC):
