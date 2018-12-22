@@ -511,7 +511,10 @@ class Component(BoundedEntity):
         self._cached_bodies = tuple(bodies_copy)
         return bodies_copy
 
-    def create_occurrence(self, create_children=False) -> adsk.fusion.Occurrence:
+    def create_occurrence(self, create_children=False, scale=1) -> adsk.fusion.Occurrence:
+        if scale != 1:
+            return self.copy().scale(scale, scale, scale).create_occurrence(create_children, 1)
+
         occurrence = _create_component(root(), *self.bodies(), name=self.name or self._default_name())
         if create_children:
             for child in self.children():
