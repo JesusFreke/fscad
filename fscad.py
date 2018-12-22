@@ -1040,7 +1040,7 @@ class Difference(ComponentWithChildren):
         return self._bodies
 
     def _copy_to(self, copy: 'Difference', copy_children: bool):
-        copy._bodies = [brep().copy(body.brep) for body in self.bodies()]
+        copy._bodies = [brep().copy(body) for body in self._bodies]
         super()._copy_to(copy, copy_children)
 
     def _check_coplanarity(self, child):
@@ -1102,7 +1102,7 @@ class Intersection(ComponentWithChildren):
         return self._bodies
 
     def _copy_to(self, copy: 'Difference', copy_children: bool):
-        copy._bodies = [brep().copy(body.brep) for body in self.bodies()]
+        copy._bodies = [brep().copy(body) for body in self._bodies]
         copy._cached_plane = None
         copy._cached_plane_populated = False
         super()._copy_to(copy, copy_children)
@@ -1623,6 +1623,10 @@ class Threads(ComponentWithChildren):
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._bodies
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._bodies = list(self._bodies)
 
 
 def setup_document(document_name="fSCAD-Preview"):
