@@ -253,6 +253,21 @@ def _point_3d(point: Onion[Point2D, Point3D, Tuple[float, float], Tuple[float, f
     raise ValueError("Unsupported type: %s" % point.__class__.__name__)
 
 
+def _project_point_to_line(point: Point3D, line: adsk.core.InfiniteLine3D):
+    axis = line.direction
+    axis.normalize()
+
+    point_to_line_origin = point.vectorTo(line.origin)
+
+    # project the vector onto the line, and reverse it
+    axis_projection = axis.copy()
+    axis_projection.scaleBy(-1 * point_to_line_origin.dotProduct(axis))
+
+    projected_point = line.origin
+    projected_point.translateBy(axis_projection)
+    return projected_point
+
+
 class Translation(object):
     def __init__(self, vector: Vector3D):
         self._vector = vector
@@ -1446,6 +1461,168 @@ class SplitFace(ComponentWithChildren):
         if not self._cached_split_faces:
             self._cached_split_faces = self._get_faces(self._split_face_indices)
         return list(self._cached_split_faces)
+
+
+class Threads(ComponentWithChildren):
+    def __init__(self, entity: Onion[Component, Face], thread_profile: Iterable[Tuple[float, float]],
+                 pitch: float, name: str = None):
+        super().__init__(name)
+
+        if isinstance(entity, Component):
+            cylindrical_face = None
+            for body in entity.bodies():
+                for face in body.faces:
+                    if isinstance(face.brep.geometry, adsk.core.Cylinder):
+                        if cylindrical_face is None:
+                            cylindrical_face = face
+                        else:
+                            raise ValueError("Found multiple cylindrical faces in component.")
+            if cylindrical_face is None:
+                raise ValueError("Could not find cylindrical face in component.")
+        elif isinstance(entity, Face):
+            cylindrical_face = entity
+        else:
+            raise ValueError("Invalid entity type: %s" % entity.__class__.__name__)
+
+        cylinder = cylindrical_face.brep.geometry
+        axis = cylinder.axis
+        axis.normalize()
+
+        face_brep = cylindrical_face.brep
+
+        _, thread_start_point = face_brep.evaluator.getPointAtParameter(face_brep.evaluator.parametricRange().minPoint)
+        _, end_point = face_brep.evaluator.getPointAtParameter(
+            adsk.core.Point2D.create(face_brep.evaluator.parametricRange().maxPoint.x,
+                                     face_brep.evaluator.parametricRange().minPoint.y))
+        length = end_point.distanceTo(thread_start_point)
+
+        start_point_vector = cylinder.origin.vectorTo(thread_start_point)
+        start_point_vector = axis.crossProduct(axis.crossProduct(start_point_vector))
+        start_point_vector.scaleBy(-1)
+        start_point_vector.normalize()
+
+        start_point_vector_copy = start_point_vector.copy()
+        origin = thread_start_point.copy()
+        start_point_vector_copy.scaleBy(-1 * cylinder.radius)
+        origin.translateBy(start_point_vector_copy)
+
+        max_y = None
+        max_x = None
+        for point in thread_profile:
+            if max_x is None:
+                max_x = point[0]
+            elif point[0] > max_x:
+                max_x = point[0]
+            if max_y is None:
+                max_y = point[1]
+            elif point[1] > max_y:
+                max_y = point[1]
+
+        extra_length = max_y
+        turns = (length + extra_length)/pitch
+
+        axis_copy = axis.copy()
+        axis_copy.scaleBy(-1 * extra_length)
+        original_start_point = thread_start_point.copy()
+        thread_start_point.translateBy(axis_copy)
+
+        # axis is the "y" axis and start_point_vector is the "x" axis, with thread_start_point as the origin
+        helixes = []
+
+        for point in thread_profile:
+            start_point = thread_start_point.copy()
+            x_axis = start_point_vector.copy()
+            x_axis.scaleBy(point[0])
+            y_axis = axis.copy()
+            y_axis.scaleBy(point[1])
+            start_point.translateBy(x_axis)
+            start_point.translateBy(y_axis)
+            helixes.append(brep().createHelixWire(origin, axis, start_point, pitch, turns, 0))
+
+        face_bodies = []
+        start_face_edges = []
+        end_face_edges = []
+        for i in range(-1, len(helixes)-1):
+            face_bodies.append(brep().createRuledSurface(helixes[i].wires[0], helixes[i+1].wires[0]))
+            start_face_edges.append(adsk.core.Line3D.create(
+                helixes[i].edges[0].startVertex.geometry,
+                helixes[i+1].edges[0].startVertex.geometry))
+            end_face_edges.append(adsk.core.Line3D.create(
+                helixes[i].edges[0].endVertex.geometry,
+                helixes[i+1].edges[0].endVertex.geometry))
+
+        start_face_wire, _ = brep().createWireFromCurves(start_face_edges)
+        end_face_wire, _ = brep().createWireFromCurves(end_face_edges)
+
+        face_bodies.append(brep().createFaceFromPlanarWires([start_face_wire]))
+        face_bodies.append(brep().createFaceFromPlanarWires([end_face_wire]))
+
+        cumulative_body = face_bodies[0]
+        for face_body in face_bodies[1:]:
+            brep().booleanOperation(cumulative_body, face_body, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+        bottom_plane = adsk.core.Plane.create(original_start_point, axis)
+        axis_copy = axis.copy()
+        axis_copy.scaleBy(length)
+        top_point = original_start_point.copy()
+        top_point.translateBy(axis_copy)
+        top_plane = adsk.core.Plane.create(top_point, axis)
+
+        bottom_face_wire = brep().planeIntersection(cumulative_body, bottom_plane)
+        top_face_wire = brep().planeIntersection(cumulative_body, top_plane)
+        bottom_face = brep().createFaceFromPlanarWires([bottom_face_wire])
+        top_face = brep().createFaceFromPlanarWires([top_face_wire])
+
+        axis_line = adsk.core.InfiniteLine3D.create(cylinder.origin, cylinder.axis)
+        bottom_point = axis_line.intersectWithSurface(bottom_plane)[0]
+        top_point = axis_line.intersectWithSurface(top_plane)[0]
+        bounding_cylinder = brep().createCylinderOrCone(
+            bottom_point, cylinder.radius + max_x, top_point, cylinder.radius + max_x)
+        brep().booleanOperation(cumulative_body, bounding_cylinder, adsk.fusion.BooleanTypes.IntersectionBooleanType)
+
+        brep().booleanOperation(cumulative_body, top_face, adsk.fusion.BooleanTypes.UnionBooleanType)
+        brep().booleanOperation(cumulative_body, bottom_face, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+        surface_bodies = []
+        for face in cumulative_body.faces:
+            surface_bodies.append(brep().copy(face))
+
+        thread_occurrence = _create_component(root(), *surface_bodies, name="thread")
+
+        stitch_input = thread_occurrence.component.features.stitchFeatures.createInput(
+            _collection_of(thread_occurrence.bRepBodies),
+            adsk.core.ValueInput.createByReal(app().pointTolerance),
+            adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+
+        thread_occurrence.component.features.stitchFeatures.add(stitch_input)
+
+        point_on_face = face_brep.pointOnFace
+        _, normal = face_brep.evaluator.getNormalAtPoint(point_on_face)
+        point_projection = _project_point_to_line(point_on_face, axis_line)
+
+        base_components = []
+        for body in cylindrical_face.component.bodies():
+            base_components.append(BRepComponent(body.brep))
+        base_component = Union(*base_components)
+
+        thread_components = []
+        for body in thread_occurrence.component.bRepBodies:
+            thread_components.append(BRepComponent(brep().copy(body)))
+        thread_component = Union(*thread_components)
+
+        if point_on_face.vectorTo(point_projection).dotProduct(normal) < 0:
+            # face normal is outward, and we're adding threads onto the surface
+            result = Union(base_component, thread_component)
+        else:
+            # face normal is inward, and we're cutting threads into the surface
+            result = Difference(base_component, thread_component)
+
+        self._bodies = [body.brep for body in result.bodies()]
+        self._add_children((cylindrical_face.component,))
+        thread_occurrence.deleteMe()
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._bodies
 
 
 def setup_document(document_name="fSCAD-Preview"):
