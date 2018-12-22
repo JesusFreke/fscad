@@ -326,39 +326,40 @@ class BoundedEntity(object):
         self._cached_bounding_box = None
 
     @property
-    def bounding_box(self) -> BoundingBox3D:
+    def bounding_box(self) -> 'BoundingBox':
         if self._cached_bounding_box is None:
-            self._cached_bounding_box = self._calculate_bounding_box()
+            self._cached_bounding_box = BoundingBox(self._calculate_bounding_box())
         return self._cached_bounding_box
 
-    def _calculate_bounding_box(self) -> BoundingBox3D:
+    def _calculate_bounding_box(self) -> 'BoundingBox3D':
         raise NotImplementedError()
 
     def _reset_cache(self):
         self._cached_bounding_box = None
 
-    def size(self):
-        return self.bounding_box.minPoint.vectorTo(self._cached_bounding_box.maxPoint).asPoint()
+    def size(self) -> Point3D:
+        return self.bounding_box.raw_bounding_box.minPoint.vectorTo(
+            self.bounding_box.raw_bounding_box.maxPoint).asPoint()
 
-    def min(self):
-        return self.bounding_box.minPoint
+    def min(self) -> Point3D:
+        return self.bounding_box.raw_bounding_box.minPoint
 
-    def max(self):
-        return self.bounding_box.maxPoint
+    def max(self) -> Point3D:
+        return self.bounding_box.raw_bounding_box.maxPoint
 
-    def mid(self):
+    def mid(self) -> Point3D:
         return Point3D.create(
-            (self.bounding_box.minPoint.x + self.bounding_box.maxPoint.x)/2,
-            (self.bounding_box.minPoint.y + self.bounding_box.maxPoint.y)/2,
-            (self.bounding_box.minPoint.z + self.bounding_box.maxPoint.z)/2)
+            (self.bounding_box.raw_bounding_box.minPoint.x + self.bounding_box.raw_bounding_box.maxPoint.x)/2,
+            (self.bounding_box.raw_bounding_box.minPoint.y + self.bounding_box.raw_bounding_box.maxPoint.y)/2,
+            (self.bounding_box.raw_bounding_box.minPoint.z + self.bounding_box.raw_bounding_box.maxPoint.z)/2)
 
-    def __neg__(self):
+    def __neg__(self) -> Place:
         return Place(self.min())
 
-    def __pos__(self):
+    def __pos__(self) -> Place:
         return Place(self.max())
 
-    def __invert__(self):
+    def __invert__(self) -> Place:
         return Place(self.mid())
 
 
@@ -375,7 +376,7 @@ class BRepEntity(BoundedEntity, ABC):
     def component(self) -> 'Component':
         return self._component
 
-    def _calculate_bounding_box(self) -> BoundingBox3D:
+    def _calculate_bounding_box(self) -> 'BoundingBox3D':
         return _get_exact_bounding_box(self.brep)
 
     def __eq__(self, other):
@@ -458,8 +459,32 @@ class Point(BoundedEntity):
     def point(self) -> Point3D:
         return self._point.copy()
 
-    def _calculate_bounding_box(self) -> BoundingBox3D:
+    def _calculate_bounding_box(self) -> 'BoundingBox3D':
         return BoundingBox3D.create(self._point, self._point)
+
+
+class BoundingBox(BoundedEntity):
+    def __init__(self, bounding_box: BoundingBox3D):
+        super().__init__()
+        self._bounding_box = bounding_box
+
+    def _calculate_bounding_box(self) -> BoundingBox3D:
+        return self._bounding_box
+
+    @property
+    def bounding_box(self) -> 'BoundingBox':
+        return self
+
+    @property
+    def raw_bounding_box(self) -> 'BoundingBox3D':
+        return self._bounding_box.copy()
+
+    def make_box(self) -> 'Box':
+        box = Box(*self.size().asArray())
+        box.place(~box == ~self,
+                  ~box == ~self,
+                  ~box == ~self)
+        return box
 
 
 class Component(BoundedEntity):
