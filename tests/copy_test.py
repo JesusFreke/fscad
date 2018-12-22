@@ -80,6 +80,24 @@ class CopyTest(test_utils.FscadTestCase):
         union2.create_occurrence(True)
         union2_copy.create_occurrence(True)
 
+    def test_split_copy(self):
+        box = Box(1, 1, 1)
+        cyl = Cylinder(1, .5)
+        cyl.place(~cyl == ~box,
+                  ~cyl == ~box,
+                  -cyl == +box)
+        split = SplitFace(box, cyl)
+
+        split2 = split.copy()
+        split2.place((-split2 == +split) + 1)
+
+        split3 = split2.copy()
+        split3.place((-split3 == +split2) + 1)
+
+        split.create_occurrence()
+        split2.create_occurrence()
+        split3.create_occurrence()
+
 
 from test_utils import load_tests
 def run(context):

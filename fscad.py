@@ -1422,7 +1422,7 @@ class SplitFace(ComponentWithChildren):
     def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
         super()._copy_to(copy, copy_children)
         copy._bodies = list(self._bodies)
-        copy._start_face_indices = list(self._split_face_indices)
+        copy._split_face_indices = list(self._split_face_indices)
         copy._cached_split_faces = None
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
