@@ -15,7 +15,7 @@
 from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point2D, Point3D, ValueInput,\
     Vector3D
-from adsk.fusion import BRepBody, BRepFace, BRepFaces
+from adsk.fusion import BRepBody, BRepEdge, BRepFace, BRepFaces
 from typing import Any, Callable, Iterable, Iterator, Optional, Sequence, Tuple
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
@@ -565,6 +565,21 @@ class Face(BRepEntity):
         return self._body
 
 
+class Edge(BRepEntity):
+    def __init__(self, edge: BRepEdge, body: Body):
+        super().__init__(body.component)
+        self._edge = edge
+        self._body = body
+
+    @property
+    def brep(self) -> BRepEdge:
+        return self._edge
+
+    @property
+    def body(self) -> Body:
+        return self._body
+
+
 class Point(BoundedEntity):
     def __init__(self, point: Point3D):
         super().__init__()
@@ -868,6 +883,19 @@ class Component(BoundedEntity):
         for face_index in face_index_list:
             result.append(self.bodies[face_index[0]].faces[face_index[1]])
         return result
+
+    def shared_edges(self, face_selector1, face_selector2) -> Sequence[Edge]:
+        faces1 = [face.brep for face in self.find_faces(face_selector1)]
+        faces2 = [face.brep for face in self.find_faces(face_selector2)]
+
+        edges = []
+        for face in faces1:
+            for edge in face.edges:
+                for other_face in edge.faces:
+                    if other_face != face and other_face in faces2:
+                        if edge not in edges:
+                            edges.append(edge)
+        return [Edge(edge, Body(edge.body, self)) for edge in edges]
 
     def _recalculate_faces(self):
         class Context(object):
