@@ -139,11 +139,31 @@ def _get_exact_bounding_box(entity):
     return bounding_box
 
 
-def _face_index(face: Onion[BRepFace, 'Face']):
+def _body_index(body: Onion[BRepBody, 'Body'], bodies: Iterable[Onion[BRepBody, 'Body']]) -> Optional[int]:
+    if isinstance(body, Body):
+        return _body_index(body.brep, bodies)
+    for i, candidate_body in enumerate(bodies):
+        if isinstance(candidate_body, Body):
+            candidate_body = candidate_body.brep
+        if candidate_body == body:
+            return i
+    return None
+
+
+def _face_index(face: Onion[BRepFace, 'Face']) -> int:
     if isinstance(face, Face):
         return _face_index(face.brep)
     for i, candidate_face in enumerate(face.body.faces):
         if candidate_face == face:
+            return i
+    assert False
+
+
+def _edge_index(edge: Onion[BRepEdge, 'Edge']):
+    if isinstance(edge, Edge):
+        return _edge_index(edge.brep)
+    for i, candidate_edge in enumerate(edge.body.edges):
+        if candidate_edge == edge:
             return i
     assert False
 
@@ -860,11 +880,7 @@ class Component(BoundedEntity):
 
     def _find_face_index(self, face: Face) -> Tuple[int, int]:
         face_index = _face_index(face)
-        body_index = None
-        for i, body in enumerate(self.bodies):
-            if body == face.body:
-                body_index = i
-                break
+        body_index = _body_index(face.body, self.bodies)
         if body_index is None:
             raise ValueError("Could not find face in component")
         return body_index, face_index
@@ -1474,7 +1490,7 @@ class ExtrudeBase(ComponentWithChildren):
         feature = temp_occurrence.component.features.extrudeFeatures[-1]
 
         bodies = []
-        feature_bodies = list(feature.abcdefg)
+        feature_bodies = list(feature.bodies)
         for body in feature_bodies:
             bodies.append(brep().copy(body))
         self._bodies = bodies
@@ -1866,6 +1882,101 @@ class Threads(ComponentWithChildren):
     def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
         super()._copy_to(copy, copy_children)
         copy._bodies = list(self._bodies)
+
+
+class Fillet(ComponentWithChildren):
+    def __init__(self, edges: Iterable[Edge], radius: float, blend_corners: bool = False, name: str = None):
+        super().__init__(name)
+
+        component = None
+        for edge in edges:
+            if component is None:
+                component = edge.component
+            elif component != edge.component:
+                raise ValueError("All edges must be in the same component")
+
+        edge_indices = []
+        for edge in edges:
+            body_index = _body_index(edge.body, component.bodies)
+            if body_index is None:
+                raise ValueError("Couldn't find body in component")
+            edge_index = _edge_index(edge)
+            edge_indices.append((body_index, edge_index))
+
+        occurrence = component.create_occurrence(False)
+        occurrence_edges = []
+        for edge_index in edge_indices:
+            occurrence_edges.append(occurrence.bRepBodies[edge_index[0]].edges[edge_index[1]])
+
+        fillet_input = occurrence.component.features.filletFeatures.createInput()
+        fillet_input.addConstantRadiusEdgeSet(_collection_of(occurrence_edges),
+                                              ValueInput.createByReal(radius),
+                                              False)
+        fillet_input.isRollingBallCorner = not blend_corners
+        occurrence.component.features.filletFeatures.add(fillet_input)
+
+        self._bodies = [brep().copy(body) for body in occurrence.bRepBodies]
+
+        occurrence.deleteMe()
+
+        self._add_children([component])
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._bodies
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        copy._bodies = list(self._bodies)
+        super()._copy_to(copy, copy_children)
+
+
+class Chamfer(ComponentWithChildren):
+    def __init__(self, edges: Iterable[Edge], distance: float, distance2: float = None, name: str = None):
+        super().__init__(name)
+
+        component = None
+        for edge in edges:
+            if component is None:
+                component = edge.component
+            elif component != edge.component:
+                raise ValueError("All edges must be in the same component")
+
+        edge_indices = []
+        for edge in edges:
+            body_index = _body_index(edge.body, component.bodies)
+            if body_index is None:
+                raise ValueError("Couldn't find body in component")
+            edge_index = _edge_index(edge)
+            edge_indices.append((body_index, edge_index))
+
+        occurrence = component.create_occurrence(False)
+        occurrence_edges = []
+        for edge_index in edge_indices:
+            occurrence_edges.append(occurrence.bRepBodies[edge_index[0]].edges[edge_index[1]])
+
+        chamfer_input = occurrence.component.features.chamferFeatures.createInput(
+            _collection_of(occurrence_edges), False)
+        if distance2 is not None:
+            chamfer_input.setToTwoDistances(
+                ValueInput.createByReal(distance),
+                ValueInput.createByReal(distance2))
+        else:
+            chamfer_input.setToEqualDistance(
+                ValueInput.createByReal(distance))
+
+        occurrence.component.features.chamferFeatures.add(chamfer_input)
+
+        self._bodies = [brep().copy(body) for body in occurrence.bRepBodies]
+
+        occurrence.deleteMe()
+
+        self._add_children([component])
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._bodies
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        copy._bodies = list(self._bodies)
+        super()._copy_to(copy, copy_children)
 
 
 def setup_document(document_name="fSCAD-Preview"):
