@@ -27,6 +27,7 @@ test_modules = [
     "loft_test",
     "misc_test",
     "place_test",
+    "scale_test",
     "split_face_test",
     "thread_test",
     "transform_test",

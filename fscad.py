@@ -1979,6 +1979,45 @@ class Chamfer(ComponentWithChildren):
         super()._copy_to(copy, copy_children)
 
 
+class Scale(ComponentWithChildren):
+    def __init__(self, component: Component, sx: float = 1, sy: float = 1, sz: float = 1,
+                 center: Onion[Point3D, Point, Tuple[float, float, float]] = None, name: str = None):
+        super().__init__(name)
+
+        if center is None:
+            center = Point3D.create(0, 0, 0)
+        elif isinstance(center, Point):
+            center = center.point
+        elif isinstance(center, Tuple):
+            center = Point3D.create(*center)
+
+        occurrence = component.create_occurrence(False)
+        try:
+            construction_point_input = occurrence.component.constructionPoints.createInput(occurrence)
+            construction_point_input.setByPoint(center)
+            center_point = occurrence.component.constructionPoints.add(construction_point_input)
+
+            scale_input = occurrence.component.features.scaleFeatures.createInput(_collection_of(occurrence.bRepBodies),
+                                                                                  center_point,
+                                                                                  ValueInput.createByReal(1))
+            scale_input.setToNonUniform(ValueInput.createByReal(sx),
+                                        ValueInput.createByReal(sy),
+                                        ValueInput.createByReal(sz))
+            occurrence.component.features.scaleFeatures.add(scale_input)
+
+            self._bodies = [brep().copy(body) for body in occurrence.bRepBodies]
+            self._add_children([component])
+        finally:
+            occurrence.deleteMe()
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._bodies
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        copy._bodies = list(self._bodies)
+        super()._copy_to(copy, copy_children)
+
+
 def setup_document(document_name="fSCAD-Preview"):
     preview_doc = None
     saved_camera = None
