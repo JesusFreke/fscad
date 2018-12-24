@@ -112,6 +112,11 @@ class MiscTest(test_utils.FscadTestCase):
                 adsk.core.Point3D.create(100, 100, 100),
                 adsk.core.Vector3D.create(1, 1, 1)))
 
+    def test_get_arbitarary_perpedicular_unit_vector(self):
+        vector = adsk.core.Vector3D.create(1, 2, 3)
+        perpendicular = fscad._get_arbitrary_perpendicular_unit_vector(vector)
+        self.assertTrue(perpendicular.isPerpendicularTo(vector))
+
 
 from test_utils import load_tests
 def run(context):

@@ -17,6 +17,7 @@ import importlib
 import unittest
 
 test_modules = [
+    "align_test",
     "basic_geometry_test",
     "copy_test",
     "difference_test",
@@ -24,8 +25,10 @@ test_modules = [
     "face_test",
     "intersection_test",
     "loft_test",
+    "misc_test",
     "place_test",
     "split_face_test",
+    "thread_test",
     "transform_test",
     "union_test",
 ]

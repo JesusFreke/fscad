@@ -22,15 +22,23 @@ from typing import Union as Onion  # Haha, why not? Prevents a conflict with our
 import adsk.core
 import adsk.fusion
 import math
+import random
 import sys
 import traceback
 import types
 
 # recursive type hints don't actually work yet, so let's expand the recursion a few levels and call it good
-_face_selector_types = Onion['Component', 'Body', 'Face', Iterable[
-    Onion['Component', 'Body', 'Face', Iterable[
-        Onion['Component', 'Body', 'Face', Iterable[
-            Onion['Component', 'Body', 'Face', Iterable['_face_selector_types']]]]]]]]
+_singular_face_selector_types = Onion['Component', 'Body', 'Face']
+_face_selector_types = Onion[_singular_face_selector_types, Iterable[
+    Onion[_singular_face_selector_types, Iterable[
+        Onion[_singular_face_selector_types, Iterable[
+            Onion[_singular_face_selector_types, Iterable['_face_selector_types']]]]]]]]
+
+_singular_entity_types = Onion['Component', 'Body', 'Face', 'Point']
+_entity_types = Onion[_singular_entity_types, Iterable[
+    Onion[_singular_entity_types, Iterable[
+        Onion[_singular_entity_types, Iterable[
+            Onion[_singular_entity_types, Iterable['_entity_types']]]]]]]]
 
 
 def app():
@@ -71,15 +79,28 @@ def _create_component(parent_component, *bodies: Onion[BRepBody, 'Body'], name):
 
 
 def _oriented_bounding_box_to_bounding_box(oriented: OrientedBoundingBox3D):
+    coordinate_transform = Matrix3D.create()
+    coordinate_transform.setToAlignCoordinateSystems(
+        Point3D.create(0, 0, 0),
+        oriented.lengthDirection,
+        oriented.widthDirection,
+        oriented.heightDirection,
+        Point3D.create(0, 0, 0),
+        Vector3D.create(1, 0, 0),
+        Vector3D.create(0, 1, 0),
+        Vector3D.create(0, 0, 1))
+    center = oriented.centerPoint.copy()
+    center.transformBy(coordinate_transform)
+
     return BoundingBox3D.create(
         Point3D.create(
-            oriented.centerPoint.x - oriented.length / 2.0,
-            oriented.centerPoint.y - oriented.width / 2.0,
-            oriented.centerPoint.z - oriented.height / 2.0),
+            center.x - oriented.length / 2.0,
+            center.y - oriented.width / 2.0,
+            center.z - oriented.height / 2.0),
         Point3D.create(
-            oriented.centerPoint.x + oriented.length / 2.0,
-            oriented.centerPoint.y + oriented.width / 2.0,
-            oriented.centerPoint.z + oriented.height / 2.0)
+            center.x + oriented.length / 2.0,
+            center.y + oriented.width / 2.0,
+            center.z + oriented.height / 2.0)
     )
 
 
@@ -146,6 +167,33 @@ def _flatten_face_selectors(selector: _face_selector_types) -> Iterable[BRepFace
     return selector.brep,
 
 
+def _union_entities(entity: _entity_types, result_body: BRepBody = None, vector: Vector3D=None) -> BRepBody:
+    if isinstance(entity, Iterable):
+        for sub_entity in entity:
+            result_body = _union_entities(sub_entity, result_body)
+        return result_body
+    if isinstance(entity, Component):
+        for body in entity.bodies():
+            if result_body is None:
+                result_body = brep().copy(body.brep)
+            else:
+                brep().booleanOperation(result_body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+        return result_body
+    if isinstance(entity, BRepEntity):
+        if result_body is None:
+            return brep().copy(entity.brep)
+        else:
+            brep().booleanOperation(result_body, brep().copy(entity.brep), adsk.fusion.BooleanTypes.UnionBooleanType)
+            return result_body
+    if isinstance(entity, Point):
+        body = _create_point_body(entity.point, vector)
+        if result_body is None:
+            return body
+        else:
+            brep().booleanOperation(result_body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+            return result_body
+
+
 def _check_intersection(entity1, entity2):
     entity1_copy = brep().copy(entity1)
     entity2_copy = brep().copy(entity2)
@@ -158,6 +206,16 @@ def _point_vector_to_line(point, vector):
                                    adsk.core.Point3D.create(point.x + vector.x,
                                                             point.y + vector.y,
                                                             point.z + vector.z))
+
+
+def _get_arbitrary_perpendicular_unit_vector(vector: Vector3D):
+    while True:
+        random_vector = Vector3D.create(random.random(), random.random(), random.random())
+        if not random_vector.isParallelTo(vector):
+            break
+    arbitrary_vector = random_vector.crossProduct(vector)
+    arbitrary_vector.normalize()
+    return arbitrary_vector
 
 
 def _check_face_geometry(face1, face2):
@@ -266,6 +324,63 @@ def _project_point_to_line(point: Point3D, line: adsk.core.InfiniteLine3D):
     projected_point = line.origin
     projected_point.translateBy(axis_projection)
     return projected_point
+
+
+def _create_silhouette(body: BRepBody, oriented_bounding_box: OrientedBoundingBox3D) -> BRepBody:
+    temp_occurrence = _create_component(root(), body, name="temp")
+
+    sketch = temp_occurrence.component.sketches.add(
+        adsk.core.Plane.create(
+            oriented_bounding_box.centerPoint,
+            oriented_bounding_box.lengthDirection),
+        temp_occurrence)
+
+    silhouette = None
+    for body in temp_occurrence.bRepBodies:
+        for face in body:
+            projections = sketch.project(face)
+            wire_body, _ = brep().createWireFromCurves(list(projections), False)
+            face_silhouette = brep().createFaceFromPlanarWires([wire_body])
+            if silhouette is None:
+                silhouette = face_silhouette
+            else:
+                brep().booleanOperation(silhouette, face_silhouette, adsk.fusion.BooleanTypes.UnionBooleanType)
+    return silhouette
+
+
+def _create_point_body(point: Point3D, vector: Vector3D = None):
+    if vector is None:
+        vector = Vector3D.create(0, 0, app().pointTolerance * 2)
+    else:
+        vector = vector.copy()
+        vector.normalize()
+        vector.scaleBy(app().pointTolerance * 2)
+
+    second_point = point.copy()
+    second_point.translateBy(vector)
+
+    body, _ = brep().createWireFromCurves([adsk.core.Line3D.create(point, second_point)])
+
+    matrix = adsk.core.Matrix3D.create()
+    translation = Matrix3D.create()
+    translation.translation = point.asVector()
+    translation.invert()
+    matrix.transformBy(translation)
+
+    # we can't directly create a wire with points closer than app().pointTolerance, but we can scale it afterward.
+    # This should result in two points being .01 * app().pointTolerance within each other
+    scale = Matrix3D.create()
+    scale.setCell(0, 0, .005)
+    scale.setCell(1, 1, .005)
+    scale.setCell(2, 2, .005)
+    matrix.transformBy(scale)
+
+    translation.invert()
+    matrix.transformBy(translation)
+
+    brep().transform(body, matrix)
+
+    return body
 
 
 class Translation(object):
@@ -778,6 +893,76 @@ class Component(BoundedEntity):
                     if new_face_list:
                         self._component.add_faces(key, *new_face_list)
         return Context(self)
+
+    def align_to(self, entity: _entity_types, vector: Vector3D) -> 'Component':
+        """Moves this component along the given vector until it touches the specified entity
+
+        This uses a potentially iterative method based on the shortest distant between the 2 entities. In some cases,
+        this may take a long time to complete. For example, if there is a section where there are 2 parallel faces
+        that are sliding past each other with a very small space between them.
+        """
+        self_body = _union_entities(self.bodies())
+        other_body = _union_entities(entity, vector=vector)
+        axis = vector.copy()
+        axis.normalize()
+        other_axis = _get_arbitrary_perpendicular_unit_vector(vector)
+
+        self_obb = app().measureManager.getOrientedBoundingBox(self_body, axis, other_axis)
+        other_obb = app().measureManager.getOrientedBoundingBox(other_body, axis, other_axis)
+        self_bb = _oriented_bounding_box_to_bounding_box(self_obb)
+        other_bb = _oriented_bounding_box_to_bounding_box(other_obb)
+
+        if not self_bb.intersects(other_bb):
+            self_center = BoundingBox(self_bb).mid()
+
+            other_min_point = Point3D.create(other_bb.minPoint.x,
+                                             self_center.y,
+                                             self_center.z)
+            other_max_point = Point3D.create(other_bb.maxPoint.x,
+                                             self_center.y,
+                                             self_center.z)
+
+            if other_bb.minPoint.x > self_bb.maxPoint.x:
+                self_bb.expand(other_min_point)
+            if other_bb.maxPoint.x > self_bb.maxPoint.x:
+                self_bb.expand(other_max_point)
+            if not self_bb.intersects(other_bb):
+                raise ValueError("The 2 entities do not intersect along the given vector")
+
+        occ1 = _create_component(root(), self_body, name="temp")
+        occ2 = _create_component(root(), other_body, name="temp")
+
+        # TODO: could we use a body silhouette extrusion to help with the case of 2 parallel surfaces sliding very close
+        # to each other? e.g. maybe we could find the intersection of the body silhouette extrusion and the target body
+        # and perform the measurements on that? It wouldn't completely solve the problem, but it should help.
+        # Or maybe do piecewise face measurements, and reject the ones that are perpendicular to the movement axis?
+        try:
+            while True:
+                shortest_distance = app().measureManager.measureMinimumDistance(
+                    occ1.bRepBodies[0], occ2.bRepBodies[0]).value
+                if shortest_distance < app().pointTolerance:
+                    break
+
+                translation = axis.copy()
+                translation.scaleBy(shortest_distance)
+                translation_matrix = Matrix3D.create()
+                translation_matrix.translation = translation
+                transform = occ1.transform
+                transform.transformBy(translation_matrix)
+                occ1.transform = transform
+
+                self_obb = app().measureManager.getOrientedBoundingBox(occ1.bRepBodies[0], vector, other_axis)
+                self_bb = _oriented_bounding_box_to_bounding_box(self_obb)
+
+                if self_bb.minPoint.x > other_bb.maxPoint.x:
+                    raise ValueError("The 2 entities do not intersect along the given vector")
+
+            self.translate(*occ1.transform.translation.asArray())
+        finally:
+            occ1.deleteMe()
+            occ2.deleteMe()
+
+        return self
 
 
 class Shape(Component, ABC):

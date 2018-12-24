@@ -36,7 +36,6 @@ class SplitFaceTest(test_utils.FscadTestCase):
         self.assertEqual(split.split_faces[0].brep.pointOnFace.z, 1)
 
     def test_basic_split_face_direct(self):
-        set_parametric(False)
         box = Box(1, 1, 1)
         cylinder = Cylinder(1, .25)
         cylinder.place(~cylinder == ~box,
