@@ -77,7 +77,7 @@ class AlignTest(test_utils.FscadTestCase):
         sphere.align_to(Point(point), Vector3D.create(1, 0, 0))
         sphere.add_point("point", point)
         sphere.create_occurrence(True)
-        self.assertEqual(sphere.bodies()[0].brep.pointContainment(point),
+        self.assertEqual(sphere.bodies[0].brep.pointContainment(point),
                          adsk.fusion.PointContainment.PointOnPointContainment)
 
     def test_align_to_body(self):
@@ -85,7 +85,7 @@ class AlignTest(test_utils.FscadTestCase):
         box2 = Box(1, 1, 1, "box2")
         box2.place((-box2 == +box1) + 1)
 
-        box2.align_to(box1.bodies()[0], Vector3D.create(-1, 0, 0))
+        box2.align_to(box1.bodies[0], Vector3D.create(-1, 0, 0))
 
         box1.create_occurrence(True)
         box2.create_occurrence(True)

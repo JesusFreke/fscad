@@ -109,7 +109,7 @@ def _get_exact_bounding_box(entity):
     vector2 = adsk.core.Vector3D.create(0.0, 1.0, 0.0)
 
     if isinstance(entity, Component):
-        entities = entity.bodies()
+        entities = entity.bodies
         # noinspection PyTypeChecker
         return _get_exact_bounding_box(entities)
 
@@ -161,7 +161,7 @@ def _flatten_face_selectors(selector: _face_selector_types) -> Iterable[BRepFace
                     faces.append(face)
         return faces
     if isinstance(selector, Component):
-        return _flatten_face_selectors(selector.bodies())
+        return _flatten_face_selectors(selector.bodies)
     if isinstance(selector, Body):
         return selector.brep.faces
     return selector.brep,
@@ -173,7 +173,7 @@ def _union_entities(entity: _entity_types, result_body: BRepBody = None, vector:
             result_body = _union_entities(sub_entity, result_body)
         return result_body
     if isinstance(entity, Component):
-        for body in entity.bodies():
+        for body in entity.bodies:
             if result_body is None:
                 result_body = brep().copy(body.brep)
             else:
@@ -623,7 +623,7 @@ class Component(BoundedEntity):
         self._named_faces = {}
 
     def _calculate_bounding_box(self) -> BoundingBox3D:
-        return _get_exact_bounding_box(self.bodies())
+        return _get_exact_bounding_box(self.bodies)
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
         raise NotImplementedError()
@@ -655,6 +655,7 @@ class Component(BoundedEntity):
     def parent(self) -> 'Component':
         return self._parent
 
+    @property
     def bodies(self) -> Sequence[Body]:
         if self._cached_bodies is not None:
             return self._cached_bodies
@@ -670,7 +671,7 @@ class Component(BoundedEntity):
         if scale != 1:
             return self.copy().scale(scale, scale, scale).create_occurrence(create_children, 1)
 
-        occurrence = _create_component(root(), *self.bodies(), name=self.name or self._default_name())
+        occurrence = _create_component(root(), *self.bodies, name=self.name or self._default_name())
         if create_children:
             for child in self.children():
                 child._create_occurrence(occurrence)
@@ -683,7 +684,7 @@ class Component(BoundedEntity):
 
     def _create_occurrence(self, parent_occurrence):
         occurrence = _create_component(
-            parent_occurrence.component, *self.bodies(), name=self.name or self._default_name())
+            parent_occurrence.component, *self.bodies, name=self.name or self._default_name())
         occurrence.isLightBulbOn = False
         for child in self.children():
             child._create_occurrence(occurrence)
@@ -819,7 +820,7 @@ class Component(BoundedEntity):
     def find_faces(self, selector: _face_selector_types) -> Sequence[Face]:
         selector_faces = _flatten_face_selectors(selector)
         result = []
-        for body in self.bodies():
+        for body in self.bodies:
             for face in _find_coincident_faces_on_body(body.brep, selector_faces):
                 result.append(Face(face, body))
         return result
@@ -845,7 +846,7 @@ class Component(BoundedEntity):
     def _find_face_index(self, face: Face) -> Tuple[int, int]:
         face_index = _face_index(face)
         body_index = None
-        for i, body in enumerate(self.bodies()):
+        for i, body in enumerate(self.bodies):
             if body == face.body:
                 body_index = i
                 break
@@ -865,7 +866,7 @@ class Component(BoundedEntity):
             return None
         result = []
         for face_index in face_index_list:
-            result.append(self.bodies()[face_index[0]].faces[face_index[1]])
+            result.append(self.bodies[face_index[0]].faces[face_index[1]])
         return result
 
     def _recalculate_faces(self):
@@ -901,7 +902,7 @@ class Component(BoundedEntity):
         this may take a long time to complete. For example, if there is a section where there are 2 parallel faces
         that are sliding past each other with a very small space between them.
         """
-        self_body = _union_entities(self.bodies())
+        self_body = _union_entities(self.bodies)
         other_body = _union_entities(entity, vector=vector)
         axis = vector.copy()
         axis.normalize()
@@ -983,7 +984,7 @@ class BRepComponent(Shape):
 
     def get_plane(self) -> Optional[adsk.core.Plane]:
         plane = None
-        for body in self.bodies():
+        for body in self.bodies:
             for face in body.faces:
                 if not isinstance(face.brep.geometry, adsk.core.Plane):
                     return None
@@ -999,7 +1000,7 @@ class PlanarShape(Shape):
         super().__init__(body, name)
 
     def get_plane(self) -> adsk.core.Plane:
-        return self.bodies()[0].faces[0].brep.geometry
+        return self.bodies[0].faces[0].brep.geometry
 
 
 class Box(Shape):
@@ -1019,27 +1020,27 @@ class Box(Shape):
 
     @property
     def top(self):
-        return self.bodies()[0].faces[self._top_index]
+        return self.bodies[0].faces[self._top_index]
 
     @property
     def bottom(self):
-        return self.bodies()[0].faces[self._bottom_index]
+        return self.bodies[0].faces[self._bottom_index]
 
     @property
     def left(self):
-        return self.bodies()[0].faces[self._left_index]
+        return self.bodies[0].faces[self._left_index]
 
     @property
     def right(self):
-        return self.bodies()[0].faces[self._right_index]
+        return self.bodies[0].faces[self._right_index]
 
     @property
     def front(self):
-        return self.bodies()[0].faces[self._front_index]
+        return self.bodies[0].faces[self._front_index]
 
     @property
     def back(self):
-        return self.bodies()[0].faces[self._back_index]
+        return self.bodies[0].faces[self._back_index]
 
 
 class Cylinder(Shape):
@@ -1081,17 +1082,17 @@ class Cylinder(Shape):
     def top(self):
         if self._top_index is None:
             return None
-        return self.bodies()[0].faces[self._top_index]
+        return self.bodies[0].faces[self._top_index]
 
     @property
     def bottom(self):
         if self._bottom_index is None:
             return None
-        return self.bodies()[0].faces[self._bottom_index]
+        return self.bodies[0].faces[self._bottom_index]
 
     @property
     def side(self):
-        return self.bodies()[0].faces[self._side_index]
+        return self.bodies[0].faces[self._side_index]
 
 
 class Sphere(Shape):
@@ -1100,7 +1101,7 @@ class Sphere(Shape):
 
     @property
     def surface(self):
-        return self.bodies()[0].faces[0]
+        return self.bodies[0].faces[0]
 
 
 class Rect(PlanarShape):
@@ -1185,7 +1186,7 @@ class Union(ComponentWithChildren):
 
         def process_child(child: Component):
             self._check_coplanarity(child)
-            for body in child.bodies():
+            for body in child.bodies:
                 if self._body is None:
                     self._body = brep().copy(body.brep)
                     self._plane = child.get_plane()
@@ -1214,7 +1215,7 @@ class Union(ComponentWithChildren):
         with self._recalculate_faces():
             def process_child(child):
                 self._check_coplanarity(child)
-                for body in child.bodies():
+                for body in child.bodies:
                     brep().booleanOperation(self._body, body.brep, adsk.fusion.BooleanTypes.UnionBooleanType)
             self._add_children(components, process_child)
         return self
@@ -1238,10 +1239,10 @@ class Difference(ComponentWithChildren):
         def process_child(child: Component):
             self._check_coplanarity(child)
             if self._bodies is None:
-                self._bodies = [brep().copy(child_body.brep) for child_body in child.bodies()]
+                self._bodies = [brep().copy(child_body.brep) for child_body in child.bodies]
             else:
                 for target_body in self._bodies:
-                    for tool_body in child.bodies():
+                    for tool_body in child.bodies:
                         brep().booleanOperation(target_body, tool_body.brep,
                                                 adsk.fusion.BooleanTypes.DifferenceBooleanType)
         self._add_children(components, process_child)
@@ -1270,7 +1271,7 @@ class Difference(ComponentWithChildren):
             def process_child(child):
                 self._check_coplanarity(child)
                 for target_body in self._bodies:
-                    for tool_body in child.bodies():
+                    for tool_body in child.bodies:
                         brep().booleanOperation(target_body, tool_body.brep,
                                                 adsk.fusion.BooleanTypes.DifferenceBooleanType)
             self._add_children(components, process_child)
@@ -1300,10 +1301,10 @@ class Intersection(ComponentWithChildren):
             nonlocal plane
             plane = self._check_coplanarity(child, plane)
             if self._bodies is None:
-                self._bodies = [brep().copy(child_body.brep) for child_body in child.bodies()]
+                self._bodies = [brep().copy(child_body.brep) for child_body in child.bodies]
             else:
                 for target_body in self._bodies:
-                    for tool_body in child.bodies():
+                    for tool_body in child.bodies:
                         brep().booleanOperation(target_body, tool_body.brep,
                                                 adsk.fusion.BooleanTypes.IntersectionBooleanType)
         self._add_children(components, process_child)
@@ -1325,7 +1326,7 @@ class Intersection(ComponentWithChildren):
                 nonlocal plane
                 plane = self._check_coplanarity(child, plane)
                 for target_body in self._bodies:
-                    for tool_body in child.bodies():
+                    for tool_body in child.bodies:
                         brep().booleanOperation(target_body, tool_body.brep,
                                                 adsk.fusion.BooleanTypes.IntersectionBooleanType)
             self._add_children(components, process_child)
@@ -1375,7 +1376,7 @@ class Loft(ComponentWithChildren):
                 raise ValueError("Only planar geometry can be used with Loft")
 
             component_face = None
-            for child_body in child.bodies():
+            for child_body in child.bodies:
                 for face in child_body.faces:
                     if component_face is None:
                         component_face = face
@@ -1404,15 +1405,15 @@ class Loft(ComponentWithChildren):
 
     @property
     def bottom(self) -> Face:
-        return self.bodies()[0].faces[self._bottom_index]
+        return self.bodies[0].faces[self._bottom_index]
 
     @property
     def top(self) -> Face:
-        return self.bodies()[0].faces[self._top_index]
+        return self.bodies[0].faces[self._top_index]
 
     @property
     def sides(self) -> Iterable[Face]:
-        return tuple(self.bodies()[0].faces[self._bottom_index+1:])
+        return tuple(self.bodies[0].faces[self._bottom_index + 1:])
 
 
 class ExtrudeBase(ComponentWithChildren):
@@ -1445,7 +1446,7 @@ class ExtrudeBase(ComponentWithChildren):
         feature = temp_occurrence.component.features.extrudeFeatures[-1]
 
         bodies = []
-        feature_bodies = list(feature.bodies)
+        feature_bodies = list(feature.abcdefg)
         for body in feature_bodies:
             bodies.append(brep().copy(body))
         self._bodies = bodies
@@ -1495,7 +1496,7 @@ class ExtrudeBase(ComponentWithChildren):
     def _get_faces(self, indices) -> Sequence[Face]:
         result = []
         for body_index, face_index in indices:
-            result.append(self.bodies()[body_index].faces[face_index])
+            result.append(self.bodies[body_index].faces[face_index])
         return result
 
     @property
@@ -1524,7 +1525,7 @@ class Extrude(ExtrudeBase):
             if component.get_plane() is None:
                 raise ValueError("Can't extrude non-planar geometry with Extrude.")
             faces = []
-            for body in component.bodies():
+            for body in component.bodies:
                 faces.extend(body.brep.faces)
         elif isinstance(entity, Face):
             component = entity.component
@@ -1554,7 +1555,7 @@ class ExtrudeTo(ExtrudeBase):
             if entity.get_plane() is None:
                 raise ValueError("Can't extrude non-planar geometry with Extrude.")
             faces = []
-            for body in entity.bodies():
+            for body in entity.bodies:
                 faces.extend(body.brep.faces)
         elif isinstance(entity, Face):
             component = entity.component
@@ -1572,7 +1573,7 @@ class ExtrudeTo(ExtrudeBase):
             raise ValueError("Unsupported object type for extrude: %s" % entity.__class__.__name__)
 
         if isinstance(to_entity, Component):
-            bodies = to_entity.bodies()
+            bodies = to_entity.bodies
             if len(bodies) > 1:
                 raise ValueError("If to_entity is a component, it must contain only a single body")
             component_to_add = to_entity.copy()
@@ -1663,7 +1664,7 @@ class SplitFace(ComponentWithChildren):
     def _get_faces(self, indices) -> Sequence[Face]:
         result = []
         for body_index, face_index in indices:
-            result.append(self.bodies()[body_index].faces[face_index])
+            result.append(self.bodies[body_index].faces[face_index])
         return result
 
     @property
@@ -1680,7 +1681,7 @@ class Threads(ComponentWithChildren):
 
         if isinstance(entity, Component):
             cylindrical_face = None
-            for body in entity.bodies():
+            for body in entity.bodies:
                 for face in body.faces:
                     if isinstance(face.brep.geometry, adsk.core.Cylinder):
                         if cylindrical_face is None:
@@ -1811,7 +1812,7 @@ class Threads(ComponentWithChildren):
         point_projection = _project_point_to_line(point_on_face, axis_line)
 
         base_components = []
-        for body in cylindrical_face.component.bodies():
+        for body in cylindrical_face.component.bodies:
             base_components.append(BRepComponent(body.brep))
         base_component = Union(*base_components)
 
@@ -1827,7 +1828,7 @@ class Threads(ComponentWithChildren):
             # face normal is inward, and we're cutting threads into the surface
             result = Difference(base_component, thread_component)
 
-        self._bodies = [body.brep for body in result.bodies()]
+        self._bodies = [body.brep for body in result.bodies]
         self._add_children((cylindrical_face.component,))
         thread_occurrence.deleteMe()
 

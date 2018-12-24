@@ -61,12 +61,12 @@ class FaceTest(test_utils.FscadTestCase):
         for face in faces:
             self.assertEqual(face.brep.area, .5*.5)
 
-        faces = diff.find_faces([list(hole.bodies()[0].faces)])
+        faces = diff.find_faces([list(hole.bodies[0].faces)])
         self.assertEqual(len(faces), 5)
         for face in faces:
             self.assertEqual(face.brep.area, .5*.5)
 
-        faces = diff.find_faces(hole.bodies()[0])
+        faces = diff.find_faces(hole.bodies[0])
         self.assertEqual(len(faces), 5)
         for face in faces:
             self.assertEqual(face.brep.area, .5*.5)

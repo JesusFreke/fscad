@@ -65,7 +65,7 @@ class ExtrudeTest(test_utils.FscadTestCase):
         sphere = Sphere(5)
         sphere.tz(10)
 
-        extrude = ExtrudeTo(rect, sphere.bodies()[0])
+        extrude = ExtrudeTo(rect, sphere.bodies[0])
         extrude.create_occurrence(True)
 
     def test_extrude_to_face(self):
@@ -74,7 +74,7 @@ class ExtrudeTest(test_utils.FscadTestCase):
         sphere = Sphere(5)
         sphere.tz(10)
 
-        extrude = ExtrudeTo(rect, sphere.bodies()[0].faces[0])
+        extrude = ExtrudeTo(rect, sphere.bodies[0].faces[0])
         extrude.create_occurrence(True)
 
     def test_extrude_face(self):
