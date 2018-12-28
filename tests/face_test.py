@@ -83,6 +83,22 @@ class FaceTest(test_utils.FscadTestCase):
         self.assertEqual(len(faces), 1)
         self.assertTrue(isinstance(faces[0].brep.geometry, adsk.core.Sphere))
 
+    def test_connected_faces(self):
+        box = Box(1, 1, 1)
+
+        self.assertSetEqual({face.brep.tempId for face in box.bottom.connected_faces},
+                            {face.brep.tempId for face in [box.left, box.right, box.front, box.back]})
+        self.assertSetEqual({face.brep.tempId for face in box.top.connected_faces},
+                            {face.brep.tempId for face in [box.left, box.right, box.front, box.back]})
+        self.assertSetEqual({face.brep.tempId for face in box.left.connected_faces},
+                            {face.brep.tempId for face in [box.top, box.bottom, box.front, box.back]})
+        self.assertSetEqual({face.brep.tempId for face in box.right.connected_faces},
+                            {face.brep.tempId for face in [box.top, box.bottom, box.front, box.back]})
+        self.assertSetEqual({face.brep.tempId for face in box.front.connected_faces},
+                            {face.brep.tempId for face in [box.top, box.bottom, box.left, box.right]})
+        self.assertSetEqual({face.brep.tempId for face in box.back.connected_faces},
+                            {face.brep.tempId for face in [box.top, box.bottom, box.left, box.right]})
+
 
 from test_utils import load_tests
 def run(context):

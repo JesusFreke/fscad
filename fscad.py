@@ -584,6 +584,17 @@ class Face(BRepEntity):
     def body(self) -> Body:
         return self._body
 
+    @property
+    def connected_faces(self) -> Sequence['Face']:
+        result = []
+        for edge in self.brep.edges:
+            for face in edge.faces:
+                if face != self.brep:
+                    if face not in result:
+                        result.append(face)
+                    break
+        return [Face(face, self._body) for face in result]
+
 
 class Edge(BRepEntity):
     def __init__(self, edge: BRepEdge, body: Body):
