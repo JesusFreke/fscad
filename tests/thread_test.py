@@ -88,6 +88,10 @@ class ThreadTest(test_utils.FscadTestCase):
         ]
         Threads(diff, points, 1, name="threaded_hole").create_occurrence(True)
 
+    def test_reverse_axis(self):
+        cyl = Cylinder(10, 5)
+        Threads(cyl, ((0, 0), (.99, .99), (0, .99)), 1, reverse_axis=True).create_occurrence(True)
+
 
 from test_utils import load_tests
 def run(context):

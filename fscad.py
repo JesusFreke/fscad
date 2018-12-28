@@ -1731,7 +1731,7 @@ class SplitFace(ComponentWithChildren):
 
 class Threads(ComponentWithChildren):
     def __init__(self, entity: Onion[Component, Face], thread_profile: Iterable[Tuple[float, float]],
-                 pitch: float, name: str = None):
+                 pitch: float, reverse_axis=False, name: str = None):
         super().__init__(name)
 
         if isinstance(entity, Component):
@@ -1757,10 +1757,19 @@ class Threads(ComponentWithChildren):
         face_brep = cylindrical_face.brep
 
         _, thread_start_point = face_brep.evaluator.getPointAtParameter(face_brep.evaluator.parametricRange().minPoint)
-        _, end_point = face_brep.evaluator.getPointAtParameter(
-            adsk.core.Point2D.create(face_brep.evaluator.parametricRange().maxPoint.x,
-                                     face_brep.evaluator.parametricRange().minPoint.y))
+        _, end_point = face_brep.evaluator.getPointAtParameter(face_brep.evaluator.parametricRange().maxPoint)
         length = end_point.distanceTo(thread_start_point)
+
+        if reverse_axis:
+            origin = cylinder.origin
+            axis_temp = axis.copy()
+            axis_temp.scaleBy(length)
+            origin.translateBy(axis_temp)
+            axis_temp = axis.copy()
+            axis_temp.scaleBy(-1)
+            cylinder = adsk.core.Cylinder.create(origin, axis_temp, cylinder.radius)
+            axis = axis_temp
+            thread_start_point, end_point = end_point, thread_start_point
 
         start_point_vector = cylinder.origin.vectorTo(thread_start_point)
         start_point_vector = axis.crossProduct(axis.crossProduct(start_point_vector))
