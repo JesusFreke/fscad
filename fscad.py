@@ -950,6 +950,20 @@ class Component(BoundedEntity):
                         self._component.add_faces(key, *new_face_list)
         return Context(self)
 
+    def closest_points(self, entity: _entity_types) -> Tuple[Point3D, Point3D]:
+        self_body = _union_entities(self.bodies)
+        other_body = _union_entities(entity)
+
+        occ1 = _create_component(root(), self_body, name="temp")
+        occ2 = _create_component(root(), other_body, name="temp")
+
+        try:
+            result = app().measureManager.measureMinimumDistance(occ1.bRepBodies[0], occ2.bRepBodies[0])
+            return result.positionOne, result.positionTwo
+        finally:
+            occ1.deleteMe()
+            occ2.deleteMe()
+
     def align_to(self, entity: _entity_types, vector: Vector3D) -> 'Component':
         """Moves this component along the given vector until it touches the specified entity
 

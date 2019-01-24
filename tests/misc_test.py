@@ -117,6 +117,20 @@ class MiscTest(test_utils.FscadTestCase):
         perpendicular = fscad._get_arbitrary_perpendicular_unit_vector(vector)
         self.assertTrue(perpendicular.isPerpendicularTo(vector))
 
+    def test_closest_points(self):
+        box1 = Box(1, 1, 1, name="box1")
+        box2 = Box(1, 1, 1, name="box2")
+        box2.place(~box2 == ~box1,
+                   (-box2 == +box1) + 2,
+                   -box2 == -box1)
+
+        (point1, point2) = box1.closest_points(box2)
+        self.assertEqual(point1.distanceTo(point2), 2)
+        self.assertEqual(box1.bodies[0].brep.pointContainment(point1),
+                         adsk.fusion.PointContainment.PointOnPointContainment)
+        self.assertEqual(box2.bodies[0].brep.pointContainment(point2),
+                         adsk.fusion.PointContainment.PointOnPointContainment)
+
 
 from test_utils import load_tests
 def run(context):
