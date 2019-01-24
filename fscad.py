@@ -1248,6 +1248,48 @@ class ComponentWithChildren(Component, ABC):
             copy._add_children([child.copy() for child in self._children])
 
 
+class Group(ComponentWithChildren):
+    def __init__(self, visible_children, hidden_children=None, name=None):
+        super().__init__(name)
+
+        self._visible_children = []
+        self._hidden_children = []
+
+        def process_visible_child(child: Component):
+            self._visible_children.append(child)
+        self._add_children(visible_children, process_visible_child)
+
+        if hidden_children:
+            def process_hidden_child(child: Component):
+                self._hidden_children.append(child)
+            self._add_children(hidden_children, process_hidden_child)
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        bodies = []
+        for child in self._visible_children:
+            for body in child.bodies:
+                bodies.append(body.brep)
+        return bodies
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        copy._visible_children = []
+        copy._hidden_children = []
+
+        copy._cached_inverse_transform = None
+        copy._children = []
+
+        for child in self._visible_children:
+            child_copy = child.copy()
+            copy._visible_children.append(child_copy)
+        copy._add_children(copy._visible_children)
+
+        if copy_children:
+            for child in self._hidden_children:
+                child_copy = child.copy()
+                copy._hidden_children.append(child_copy)
+            copy._add_children(copy._hidden_children)
+
+
 class Union(ComponentWithChildren):
     def __init__(self, *components: Component, name: str = None):
         super().__init__(name)
