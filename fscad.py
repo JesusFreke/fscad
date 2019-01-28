@@ -595,6 +595,13 @@ class Face(BRepEntity):
                     break
         return [Face(face, self._body) for face in result]
 
+    @property
+    def edges(self) -> Sequence['Edge']:
+        result = []
+        for edge in self.brep.edges:
+            result.append(Edge(edge, self._body))
+        return result
+
 
 class Edge(BRepEntity):
     def __init__(self, edge: BRepEdge, body: Body):
