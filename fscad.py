@@ -1254,6 +1254,17 @@ class ComponentWithChildren(Component, ABC):
         if copy_children:
             copy._add_children([child.copy() for child in self._children])
 
+    def find_children(self, name, recursive=True):
+        result = []
+        for child in self._children:
+            if child.name == name:
+                result.append(child)
+        if recursive:
+            for child in self._children:
+                if isinstance(child, ComponentWithChildren):
+                    result.extend(child.find_children(name, recursive))
+        return result
+
 
 class Group(ComponentWithChildren):
     def __init__(self, visible_children, hidden_children=None, name=None):
