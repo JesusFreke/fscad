@@ -1266,48 +1266,6 @@ class ComponentWithChildren(Component, ABC):
         return result
 
 
-class Group(ComponentWithChildren):
-    def __init__(self, visible_children, hidden_children=None, name=None):
-        super().__init__(name)
-
-        self._visible_children = []
-        self._hidden_children = []
-
-        def process_visible_child(child: Component):
-            self._visible_children.append(child)
-        self._add_children(visible_children, process_visible_child)
-
-        if hidden_children:
-            def process_hidden_child(child: Component):
-                self._hidden_children.append(child)
-            self._add_children(hidden_children, process_hidden_child)
-
-    def _raw_bodies(self) -> Iterable[BRepBody]:
-        bodies = []
-        for child in self._visible_children:
-            for body in child.bodies:
-                bodies.append(body.brep)
-        return bodies
-
-    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
-        copy._visible_children = []
-        copy._hidden_children = []
-
-        copy._cached_inverse_transform = None
-        copy._children = []
-
-        for child in self._visible_children:
-            child_copy = child.copy()
-            copy._visible_children.append(child_copy)
-        copy._add_children(copy._visible_children)
-
-        if copy_children:
-            for child in self._hidden_children:
-                child_copy = child.copy()
-                copy._hidden_children.append(child_copy)
-            copy._add_children(copy._hidden_children)
-
-
 def import_fusion_archive(filename, name="import"):
     import_options = app().importManager.createFusionArchiveImportOptions(filename)
 
@@ -1510,6 +1468,78 @@ class Intersection(Combination):
                 return child_plane
         else:
             return child.get_plane()
+
+
+class Group(Combination):
+    def __init__(self, visible_children, hidden_children=None, name=None):
+        super().__init__(name)
+
+        self._visible_children = []
+        self._hidden_children = []
+
+        self._plane = None
+
+        def process_visible_child(child: Component):
+            child_plane = child.get_plane()
+            if len(self._visible_children) == 0:
+                self._plane = child_plane
+            elif child_plane and self._plane:
+                if not child_plane.isCoPlanarTo(self._plane):
+                    self._plane = None
+
+            self._visible_children.append(child)
+        self._add_children(visible_children, process_visible_child)
+
+        if hidden_children:
+            def process_hidden_child(child: Component):
+                child_plane = child.get_plane()
+                if len(self._visible_children) + len(self._hidden_children) == 0:
+                    self._plane = child_plane
+                elif child_plane and self._plane:
+                    if not child_plane.isCoPlanarTo(self._plane):
+                        self._plane = None
+
+                self._hidden_children.append(child)
+            self._add_children(hidden_children, process_hidden_child)
+
+    @property
+    def bodies(self) -> Sequence[Body]:
+        if self._cached_bodies is not None:
+            return self._cached_bodies
+
+        bodies = []
+        for child in self._visible_children:
+            bodies.extend(child.bodies)
+        self._cached_bodies = bodies
+
+        return bodies
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        # not used, since we override the bodies method directly
+        pass
+
+    def _raw_plane(self) -> Optional[adsk.core.Plane]:
+        return self._plane
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        copy._visible_children = []
+        copy._hidden_children = []
+
+        copy._plane = self._plane
+
+        copy._cached_inverse_transform = None
+        copy._children = []
+
+        for child in self._visible_children:
+            child_copy = child.copy(copy_children)
+            copy._visible_children.append(child_copy)
+        copy._add_children(copy._visible_children)
+
+        if copy_children:
+            for child in self._hidden_children:
+                child_copy = child.copy()
+                copy._hidden_children.append(child_copy)
+            copy._add_children(copy._hidden_children)
 
 
 class Loft(ComponentWithChildren):

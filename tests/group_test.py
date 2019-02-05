@@ -51,6 +51,50 @@ class GroupTest(test_utils.FscadTestCase):
         group = Group([box1, box2], [void])
         group.create_occurrence(False)
 
+    def test_group_rotation(self):
+        box1 = Box(1, 1, 10, "box1")
+        box2 = Box(1, 1, 10, "box2")
+        box2.place((-box2 == +box1) + 1)
+
+        bounding_box = box1.bounding_box.raw_bounding_box
+        bounding_box.expand(box2.right.brep.pointOnFace)
+        total_bounding_box = BoundingBox(bounding_box)
+
+        void = Difference(total_bounding_box.make_box(), box1, box2)
+
+        group = Group([box1, box2], [void])
+        group.ry(45)
+        group.create_occurrence(True)
+
+    def test_planar_group(self):
+        rect1 = Rect(1, 1)
+        rect2 = Rect(1, 1)
+
+        rect2.place(-rect2 == +rect1,
+                    ~rect2 == ~rect1,
+                    ~rect2 == ~rect1)
+
+        group = Group([rect1, rect2])
+        group.create_occurrence(True)
+
+        self.assertIsNotNone(group.get_plane())
+        self.assertTrue(group.get_plane().isCoPlanarTo(rect1.get_plane()))
+
+    def test_non_planar_group(self):
+        rect1 = Rect(1, 1)
+        rect2 = Rect(1, 1)
+
+        rect2.place(-rect2 == +rect1,
+                    ~rect2 == ~rect1,
+                    ~rect2 == ~rect1)
+
+        rect2.ry(45, center=rect2.min())
+
+        group = Group([rect1, rect2])
+        group.create_occurrence(True)
+
+        self.assertIsNone(group.get_plane())
+
 
 from test_utils import load_tests
 def run(context):
