@@ -1322,26 +1322,66 @@ def import_fusion_archive(filename, name="import"):
     return BRepComponent(*bodies, name=name)
 
 
-class Union(ComponentWithChildren):
+class Combination(ComponentWithChildren, ABC):
+    def __init__(self, name):
+        super().__init__(name)
+        self._cached_plane = None
+        self._cached_plane_populated = False
+
+    def _reset_cache(self):
+        super()._reset_cache()
+        self._cached_plane = None
+        self._cached_plane_populated = False
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._cached_plane = None
+        copy._cached_plane_populated = False
+
+    def _raw_plane(self) -> Optional[adsk.core.Plane]:
+        raise NotImplementedError()
+
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        if self._cached_plane_populated:
+            return self._cached_plane
+        raw_plane = self._raw_plane()
+        if raw_plane is None:
+            self._cached_plane = None
+            self._cached_plane_populated = True
+        else:
+            world_transform = self._get_world_transform()
+            plane = raw_plane.copy()
+            plane.transformBy(world_transform)
+            self._cached_plane = plane
+        return self._cached_plane
+
+
+class Union(Combination):
     def __init__(self, *components: Component, name: str = None):
         super().__init__(name)
+
         self._body = None
+        self._plane = None
 
         def process_child(child: Component):
-            self._check_coplanarity(child)
             for body in child.bodies:
                 if self._body is None:
                     self._body = brep().copy(body.brep)
                     self._plane = child.get_plane()
                 else:
+                    self._check_coplanarity(child)
                     brep().booleanOperation(self._body, body.brep, adsk.fusion.BooleanTypes.UnionBooleanType)
         self._add_children(components, process_child)
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._body,
 
+    def _raw_plane(self) -> Optional[adsk.core.Plane]:
+        return self._plane
+
     def _copy_to(self, copy: 'Union', copy_children: bool):
         copy._body = brep().copy(self._body)
+        copy._plane = self._plane
         super()._copy_to(copy, copy_children)
 
     def _check_coplanarity(self, child):
@@ -1363,26 +1403,19 @@ class Union(ComponentWithChildren):
             self._add_children(components, process_child)
         return self
 
-    def _first_child(self):
-        try:
-            return next(iter(self.children()))
-        except StopIteration:
-            return None
 
-    def get_plane(self) -> Optional[adsk.core.Plane]:
-        child = self._first_child()
-        return child.get_plane() if child is not None else None
-
-
-class Difference(ComponentWithChildren):
+class Difference(Combination):
     def __init__(self, *components: Component, name: str = None):
         super().__init__(name)
         self._bodies = None
+
+        self._plane = None
 
         def process_child(child: Component):
             self._check_coplanarity(child)
             if self._bodies is None:
                 self._bodies = [brep().copy(child_body.brep) for child_body in child.bodies]
+                self._plane = child.get_plane()
             else:
                 for target_body in self._bodies:
                     for tool_body in child.bodies:
@@ -1393,8 +1426,12 @@ class Difference(ComponentWithChildren):
     def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._bodies
 
+    def _raw_plane(self) -> Optional[adsk.core.Plane]:
+        return self._plane
+
     def _copy_to(self, copy: 'Difference', copy_children: bool):
         copy._bodies = [brep().copy(body) for body in self._bodies]
+        copy._plane = self._plane
         super()._copy_to(copy, copy_children)
 
     def _check_coplanarity(self, child):
@@ -1420,29 +1457,16 @@ class Difference(ComponentWithChildren):
             self._add_children(components, process_child)
         return self
 
-    def _first_child(self):
-        try:
-            return next(iter(self.children()))
-        except StopIteration:
-            return None
 
-    def get_plane(self) -> Optional[adsk.core.Plane]:
-        child = self._first_child()
-        return child.get_plane() if child is not None else None
-
-
-class Intersection(ComponentWithChildren):
+class Intersection(Combination):
     def __init__(self, *components: Component, name: str = None):
         super().__init__(name)
         self._bodies = None
-        self._cached_plane = None
-        self._cached_plane_populated = False
-
-        plane = None
+        self._plane = None
 
         def process_child(child: Component):
-            nonlocal plane
-            plane = self._check_coplanarity(child, plane)
+            self._reset_cache()
+            self._plane = self._check_coplanarity(child, self._plane)
             if self._bodies is None:
                 self._bodies = [brep().copy(child_body.brep) for child_body in child.bodies]
             else:
@@ -1455,19 +1479,19 @@ class Intersection(ComponentWithChildren):
     def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._bodies
 
+    def _raw_plane(self) -> Optional[adsk.core.Plane]:
+        return self._plane
+
     def _copy_to(self, copy: 'Difference', copy_children: bool):
         copy._bodies = [brep().copy(body) for body in self._bodies]
-        copy._cached_plane = None
-        copy._cached_plane_populated = False
+        copy._plane = self._plane
         super()._copy_to(copy, copy_children)
 
     def add(self, *components: Component) -> Component:
         with self._recalculate_faces():
-            plane = self.get_plane()
-
             def process_child(child):
-                nonlocal plane
-                plane = self._check_coplanarity(child, plane)
+                self._reset_cache()
+                self._plane = self._check_coplanarity(child, self._plane)
                 for target_body in self._bodies:
                     for tool_body in child.bodies:
                         brep().booleanOperation(target_body, tool_body.brep,
@@ -1475,19 +1499,8 @@ class Intersection(ComponentWithChildren):
             self._add_children(components, process_child)
         return self
 
-    def get_plane(self) -> Optional[adsk.core.Plane]:
-        if not self._cached_plane_populated:
-            plane = None
-            for child in self.children():
-                plane = child.get_plane()
-                if plane:
-                    break
-            self._cached_plane = plane
-            self._cached_plane_populated = True
-        return self._cached_plane
-
     def _check_coplanarity(self, child, plane):
-        if self._bodies is not None and len(self._bodies) > 0:
+        if self._bodies:
             child_plane = child.get_plane()
             if plane is not None:
                 if child_plane is not None and not plane.isCoPlanarTo(child_plane):
@@ -1497,11 +1510,6 @@ class Intersection(ComponentWithChildren):
                 return child_plane
         else:
             return child.get_plane()
-
-    def _reset_cache(self):
-        super()._reset_cache()
-        self._cached_plane = None
-        self._cached_plane_populated = False
 
 
 class Loft(ComponentWithChildren):
