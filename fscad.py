@@ -1308,6 +1308,20 @@ class Group(ComponentWithChildren):
             copy._add_children(copy._hidden_children)
 
 
+def import_fusion_archive(filename, name="import"):
+    import_options = app().importManager.createFusionArchiveImportOptions(filename)
+
+    result = app().importManager.importToTarget2(import_options, root())
+
+    bodies = []
+    for occurrence in result:
+        for body in occurrence.bRepBodies:
+            bodies.append(brep().copy(body))
+        occurrence.deleteMe()
+
+    return BRepComponent(*bodies, name=name)
+
+
 class Union(ComponentWithChildren):
     def __init__(self, *components: Component, name: str = None):
         super().__init__(name)
