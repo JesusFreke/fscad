@@ -1043,20 +1043,20 @@ class Component(BoundedEntity):
 
 
 class Shape(Component, ABC):
-    def __init__(self, body: BRepBody, name: str):
+    def __init__(self, *bodies: BRepBody, name: str):
         super().__init__(name)
-        self._body = body
+        self._bodies = list(bodies)
 
     def _raw_bodies(self):
-        return self._body,
+        return self._bodies
 
     def _copy_to(self, copy: 'Shape', copy_children: bool):
-        copy._body = brep().copy(self._body)
+        copy._bodies = [brep().copy(body) for body in self._bodies]
 
 
 class BRepComponent(Shape):
-    def __init__(self, brep_entity: Onion[BRepBody, BRepFace], name: str = None):
-        super().__init__(brep().copy(brep_entity), name)
+    def __init__(self, *brep_entities: Onion[BRepBody, BRepFace], name: str = None):
+        super().__init__(*[brep().copy(brep_entity) for brep_entity in brep_entities], name=name)
 
     def get_plane(self) -> Optional[adsk.core.Plane]:
         plane = None
@@ -1073,7 +1073,7 @@ class BRepComponent(Shape):
 
 class PlanarShape(Shape):
     def __init__(self, body: BRepBody, name: str):
-        super().__init__(body, name)
+        super().__init__(body, name=name)
 
     def get_plane(self) -> adsk.core.Plane:
         return self.bodies[0].faces[0].brep.geometry
@@ -1092,7 +1092,7 @@ class Box(Shape):
             Point3D.create(x/2, y/2, z/2),
             self._pos_x, self._pos_y,
             x, y, z))
-        super().__init__(body, name)
+        super().__init__(body, name=name)
 
     @property
     def top(self):
@@ -1147,7 +1147,7 @@ class Cylinder(Shape):
             self._bottom_index = 1
             self._top_index = 2
 
-        super().__init__(body, name)
+        super().__init__(body, name=name)
 
     def _copy_to(self, copy: 'Cylinder', copy_children: bool):
         super()._copy_to(copy, copy_children)
@@ -1173,7 +1173,7 @@ class Cylinder(Shape):
 
 class Sphere(Shape):
     def __init__(self, radius: float, name: str = None):
-        super().__init__(brep().createSphere(self._origin, radius), name)
+        super().__init__(brep().createSphere(self._origin, radius), name=name)
 
     @property
     def surface(self):
