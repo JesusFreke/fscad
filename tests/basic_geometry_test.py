@@ -17,6 +17,7 @@ from fscad import *
 import adsk.fusion
 import unittest
 import test_utils
+import math
 import importlib
 importlib.reload(test_utils)
 import test_utils
@@ -189,6 +190,14 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertEqual(rect.min().asArray(), (0, 0, 0))
         self.assertEqual(rect.mid().asArray(), (1, 1.5, 0))
         self.assertEqual(rect.max().asArray(), (2, 3, 0))
+
+        rect.create_occurrence()
+
+    def test_rotated_rect(self):
+        rect = Rect(2, 3)
+        self.assertTrue(rect.get_plane().normal.isParallelTo(Vector3D.create(0, 0, 1)))
+        rect.ry(45)
+        self.assertTrue(rect.get_plane().normal.isParallelTo(Vector3D.create(1, 0, 1)))
 
         rect.create_occurrence()
 
