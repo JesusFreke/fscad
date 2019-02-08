@@ -40,6 +40,10 @@ _entity_types = Onion[_singular_entity_types, Iterable[
         Onion[_singular_entity_types, Iterable[
             Onion[_singular_entity_types, Iterable['_entity_types']]]]]]]]
 
+_brep_types = Onion[adsk.fusion.BRepBody, adsk.fusion.BRepCell, adsk.fusion.BRepCoEdge, adsk.fusion.BRepEdge,
+                    adsk.fusion.BRepFace, adsk.fusion.BRepLoop, adsk.fusion.BRepLump, adsk.fusion.BRepShell,
+                    adsk.fusion.BRepVertex, adsk.fusion.BRepWire]
+
 
 def app():
     return adsk.core.Application.get()
@@ -504,7 +508,7 @@ class BRepEntity(BoundedEntity, ABC):
         self._component = component
 
     @property
-    def brep(self) -> Any:  # TODO: define union of all possible brep types?
+    def brep(self) -> _brep_types:
         raise NotImplementedError
 
     @property
