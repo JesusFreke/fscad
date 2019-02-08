@@ -16,7 +16,7 @@ from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point2D, Point3D, ValueInput,\
     Vector3D
 from adsk.fusion import BRepBody, BRepEdge, BRepFace, BRepFaces
-from typing import Any, Callable, Iterable, Iterator, Optional, Sequence, Tuple
+from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
 import adsk.core
@@ -1543,8 +1543,6 @@ class Group(Combination):
 
 
 class Loft(ComponentWithChildren):
-    _top_index = 0
-    _bottom_index = 1
 
     def __init__(self, *components: Component, name: str = None):
         super().__init__(name)
@@ -1572,8 +1570,9 @@ class Loft(ComponentWithChildren):
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         for body in occurrence.bRepBodies:
             loft_feature_input.loftSections.add(body.faces[0])
-        # TODO: do we get a feature in direct mode? If so, we can use as a better way to find the various bodies/faces
-        occurrence.component.features.loftFeatures.add(loft_feature_input)
+        loft_feature = occurrence.component.features.loftFeatures.add(loft_feature_input)
+        self._bottom_index = _face_index(loft_feature.startFace)
+        self._top_index = _face_index(loft_feature.endFace)
         self._body = brep().copy(occurrence.bRepBodies[-1])
         occurrence.deleteMe()
 
@@ -1594,7 +1593,11 @@ class Loft(ComponentWithChildren):
 
     @property
     def sides(self) -> Iterable[Face]:
-        return tuple(self.bodies[0].faces[self._bottom_index + 1:])
+        side_faces = []
+        for i in range(0, len(self.bodies[0].faces)):
+            if i != self._bottom_index and i != self._top_index:
+                side_faces.append(self.bodies[0].faces[i])
+        return side_faces
 
 
 class ExtrudeBase(ComponentWithChildren):
