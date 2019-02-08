@@ -1013,10 +1013,6 @@ class Component(BoundedEntity):
         occ1 = _create_component(root(), self_body, name="temp")
         occ2 = _create_component(root(), other_body, name="temp")
 
-        # TODO: could we use a body silhouette extrusion to help with the case of 2 parallel surfaces sliding very close
-        # to each other? e.g. maybe we could find the intersection of the body silhouette extrusion and the target body
-        # and perform the measurements on that? It wouldn't completely solve the problem, but it should help.
-        # Or maybe do piecewise face measurements, and reject the ones that are perpendicular to the movement axis?
         try:
             while True:
                 shortest_distance = app().measureManager.measureMinimumDistance(
