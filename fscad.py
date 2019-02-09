@@ -705,6 +705,9 @@ class Component(BoundedEntity):
     def children(self) -> Iterable['Component']:
         return ()
 
+    def find_children(self, name, recursive=True):
+        return ()
+
     def _default_name(self) -> str:
         return self.__class__.__name__
 
