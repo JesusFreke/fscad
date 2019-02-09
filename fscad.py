@@ -1933,7 +1933,15 @@ class Threads(ComponentWithChildren):
         # axis is the "y" axis and start_point_vector is the "x" axis, with thread_start_point as the origin
         helixes = []
 
-        for point in thread_profile:
+        # When the upper point of the thread profile is the same as the lower point of the next turn of the thread,
+        # we get an error when creating the ruled surface for the back face about the surface being self-intersecting.
+        # In order to avoid this, we split the back profile edge into 2, so that there are 2 separate ruled surfaces
+        # that aren't self-intersecting.
+        augmented_thread_profile = list(thread_profile)
+        augmented_thread_profile.append(((augmented_thread_profile[-1][0] + augmented_thread_profile[0][0]) / 2,
+                                         (augmented_thread_profile[-1][1] + augmented_thread_profile[0][1]) / 2))
+
+        for point in augmented_thread_profile:
             start_point = thread_start_point.copy()
             x_axis = start_point_vector.copy()
             x_axis.scaleBy(point[0])
@@ -1972,21 +1980,6 @@ class Threads(ComponentWithChildren):
         top_point.translateBy(axis_copy)
         top_plane = adsk.core.Plane.create(top_point, axis)
 
-        bottom_face_wire = brep().planeIntersection(cumulative_body, bottom_plane)
-        top_face_wire = brep().planeIntersection(cumulative_body, top_plane)
-        bottom_face = brep().createFaceFromPlanarWires([bottom_face_wire])
-        top_face = brep().createFaceFromPlanarWires([top_face_wire])
-
-        axis_line = adsk.core.InfiniteLine3D.create(cylinder.origin, cylinder.axis)
-        bottom_point = axis_line.intersectWithSurface(bottom_plane)[0]
-        top_point = axis_line.intersectWithSurface(top_plane)[0]
-        bounding_cylinder = brep().createCylinderOrCone(
-            bottom_point, cylinder.radius + max_x, top_point, cylinder.radius + max_x)
-        brep().booleanOperation(cumulative_body, bounding_cylinder, adsk.fusion.BooleanTypes.IntersectionBooleanType)
-
-        brep().booleanOperation(cumulative_body, top_face, adsk.fusion.BooleanTypes.UnionBooleanType)
-        brep().booleanOperation(cumulative_body, bottom_face, adsk.fusion.BooleanTypes.UnionBooleanType)
-
         surface_bodies = []
         for face in cumulative_body.faces:
             surface_bodies.append(brep().copy(face))
@@ -1999,6 +1992,20 @@ class Threads(ComponentWithChildren):
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
 
         thread_occurrence.component.features.stitchFeatures.add(stitch_input)
+        cumulative_body = None
+        for body in thread_occurrence.bRepBodies:
+            if cumulative_body is None:
+                cumulative_body = brep().copy(body)
+            else:
+                brep().booleanOperation(cumulative_body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+        axis_line = adsk.core.InfiniteLine3D.create(cylinder.origin, cylinder.axis)
+        bottom_point = axis_line.intersectWithSurface(bottom_plane)[0]
+        top_point = axis_line.intersectWithSurface(top_plane)[0]
+        bounding_cylinder = brep().createCylinderOrCone(
+            bottom_point, cylinder.radius + max_x, top_point, cylinder.radius + max_x)
+
+        brep().booleanOperation(cumulative_body, bounding_cylinder, adsk.fusion.BooleanTypes.IntersectionBooleanType)
 
         point_on_face = face_brep.pointOnFace
         _, normal = face_brep.evaluator.getNormalAtPoint(point_on_face)
@@ -2009,10 +2016,7 @@ class Threads(ComponentWithChildren):
             base_components.append(BRepComponent(body.brep))
         base_component = Union(*base_components)
 
-        thread_components = []
-        for body in thread_occurrence.component.bRepBodies:
-            thread_components.append(BRepComponent(brep().copy(body)))
-        thread_component = Union(*thread_components)
+        thread_component = BRepComponent(cumulative_body)
 
         if point_on_face.vectorTo(point_projection).dotProduct(normal) < 0:
             # face normal is outward, and we're adding threads onto the surface

@@ -92,9 +92,28 @@ class ThreadTest(test_utils.FscadTestCase):
         cyl = Cylinder(10, 5)
         Threads(cyl, ((0, 0), (.99, .99), (0, .99)), 1, reverse_axis=True).create_occurrence(True)
 
+    def test_full_size_outer_thread(self):
+        cylinder = Cylinder(10, 1)
+        Threads(cylinder,
+                [(0, 0), (.5, .5), (0, 1)],
+                1).create_occurrence(True)
+
+    def test_full_size_inner_thread(self):
+        box = Box(10, 10, 10)
+        cylinder = Cylinder(10, 1)
+        cylinder.place(~cylinder == ~box,
+                       ~cylinder == ~box,
+                       -cylinder == -box)
+        hole = Difference(box, cylinder)
+        Threads(hole,
+                [(0, 0), (.5, .5), (0, 1)],
+                1).create_occurrence(True)
+
 
 from test_utils import load_tests
 def run(context):
     import sys
-    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],
+                                                                # pattern="full_size_outer_thread",
+                                                                )
     unittest.TextTestRunner(failfast=True).run(test_suite)
