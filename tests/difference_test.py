@@ -239,8 +239,8 @@ class DifferenceTest(test_utils.FscadTestCase):
                    ~box2 == ~box1)
         difference = Difference(box1, box2)
 
-        difference.add_faces("right", *difference.find_faces(box2.left))
-        difference.add_faces("bottom", *difference.find_faces(box1.bottom))
+        difference.add_named_faces("right", *difference.find_faces(box2.left))
+        difference.add_named_faces("bottom", *difference.find_faces(box1.bottom))
 
         box3 = Box(1, 1, 1, "box3")
         box3.place(~box3 == ~box1,
@@ -250,8 +250,8 @@ class DifferenceTest(test_utils.FscadTestCase):
         difference.add(box3)
         difference.create_occurrence(True)
 
-        self.assertIsNone(difference.faces("bottom"))
-        right_faces = difference.faces("right")
+        self.assertIsNone(difference.named_faces("bottom"))
+        right_faces = difference.named_faces("right")
         self.assertEqual(len(right_faces), 1)
         self.assertEqual(right_faces[0].size().asArray(), (0, 1, .5))
 

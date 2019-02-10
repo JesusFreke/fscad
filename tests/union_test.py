@@ -220,14 +220,14 @@ class UnionTest(test_utils.FscadTestCase):
         box3 = Box(1, 1, 1, "box3")
         box3.place(-box3 == +box2)
 
-        union.add_faces("right", *union.find_faces(box2.right))
-        union.add_faces("bottom", *union.find_faces(box2.bottom))
+        union.add_named_faces("right", *union.find_faces(box2.right))
+        union.add_named_faces("bottom", *union.find_faces(box2.bottom))
 
         union.add(box3)
         union.create_occurrence(True)
 
-        self.assertIsNone(union.faces("right"))
-        bottom_faces = union.faces("bottom")
+        self.assertIsNone(union.named_faces("right"))
+        bottom_faces = union.named_faces("bottom")
         self.assertEqual(len(bottom_faces), 1)
         self.assertEqual(bottom_faces[0].size().asArray(), (3, 1, 0))
 

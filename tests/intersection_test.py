@@ -210,8 +210,8 @@ class IntersectionTest(test_utils.FscadTestCase):
                    ~box2 == ~box1)
         intersection = Intersection(box1, box2)
 
-        intersection.add_faces("right", *intersection.find_faces(box1.right))
-        intersection.add_faces("bottom", *intersection.find_faces(box1.bottom))
+        intersection.add_named_faces("right", *intersection.find_faces(box1.right))
+        intersection.add_named_faces("bottom", *intersection.find_faces(box1.bottom))
 
         box3 = Box(1, 1, 1, "box3")
         box3.place(~box3 == ~box2,
@@ -221,8 +221,8 @@ class IntersectionTest(test_utils.FscadTestCase):
         intersection.add(box3)
         intersection.create_occurrence(True)
 
-        self.assertIsNone(intersection.faces("bottom"))
-        right_faces = intersection.faces("right")
+        self.assertIsNone(intersection.named_faces("bottom"))
+        right_faces = intersection.named_faces("right")
         self.assertEqual(len(right_faces), 1)
         self.assertEqual(right_faces[0].size().asArray(), (0, 1, .5))
 
