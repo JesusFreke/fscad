@@ -75,7 +75,7 @@ class AlignTest(test_utils.FscadTestCase):
         sphere = Sphere(1)
         point = Point3D.create(5, .5, .5)
         sphere.align_to(Point(point), Vector3D.create(1, 0, 0))
-        sphere.add_point("point", point)
+        sphere.add_named_point("point", point)
         sphere.create_occurrence(True)
         self.assertEqual(sphere.bodies[0].brep.pointContainment(point),
                          adsk.fusion.PointContainment.PointOnPointContainment)

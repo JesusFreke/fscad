@@ -737,7 +737,7 @@ class Component(BoundedEntity):
                 child._create_occurrence(occurrence)
         for name in self._named_points.keys():
             construction_point_input = occurrence.component.constructionPoints.createInput()
-            construction_point_input.setByPoint(self.point(name).point)
+            construction_point_input.setByPoint(self.named_point(name).point)
             construction_point = occurrence.component.constructionPoints.add(construction_point_input)
             construction_point.name = name
         return occurrence
@@ -750,7 +750,7 @@ class Component(BoundedEntity):
             child._create_occurrence(occurrence)
         for name in self._named_points.keys():
             construction_point_input = occurrence.component.constructionPoints.createInput()
-            construction_point_input.setByPoint(self.point(name).point)
+            construction_point_input.setByPoint(self.named_point(name).point)
             construction_point = occurrence.component.constructionPoints.add(construction_point_input)
             construction_point.name = name
 
@@ -885,7 +885,7 @@ class Component(BoundedEntity):
                 result.append(Face(face, body))
         return result
 
-    def add_point(self, name: str, point: Onion[Sequence[float], Point3D, Point]):
+    def add_named_point(self, name: str, point: Onion[Sequence[float], Point3D, Point]):
         if isinstance(point, Point):
             point = point.point
         if isinstance(point, Point3D):
@@ -895,7 +895,7 @@ class Component(BoundedEntity):
         point.transformBy(self._inverse_world_transform())
         self._named_points[name] = point
 
-    def point(self, name) -> Optional[Point]:
+    def named_point(self, name) -> Optional[Point]:
         point = self._named_points.get(name)
         if not point:
             return None

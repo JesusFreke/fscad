@@ -91,24 +91,24 @@ class PlaceTest(test_utils.FscadTestCase):
         point.x += .1
         point.y += .1
         point.z += .1
-        box1.add_point("off_center", point)
+        box1.add_named_point("off_center", point)
 
         box2 = Box(1, 1, 1, "box2")
-        box2.add_point("max_point", box2.max())
-        box2.place(~box2 == ~box1.point("off_center"),
-                   ~box2 == ~box1.point("off_center"),
-                   ~box2 == ~box1.point("off_center"))
-        box2.add_point("min_point", box2.min())
+        box2.add_named_point("max_point", box2.max())
+        box2.place(~box2 == ~box1.named_point("off_center"),
+                   ~box2 == ~box1.named_point("off_center"),
+                   ~box2 == ~box1.named_point("off_center"))
+        box2.add_named_point("min_point", box2.min())
 
         box3 = Box(1, 1, 1, "box3")
-        box3.place(-box3 == ~box2.point("max_point"),
-                   -box3 == ~box2.point("max_point"),
-                   -box3 == ~box2.point("max_point"))
+        box3.place(-box3 == ~box2.named_point("max_point"),
+                   -box3 == ~box2.named_point("max_point"),
+                   -box3 == ~box2.named_point("max_point"))
 
         box4 = Box(1, 1, 1, "box4")
-        box4.place(+box4 == ~box2.point("min_point"),
-                   +box4 == ~box2.point("min_point"),
-                   +box4 == ~box2.point("min_point"))
+        box4.place(+box4 == ~box2.named_point("min_point"),
+                   +box4 == ~box2.named_point("min_point"),
+                   +box4 == ~box2.named_point("min_point"))
 
         box1.create_occurrence()
         box2.create_occurrence()
