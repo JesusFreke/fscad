@@ -40,6 +40,8 @@ _entity_types = Onion[_singular_entity_types, Iterable[
         Onion[_singular_entity_types, Iterable[
             Onion[_singular_entity_types, Iterable['_entity_types']]]]]]]]
 
+_vector_like = Onion[Vector3D, 'Translation', Point3D]
+
 _brep_types = Onion[adsk.fusion.BRepBody, adsk.fusion.BRepCell, adsk.fusion.BRepCoEdge, adsk.fusion.BRepEdge,
                     adsk.fusion.BRepFace, adsk.fusion.BRepLoop, adsk.fusion.BRepLump, adsk.fusion.BRepShell,
                     adsk.fusion.BRepVertex, adsk.fusion.BRepWire]
@@ -408,42 +410,78 @@ def _create_point_body(point: Point3D, vector: Vector3D = None):
 
 
 class Translation(object):
+    """A wrapper around a Vector3D, that provides functionality useful for use with the `Component.place` method.
+
+    This is primarily used as an intermediate object within a placement expression within a Component.place() call. It
+    allows specifying an additive or multiplicative offset to the base placement vector. This object is typically
+    returned by the Place object's '==' operator overload.
+
+    Args:
+        vector: The Vector3D that this Translation object wraps.
+    """
     def __init__(self, vector: Vector3D):
         self._vector = vector
 
-    def vector(self):
+    def vector(self) -> Vector3D:
+        """Return: The Vector3D that this Translation wraps. """
         return self.vector
 
-    def __add__(self, other):
+    def __add__(self, other: float) -> 'Translation':
+        """Modifies this Translation object by adding the given constant to every component.
+
+        Returns: This Translation object with the specified addition applied."""
         self._vector.setWithArray((self._vector.x + other, self._vector.y + other, self._vector.z + other))
         return self
 
-    def __sub__(self, other):
+    def __sub__(self, other: float) -> 'Translation':
+        """Modifies this Translation object by subtracting the given value from every component.
+
+        Returns: This Translation object with the specified subtraction applied."""
         self._vector.setWithArray((self._vector.x - other, self._vector.y - other, self._vector.z - other))
         return self
 
-    def __mul__(self, other):
+    def __mul__(self, other: float) -> 'Translation':
+        """Modifies this Translation object by multiplying every component by the given value.
+
+        Returns: This Translation object with the specified multiplication applied."""
         self._vector.setWithArray((self._vector.x * other, self._vector.y * other, self._vector.z * other))
         return self
 
-    def __div__(self, other):
+    def __div__(self, other: float) -> 'Translation':
+        """Modifies this Translation object by dividing every component by the given value.
+
+        Returns: This Translation object with the specified division applied."""
         self._vector.setWithArray((self._vector.x / other, self._vector.y / other, self._vector.z / other))
         return self
 
     @property
-    def x(self):
+    def x(self) -> float:
+        """Returns: the X component of this Translation."""
         return self._vector.x
 
     @property
-    def y(self):
+    def y(self) -> float:
+        """Returns: the Y component of this Translation."""
         return self._vector.y
 
     @property
-    def z(self):
+    def z(self) -> float:
+        """Returns: the Z component of this Translation."""
         return self._vector.z
 
 
 class Place(object):
+    """An intermediate object intended for use with the `Component.place()` method.
+
+    The idea is that you can get the Place object for various defined points on an object, and then use the `==`
+    operator with another Place or point-like object to get a vector between them, which can be used to "place" one
+    object as some location relative to another.
+
+    You typically get a Place object via the '-', '+' and '~' unary operator overloads on a BoundedEntity object.
+
+    Args:
+        point: The Point3D that this Place object represents.
+    """
     def __init__(self, point: Point3D):
         self._point = point
 
@@ -461,11 +499,19 @@ class Place(object):
 
 
 class BoundedEntity(object):
+    """This is the general superclass for any geometry object.
+
+    This provides some common functionality for all geometry objects, like the size, bounding box, etc.
+
+    It also provides the '-', '+' and '~' operator overloads that are intended for use by the `Component.place()`
+    method
+    """
     def __init__(self):
         self._cached_bounding_box = None
 
     @property
     def bounding_box(self) -> 'BoundingBox':
+        """Returns: The bounding box of this entity."""
         if self._cached_bounding_box is None:
             self._cached_bounding_box = BoundingBox(self._calculate_bounding_box())
         return self._cached_bounding_box
@@ -476,43 +522,56 @@ class BoundedEntity(object):
     def _reset_cache(self):
         self._cached_bounding_box = None
 
-    def size(self) -> Point3D:
+    def size(self) -> Vector3D:
+        """Returns: The size of this entity as a Vector3D."""
         return self.bounding_box.raw_bounding_box.minPoint.vectorTo(
-            self.bounding_box.raw_bounding_box.maxPoint).asPoint()
+            self.bounding_box.raw_bounding_box.maxPoint)
 
     def min(self) -> Point3D:
+        """Returns: The minimum point of this entity's bounding box."""
         return self.bounding_box.raw_bounding_box.minPoint
 
     def max(self) -> Point3D:
+        """Returns: The maximum point of this entity's bounding box."""
         return self.bounding_box.raw_bounding_box.maxPoint
 
     def mid(self) -> Point3D:
+        """Returns: The geometric midpoint of this entity."""
         return Point3D.create(
             (self.bounding_box.raw_bounding_box.minPoint.x + self.bounding_box.raw_bounding_box.maxPoint.x)/2,
             (self.bounding_box.raw_bounding_box.minPoint.y + self.bounding_box.raw_bounding_box.maxPoint.y)/2,
             (self.bounding_box.raw_bounding_box.minPoint.z + self.bounding_box.raw_bounding_box.maxPoint.z)/2)
 
     def __neg__(self) -> Place:
+        """Returns: a Place object that represents this entity's negative bound."""
         return Place(self.min())
 
     def __pos__(self) -> Place:
+        """Returns: a Place object that represents this entity's positive bound."""
         return Place(self.max())
 
     def __invert__(self) -> Place:
+        """Returns: a Place object that represents this entity's midpoint."""
         return Place(self.mid())
 
 
 class BRepEntity(BoundedEntity, ABC):
+    """Represents a single BRep object.
+
+    This is the superclass of the various wrappers around the raw Fusion 360 Brep* related objects.
+    """
     def __init__(self, component: 'Component'):
         super().__init__()
         self._component = component
 
     @property
     def brep(self) -> _brep_types:
+        """Returns: the raw BRep type that this object wraps"""
         raise NotImplementedError
 
     @property
     def component(self) -> 'Component':
+        """Returns: The Component that this entity is a part of"""
         return self._component
 
     def _calculate_bounding_box(self) -> 'BoundingBox3D':
@@ -530,16 +589,26 @@ class BRepEntity(BoundedEntity, ABC):
 
 
 class Body(BRepEntity):
+    """Represents a single Body.
+
+    This is a wrapper around Fusion 360's BRepBody object.
+
+    Args:
+        body: The BRepBody object to wrap
+        component: The Component that this BRepBody is a part of
+    """
     def __init__(self, body: BRepBody, component: 'Component'):
         super().__init__(component)
         self._body = body
 
     @property
     def brep(self) -> BRepBody:
+        """Returns: The raw BRepBody this object wraps."""
         return self._body
 
     @property
     def faces(self) -> Sequence['Face']:
+        """Returns: All Faces that are a part of this Body, or an empty Sequence if there are None."""
         class Faces(Sequence['Face']):
             def __init__(self, faces: Onion[Sequence[BRepFace], BRepFaces], body: 'Body'):
                 self._faces = faces
@@ -575,6 +644,14 @@ class Body(BRepEntity):
 
 
 class Face(BRepEntity):
+    """Represents a single Face.
+
+    This is a wrapper around Fusion 360's BRepFace object.
+
+    Args:
+        face: The BRepFace object to wrap
+        body: The Body object that the BRepFace is a part of
+    """
     def __init__(self, face: BRepFace, body: Body):
         super().__init__(body.component)
         self._face = face
@@ -582,14 +659,17 @@ class Face(BRepEntity):
 
     @property
     def brep(self) -> BRepFace:
+        """Returns: The raw BRepFace this object wraps."""
         return self._face
 
     @property
     def body(self) -> Body:
+        """Returns: The Body object that this edge is a part of."""
         return self._body
 
     @property
     def connected_faces(self) -> Sequence['Face']:
+        """Returns: All Faces that are connected to this Face, or an empty Sequence if there are None."""
         result = []
         for edge in self.brep.edges:
             for face in edge.named_faces:
@@ -601,6 +681,7 @@ class Face(BRepEntity):
 
     @property
     def edges(self) -> Sequence['Edge']:
+        """Returns: All Edges that make up the boundary of this Face, or an empty Sequence if there are None."""
         result = []
         for edge in self.brep.edges:
             result.append(Edge(edge, self._body))
@@ -608,6 +689,14 @@ class Face(BRepEntity):
 
 
 class Edge(BRepEntity):
+    """Represents a single Edge.
+
+    This is a wrapper around Fusion 360's BRepEdge object.
+
+    Args:
+        edge: The BRepEdge object to wrap
+        body: The Body object that the BRepEdge is a part of
+    """
     def __init__(self, edge: BRepEdge, body: Body):
         super().__init__(body.component)
         self._edge = edge
@@ -615,20 +704,32 @@ class Edge(BRepEntity):
 
     @property
     def brep(self) -> BRepEdge:
+        """Returns: The raw BRepEdge this object wraps."""
         return self._edge
 
     @property
     def body(self) -> Body:
+        """Returns: The Body object that this edge is a part of."""
         return self._body
 
 
 class Point(BoundedEntity):
+    """Represents a single 3D Point.
+
+    This class is a wrapper around Fusion 360's Point3D class.
+
+    This is useful, for example, for being able to align a Component relative to a Point via the Component.place()
+    method. e.g. component.place(~component == point, +component == point, -component == point)
+
+    Args:
+        point: The Point3D to wrap."""
     def __init__(self, point: Point3D):
         super().__init__()
         self._point = point
 
     @property
     def point(self) -> Point3D:
+        """Returns the raw Point3D object that this class wraps."""
         return self._point.copy()
 
     def _calculate_bounding_box(self) -> 'BoundingBox3D':
@@ -636,6 +737,13 @@ class Point(BoundedEntity):
 
 
 class BoundingBox(BoundedEntity):
+    """Represents a bounding box of another entity or set of entities.
+
+    This class is a wrapper around Fusion 360's BoundingBox3D object.
+
+    Args:
+        bounding_box: The BoundingBox3D to wrap.
+    """
     def __init__(self, bounding_box: BoundingBox3D):
         super().__init__()
         self._bounding_box = bounding_box
@@ -649,9 +757,14 @@ class BoundingBox(BoundedEntity):
 
     @property
     def raw_bounding_box(self) -> 'BoundingBox3D':
+        """Returns: a copy of the raw BoundingBox3D that this object wraps."""
         return self._bounding_box.copy()
 
     def make_box(self) -> 'Box':
+        """Makes a Box component the same size and in the same location of this BoundingBox.
+
+        Returns: The new Box component.
+        """
         box = Box(*self.size().asArray())
         box.place(~box == ~self,
                   ~box == ~self,
@@ -659,13 +772,39 @@ class BoundingBox(BoundedEntity):
         return box
 
 
-class Component(BoundedEntity):
+class Component(BoundedEntity, ABC):
+    """The top level Object of an fscad design.
+
+    A component is made up of one or more Bodies, and may also contain visible and hidden children. When constructing
+    one of the Component subclasses that are based an an input Component, that input Component will typically be made
+    a hidden child of the newly created Component.
+
+    The only case of a visible child currently is in the Group Component.
+
+    This roughly corresponds with a Component or Occurrence in Fusion's API/UI. Except that there is no corresponding
+    concept of having multiple Occurrences of a single Component. Instead, if a Component is used in multiple place in
+    the design, multiple copies of the Component must be made.
+
+    Creating a Component in itself doesn't actually create any object in the Fusion 360 document. You must call the
+    create_occurrence method to actually create the component in the document. This is typically the last operation
+    you would perform on the final top-level design component, after building it up from multiple sub-Components.
+    It can also be useful to visualize any intermediate Components for debugging purposes.
+
+    The reason for this is directly creating an object in the Fusion 360 document for every component/operation tends
+    to get very slow for even slightly complex objects. Instead, fscad tries to use temporary Brep objects as much as
+    possible, which are typically much faster to work with.
+    """
     _origin = Point3D.create(0, 0, 0)
     _null_vector = Vector3D.create(0, 0, 0)
     _pos_x = Vector3D.create(1, 0, 0)
     _pos_y = Vector3D.create(0, 1, 0)
     _pos_z = Vector3D.create(0, 0, 1)
 
+    """The name of the Component.
+    
+    When this Component is created as an Occurrence in the Fusion 360 Document, this will be used as the name of the
+    Occurrence.
+    """
     name = ...  # type: Optional[str]
 
     def __init__(self, name: str = None):
@@ -686,6 +825,15 @@ class Component(BoundedEntity):
         raise NotImplementedError()
 
     def copy(self, copy_children=True) -> 'Component':
+        """Makes a copy of this Component.
+
+        Args:
+            copy_children: If true, the entire Component hierarchy under this Component is also copied. If false,
+                only "visible" children are copied. Group is currently the only Component type that has visible
+                children.
+
+        Returns: A new copy of this Component.
+        """
         copy = Component()
         copy.__class__ = self.__class__
         copy._local_transform = self._get_world_transform()
@@ -703,20 +851,34 @@ class Component(BoundedEntity):
         raise NotImplementedError
 
     def children(self) -> Iterable['Component']:
+        """Returns: All direct children of this Component."""
         return ()
 
-    def find_children(self, name, recursive=True):
+    def find_children(self, name, recursive=True) -> Sequence['Component']:
+        """Find any children of this Component with the given name.
+
+        Args:
+            name: The name of the children to find
+            recursive: If true, look for all children anywhere in the Component hierarchy under this Component. If
+                false, only look for the direct children of this Component.
+
+        Returns: The children with the given name, or an empty Sequence if none are found.
+        """
         return ()
 
     def _default_name(self) -> str:
         return self.__class__.__name__
 
     @property
-    def parent(self) -> 'Component':
+    def parent(self) -> Optional['Component']:
+        """Returns: The parent Component of this Component, or None if this Component is a top-level Component with no
+            parent.
+        """
         return self._parent
 
     @property
     def bodies(self) -> Sequence[Body]:
+        """Returns: All bodies that make up this Component."""
         if self._cached_bodies is not None:
             return self._cached_bodies
 
@@ -728,6 +890,26 @@ class Component(BoundedEntity):
         return bodies_copy
 
     def create_occurrence(self, create_children=False, scale=1) -> adsk.fusion.Occurrence:
+        """Creates an occurrence of this Component in the root of the document in Fusion 360.
+
+        No objects are actually added to the Fusion 360 design until this method is called. This should be called
+        once for every top level Component in your design.
+
+        It is typically much quicker to create a component without children, so this is typically what you would want to
+        do, unless there is a specific reason you need the children.
+
+        Creating the children can be useful for debugging purposes, to be able to drill down into the design to find a
+        specific sub-component in the context of the overall design.
+
+        Args:
+            create_children: If true, also add any children of this Component recursively as hidden children of the
+                corresponding Occurrence in the Fusion 360 document.
+            scale: If specified, the Occurrence in Fusion 360 will be created at the given scale, with the scale
+                operation centered at the origin. This is most useful if you want to normally work in mm units, since
+                Fusion 360's default unit for the API is cm. You can simply work in mm everywhere in the script, and
+                then specify a scale value of .1 in the call to create_occurrence.
+        Returns: The `Occurrence` that was created in the Fusion 360 document.
+        """
         if scale != 1:
             return self.copy().scale(scale, scale, scale).create_occurrence(create_children, 1)
 
@@ -754,7 +936,61 @@ class Component(BoundedEntity):
             construction_point = occurrence.component.constructionPoints.add(construction_point_input)
             construction_point.name = name
 
-    def place(self, x=_null_vector, y=_null_vector, z=_null_vector):
+    def place(self, x: _vector_like =_null_vector, y: _vector_like=Onion[Vector3D, Translation, Point3D],
+              z: _vector_like=_null_vector):
+        """Moves this component by the individual axes component of each of the 3 specified vectors.
+
+        This is a powerful method that can be used in various ways to specify the location of a component.
+
+        It is typically used to place this Component at some position relative to another Component or other
+        BoundedEntity. This takes advantage of the __neg__ (-), __pos__ (+) and __invert__ (~) operator overrides on
+        BoundedEntity that return a Place object, and also the __eq__ (==) operator override in the Place object.
+
+        '-' is used to denote the minimum value of the entity in one of the 3 axes, '+' is used to denote the maximum,
+        and '~' is used to denote the midpoint.
+
+        You can leave out any of the placement components and this Component won't be moved along that axis.
+
+        For example, to place this Component so that the minimum x, y and z points are aligned with the midpoint of
+        another object, you could do::
+
+            component.place(-component == ~other_component,
+                            -component == ~other_component,
+                            -component == ~other_component)
+
+        or a slightly more complex example::
+
+            component.place(-component == ~other_component,
+                            +component == -other_component,
+                            ~component == +other_component)
+
+        This would place this component so that the minimum x bound of this object is aligned with the mid X point of
+        the other object, the maximum y bound with the negative y bound, and the mid Z point with the maximum Z bound.
+
+        You can also specify an offset to the alignment::
+
+            component.place((-component == ~other_component) + 10,
+                            +component == -other_component,
+                            ~component == +other_component)
+
+        This is the same as the previous example, except that the component is translated by an additional 10 cm in the
+        x axis. Note that due to operator precedence, parenthesis are required around the == statement in this case.
+
+        It can also be occasionally useful to specify an alignment based on some different object::
+
+            component.place((-other_component == +some_other_component))
+
+        And finally, you can also use this to specify a specific numeric location for any of the major axes::
+
+            component.place(~component == 3, -component == 10, +component == -233.4471)
+
+        Args:
+            x: This Component will be translated by the x component of this vector.
+            y: This Component will be translated by the y component of this vector.
+            z: This Component will be translated by the z component of this vector.
+
+        Returns: `self`
+        """
         transform = Matrix3D.create()
         transform.translation = Vector3D.create(x.x, y.y, z.z)
         self._local_transform.transformBy(transform)
@@ -785,10 +1021,23 @@ class Component(BoundedEntity):
         return self._cached_inverse_transform
 
     def get_plane(self) -> Optional[adsk.core.Plane]:
+        """Returns: The plane that this Component lies in, or None if this is not a Planar component."""
         return None
 
     def rotate(self, rx: float = 0, ry: float = 0, rz: float = 0,
                center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
+        """Rotates this Component.
+
+        The component will first be rotated around the X axis, then the Y axis, then the Z axis.
+
+        Args:
+            rx: The angle in degrees to rotate this object around the X axis by.
+            ry: The angle in degrees to rotate this object around the Y axis by.
+            rz: The angle in degrees to rotate this object around the Z axis by.
+            center: If given, the rotation will occur around an axis parallel with each of the 3 major axes that run
+                through this point.
+        Returns: `self`
+        """
         transform = self._local_transform
 
         if center is None:
@@ -819,15 +1068,51 @@ class Component(BoundedEntity):
         return self
 
     def rx(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
+        """Rotates this Component around the X axis.
+
+        Args:
+            angle: The angle in degrees to rotate this object by.
+            center: If given, the rotation will occur around an axis parallel with the X axis that runs through this
+                point.
+
+        Returns: `self`
+        """
         return self.rotate(angle, center=center)
 
     def ry(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
+        """Rotates this Component around the Y axis.
+
+        Args:
+            angle: The angle in degrees to rotate this object by.
+            center: If given, the rotation will occur around an axis parallel with the Y axis that runs through this
+                point.
+
+        Returns: `self`
+        """
         return self.rotate(ry=angle, center=center)
 
     def rz(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
+        """Rotates this Component around the Z axis.
+
+        Args:
+            angle: The angle in degrees to rotate this object by.
+            center: If given, the rotation will occur around an axis parallel with the Z axis that runs through this
+                point.
+
+        Returns: `self`
+        """
         return self.rotate(rz=angle, center=center)
 
     def translate(self, tx: float = 0, ty: float = 0, tz: float = 0) -> 'Component':
+        """Translates this Component the given distances along the 3 major axes.
+
+        Args:
+            tx: The distance to move this Component in the X axis.
+            ty: The distance to move this Component in the Y axis.
+            tz: The distance to move this Component in the Z axis.
+
+        Returns: `self`
+        """
         translation = Matrix3D.create()
         translation.translation = adsk.core.Vector3D.create(tx, ty, tz)
         self._local_transform.transformBy(translation)
@@ -835,16 +1120,50 @@ class Component(BoundedEntity):
         return self
 
     def tx(self, tx: float) -> 'Component':
+        """Translates this Component the given distance in the X axis.
+
+        Args:
+            tx: The distance to move this Component in the X axis.
+
+        Returns: `self`
+        """
         return self.translate(tx)
 
     def ty(self, ty: float) -> 'Component':
+        """Translates this Component the given distance in the Y axis.
+
+        Args:
+            ty: The distance to move this Component in the Y axis.
+
+        Returns: `self`
+        """
         return self.translate(ty=ty)
 
     def tz(self, tz: float) -> 'Component':
+        """Translates this Component the given distance in the Z axis.
+
+        Args:
+            tz: The distance to move this Component in the Z axis.
+
+        Returns: `self`
+        """
         return self.translate(tz=tz)
 
     def scale(self, sx: float = 1, sy: float = 1, sz: float = 1,
               center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
+        """Uniformly scales this object.
+
+        A mirror along one of the 3 major axes can also be achieved by specifying a negative scale factor, but the
+        absolute value of all scale factors must be equal.
+
+        Args:
+            sx: The scale factor along the X axis
+            sy: The scale factor along the Y axis
+            sz: The scale factor along the Z axis
+            center: The center of the scale operation. If not specified, the center will be the origin.
+
+        Returns: `self`
+        """
         scale = Matrix3D.create()
         translation = Matrix3D.create()
         if abs(sx) != abs(sy) or abs(sy) != abs(sz):
@@ -878,6 +1197,17 @@ class Component(BoundedEntity):
         return self
 
     def find_faces(self, selector: _face_selector_types) -> Sequence[Face]:
+        """Finds any faces that is coincident with any face in the given entities.
+
+        This finds any face in this Component whose intersection with one of the faces in the face selectors is also a
+        face. i.e. two faces that intersect in a point or a curve are not considered coincident.
+
+        Args:
+            selector: The entities used to find any coincident faces of in this Component
+
+        Returns: A Sequence of the Faces that are coincident with one of the selector's Faces, or an empty Sequence if
+            there are no such faces.
+        """
         selector_faces = _flatten_face_selectors(selector)
         result = []
         for body in self.bodies:
@@ -886,6 +1216,16 @@ class Component(BoundedEntity):
         return result
 
     def add_named_point(self, name: str, point: Onion[Sequence[float], Point3D, Point]):
+        """Adds a point to this Component with the given name.
+
+        The added point will remain in the same relative position in the component even when the component is
+        moved/transformed.
+
+        Args:
+            name: The name of the point to add.
+            point: A point to add to this Component. This may be any arbitrary point, it doesn't have to be an object
+                (vertex, etc.) already associated with this Component.
+        """
         if isinstance(point, Point):
             point = point.point
         if isinstance(point, Point3D):
@@ -896,6 +1236,13 @@ class Component(BoundedEntity):
         self._named_points[name] = point
 
     def named_point(self, name) -> Optional[Point]:
+        """Gets the Point in this Component with the given name.
+
+        Args:
+            name: The name of the Point to get
+
+        Returns: The point with the given name, or None if no such point exists in this Component.
+        """
         point = self._named_points.get(name)
         if not point:
             return None
@@ -911,12 +1258,27 @@ class Component(BoundedEntity):
         return body_index, face_index
 
     def add_named_faces(self, name: str, *faces: Face):
+        """Associates a name with the specified Faces in this Component.
+
+        The Faces can later be looked up by name using `named_faces(name)`
+
+        Args:
+            name: The name to associate with the given Faces.
+            *faces: The faces to associate a name with. These must be Faces within this Component.
+        """
         face_index_list = []
         for face in faces:
             face_index_list.append(self._find_face_index(face))
         self._named_faces[name] = face_index_list
 
     def named_faces(self, name) -> Optional[Sequence[Face]]:
+        """Gets all faces with the specified name in this Component.
+
+        Args:
+            name: The name of the face
+
+        Returns: A Sequence of Faces, or None if no Faces with the given name were found.
+        """
         face_index_list = self._named_faces.get(name)
         if face_index_list is None:
             return None
@@ -925,7 +1287,16 @@ class Component(BoundedEntity):
             result.append(self.bodies[face_index[0]].faces[face_index[1]])
         return result
 
-    def shared_edges(self, face_selector1, face_selector2) -> Sequence[Edge]:
+    def shared_edges(self, face_selector1: _face_selector_types,
+                     face_selector2: _face_selector_types) -> Sequence[Edge]:
+        """Finds any shared edges between any Face matching face_selector1, and any Face matching face_selector2.
+
+        Args:
+            face_selector1: A set of face selectors for the first set of faces
+            face_selector2: A set of face selectors for the second set of faces
+
+        Returns: All edges that are shared between the 2 sets of faces.
+        """
         faces1 = [face.brep for face in self.find_faces(face_selector1)]
         faces2 = [face.brep for face in self.find_faces(face_selector2)]
 
@@ -965,6 +1336,17 @@ class Component(BoundedEntity):
         return Context(self)
 
     def closest_points(self, entity: _entity_types) -> Tuple[Point3D, Point3D]:
+        """Finds the points on this entity and the specified entity that are closest to one another.
+
+        In the case of parallel faces or other cases where there may be multiple sets of points at the same
+        minimum distance, the exact points that are returned are unspecified.
+
+        Args:
+            entity: The entity to find the closest points with.
+
+        Returns: A tuple of 2 Point3D objects. The first will be a point on this Component, and the second will be
+            a point on the other entity.
+        """
         self_body = _union_entities(self.bodies)
         other_body = _union_entities(entity)
 
@@ -979,11 +1361,24 @@ class Component(BoundedEntity):
             occ2.deleteMe()
 
     def align_to(self, entity: _entity_types, vector: Vector3D) -> 'Component':
-        """Moves this component along the given vector until it touches the specified entity
+        """Moves this component along the given vector until it touches the specified entity.
 
         This uses a potentially iterative method based on the shortest distant between the 2 entities. In some cases,
-        this may take a long time to complete. For example, if there is a section where there are 2 parallel faces
+        this may take many iterations to complete. For example, if there is a section where there are 2 parallel faces
         that are sliding past each other with a very small space between them.
+
+        Args:
+            entity: The entity representing the end point of the movement. The movement will stop once the object is
+                within Fusion 360's point tolerance of this entity(`Application.pointTolerance`). It is guaranteed that
+                this object will be exactly touching, or almost touching (within the above tolerance), but will *not*
+                be "past" touching this entity.
+            vector: The vector to move this component along
+
+        Returns: `self`
+
+        Raises:
+            ValueError: If the entities do not intersect along the given vector. If this occurs, this Component will
+                remain in its original position.
         """
         self_body = _union_entities(self.bodies)
         other_body = _union_entities(entity, vector=vector)
@@ -1058,6 +1453,15 @@ class Shape(Component, ABC):
 
 
 class BRepComponent(Shape):
+    """Defines a Component for a set of raw BRepBody or BrepFace objects.
+
+    This can be useful when you need some advanced feature of Fusion's API that isn't supported by fscad, and can be
+    used to wrap the result of that advanced operation and let it be used within the fscad API.
+
+    Args:
+        *brep_entities: The BRepBody or BRepFace objects that this Component will contain
+        name: The name of the Component
+    """
     def __init__(self, *brep_entities: Onion[BRepBody, BRepFace], name: str = None):
         super().__init__(*[brep().copy(brep_entity) for brep_entity in brep_entities], name=name)
 
@@ -1083,6 +1487,15 @@ class PlanarShape(Shape):
 
 
 class Box(Shape):
+    """Defines a box.
+
+    Args:
+            x: The size of the box in the x axis
+            y: The size of the box in the y axis
+            z: The size of the box in the z axis
+            name: The name of the Component
+    """
+
     _top_index = 0
     _bottom_index = 1
     _front_index = 2
@@ -1098,31 +1511,46 @@ class Box(Shape):
         super().__init__(body, name=name)
 
     @property
-    def top(self):
+    def top(self) -> Face:
+        """Returns: The top Face of the box. i.e. The Face in the positive Z direction."""
         return self.bodies[0].faces[self._top_index]
 
     @property
-    def bottom(self):
+    def bottom(self) -> Face:
+        """Returns: The bottom Face of the box. i.e. the Face in the negative Z direction."""
         return self.bodies[0].faces[self._bottom_index]
 
     @property
-    def left(self):
+    def left(self) -> Face:
+        """Returns: The left Face of the box. i.e. the Face in the negative X direction."""
         return self.bodies[0].faces[self._left_index]
 
     @property
-    def right(self):
+    def right(self) -> Face:
+        """Returns: The right Face of the box. i.e. the Face in the positive X direction."""
         return self.bodies[0].faces[self._right_index]
 
     @property
-    def front(self):
+    def front(self) -> Face:
+        """Returns: The front Face of the box. i.e. the Face in the negative Y direction."""
         return self.bodies[0].faces[self._front_index]
 
     @property
-    def back(self):
+    def back(self) -> Face:
+        """Returns: The back face of the box. i.e. the Face in the positive Y direction."""
         return self.bodies[0].faces[self._back_index]
 
 
 class Cylinder(Shape):
+    """Defines a cylinder, a cone or a truncated cone.
+
+    Args:
+        height: The height of the cylinder
+        radius: The radius of the cylinder. If top_radius is also specified, this is the radius of the bottom of the
+            cylinder/cone.
+        top_radius: If provided, the radius of the top of the cylinder/cone
+        name: The name of the component
+    """
     _side_index = 0
 
     def __init__(self, height: float, radius: float, top_radius: float = None, name: str = None):
@@ -1158,32 +1586,49 @@ class Cylinder(Shape):
         copy._top_index = self._top_index
 
     @property
-    def top(self):
+    def top(self) -> Optional[Face]:
+        """Returns: The top face of the cylinder/cone. May be None for a cone with a top radius of 0."""
         if self._top_index is None:
             return None
         return self.bodies[0].faces[self._top_index]
 
     @property
-    def bottom(self):
+    def bottom(self) -> Optional[Face]:
+        """Returns: The bottom Face of the cylinder/cone. May be None for a cone with a bottom radius of 0."""
         if self._bottom_index is None:
             return None
         return self.bodies[0].faces[self._bottom_index]
 
     @property
-    def side(self):
+    def side(self) -> Face:
+        """Returns: The side Face of the cylinder/cone."""
         return self.bodies[0].faces[self._side_index]
 
 
 class Sphere(Shape):
+    """Defines a sphere.
+
+    Args:
+        radius: The radius of the sphere
+        name: The name of the component
+    """
     def __init__(self, radius: float, name: str = None):
         super().__init__(brep().createSphere(self._origin, radius), name=name)
 
     @property
-    def surface(self):
+    def surface(self) -> Face:
+        """Returns: the Face representing the surface of the sphere."""
         return self.bodies[0].faces[0]
 
 
 class Rect(PlanarShape):
+    """Defines a 2D rectangle.
+
+    Args:
+        x: The size of the rectangle in the x axis
+        y: The size of the rectangle in the y axis
+        name: The name of the component
+    """
     def __init__(self, x: float, y: float, name: str = None):
         # this is a bit faster than creating it from createWireFromCurves -> createFaceFromPlanarWires
         box = brep().createBox(OrientedBoundingBox3D.create(
@@ -1194,6 +1639,12 @@ class Rect(PlanarShape):
 
 
 class Circle(PlanarShape):
+    """Defines a 2D circle.
+
+    Args:
+        radius: The radius of the circle
+        name: The name of the component
+    """
     _top_index = 2
 
     def __init__(self, radius: float, name: str = None):
@@ -1204,6 +1655,13 @@ class Circle(PlanarShape):
 
 
 class Polygon(PlanarShape):
+    """Defines an arbitrary 2D polygon.
+
+    Args:
+        *points: A sequence of vertices of the polygon. An edge will be added between each adjacent point in the
+            sequence, and also one between the first and last point.
+        name: The name of the component
+    """
     def __init__(self, *points: Onion[Tuple[float, float], Point2D, Point3D, Point], name: str = None):
         lines = []
         for i in range(-1, len(points)-1):
@@ -1213,6 +1671,16 @@ class Polygon(PlanarShape):
 
 
 class RegularPolygon(Polygon):
+    """Defines a regular 2D polygon.
+
+    Args:
+        sides: The number of sides of the polygon
+        radius: The "radius" of the polygon. This is normally the distance from the center to the midpoint of a side.
+            Also known as the apothem or inradius. If is_outer_radius is True, this is instead the distance from the
+            center to a vertex.
+        is_outer_radius: Whether radius is specified as the apothem/inradius, or the outer radius
+        name: The name of the component
+    """
     def __init__(self, sides: int, radius: float, is_outer_radius: bool = True, name: str = None):
         step_angle = 360 / sides
         points = []
@@ -1257,7 +1725,7 @@ class ComponentWithChildren(Component, ABC):
         if copy_children:
             copy._add_children([child.copy() for child in self._children])
 
-    def find_children(self, name, recursive=True):
+    def find_children(self, name, recursive=True) -> Sequence[Component]:
         result = []
         for child in self._children:
             if child.name == name:
@@ -1270,6 +1738,14 @@ class ComponentWithChildren(Component, ABC):
 
 
 def import_fusion_archive(filename, name="import"):
+    """Imports the given fusion archive as a new Component
+
+    Args:
+        filename: The filename of the local fusion archive
+        name: The name of the component
+
+    Returns: A new Component containing the contents of the imported file.
+    """
     import_options = app().importManager.createFusionArchiveImportOptions(filename)
 
     result = app().importManager.importToTarget2(import_options, root())
@@ -1318,6 +1794,13 @@ class Combination(ComponentWithChildren, ABC):
 
 
 class Union(Combination):
+    """Unions a number of Components together.
+
+    Args:
+        *components: The Components to union together. The Components must be all planar, or all non-planar.
+        name: The name of the Component
+    """
+
     def __init__(self, *components: Component, name: str = None):
         super().__init__(name)
 
@@ -1356,6 +1839,15 @@ class Union(Combination):
                 raise ValueError("Cannot union planar entities that are non-coplanar")
 
     def add(self, *components: Component) -> Component:
+        """Adds new Components to this Union.
+
+        Args:
+            *components: The Components to add to this Union. If the existing Components are planar, the new Components
+                must also be planar, or if the existing Components are non-planar, the new Components must also be
+                non-planar.
+
+        Returns: `self`
+        """
         with self._recalculate_faces():
             def process_child(child):
                 self._check_coplanarity(child)
@@ -1366,6 +1858,15 @@ class Union(Combination):
 
 
 class Difference(Combination):
+    """Represents the difference between a Component and any number of other Components.
+
+    Args:
+        *components: The Components to perform a difference on. The first Component will be the "positive"
+            Component, and any remaining Components will be subtracted from the first Component. If the first
+            Component is a non-planar Component, the remaining Components must also be non-planar. However, it is
+            valid to subtract a non-planar Component from a planar Component.
+        name: The name of the Component
+    """
     def __init__(self, *components: Component, name: str = None):
         super().__init__(name)
         self._bodies = None
@@ -1408,6 +1909,15 @@ class Difference(Combination):
                     raise ValueError("Cannot subtract planar entities that are non-coplanar")
 
     def add(self, *components: Component) -> Component:
+        """Adds new Components to this Difference.
+
+        The new Components will be subtracted from the first Component.
+
+        Args:
+            *components: The Components to add
+
+        Returns: `self`
+        """
         with self._recalculate_faces():
             def process_child(child):
                 self._check_coplanarity(child)
@@ -1420,6 +1930,12 @@ class Difference(Combination):
 
 
 class Intersection(Combination):
+    """Represents the intersection between multiple Components.
+
+    Args:
+        *components: The Components to intersect with each other. This can be a mix of planar and non-planar geometry.
+        name: The name of the Component
+    """
     def __init__(self, *components: Component, name: str = None):
         super().__init__(name)
         self._bodies = None
@@ -1449,6 +1965,13 @@ class Intersection(Combination):
         super()._copy_to(copy, copy_children)
 
     def add(self, *components: Component) -> Component:
+        """Adds new Components to this intersection.
+
+        Args:
+            *components: The the new Components to add to this intersection.
+
+        Returns: `self`
+        """
         with self._recalculate_faces():
             def process_child(child):
                 self._reset_cache()
@@ -1474,6 +1997,16 @@ class Intersection(Combination):
 
 
 class Group(Combination):
+    """Groups a set of Components without performing any operation on them.
+
+    This can be useful when you need to perform some operation on a group of Components, but don't want to Union or
+    otherwise join them together.
+
+    Args:
+        visible_children: The children to add as visible children
+        hidden_children: The children to add as hidden children
+        name: The name of the Component
+    """
     def __init__(self, visible_children, hidden_children=None, name=None):
         super().__init__(name)
 
@@ -1546,10 +2079,17 @@ class Group(Combination):
 
 
 class Loft(ComponentWithChildren):
+    """Represents a body created by lofting through a set of faces.
+
+    Currently, only a basic loft is supported. Support for center lines and guide rails, etc. is not yet implemented.
+
+    Args:
+        *components: The Components to loft through. These must all be planar Components.
+        name: The name of the Component
+    """
 
     def __init__(self, *components: Component, name: str = None):
         super().__init__(name)
-
         loft_sections = []
 
         def process_child(child: Component):
@@ -1588,14 +2128,17 @@ class Loft(ComponentWithChildren):
 
     @property
     def bottom(self) -> Face:
+        """The bottom (starting) face of the loft."""
         return self.bodies[0].faces[self._bottom_index]
 
     @property
     def top(self) -> Face:
+        """The top (ending) face of the loft."""
         return self.bodies[0].faces[self._top_index]
 
     @property
     def sides(self) -> Iterable[Face]:
+        """All side faces of the loft."""
         side_faces = []
         for i in range(0, len(self.bodies[0].faces)):
             if i != self._bottom_index and i != self._top_index:
@@ -1688,24 +2231,38 @@ class ExtrudeBase(ComponentWithChildren):
 
     @property
     def start_faces(self) -> Sequence[Face]:
+        """The faces of the resulting body that the extrude starts from.
+
+        If extruding an existing face of a 3d object, this will normally be empty. If extruding a face or set of faces,
+        this will normally be the starting faces that were used to perform the extrude.
+        """
         if not self._cached_start_faces:
             self._cached_start_faces = self._get_faces(self._start_face_indices)
         return list(self._cached_start_faces)
 
     @property
     def end_faces(self) -> Sequence[Face]:
+        """The faces of the resulting body that correspond with the end of the extrusion."""
         if not self._cached_end_faces:
             self._cached_end_faces = self._get_faces(self._end_face_indices)
         return list(self._cached_end_faces)
 
     @property
     def side_faces(self) -> Sequence[Face]:
+        """The faces of the resulting body that correspond to the sides of the extrusion."""
         if not self._cached_side_faces:
             self._cached_side_faces = self._get_faces(self._side_face_indices)
         return list(self._cached_side_faces)
 
 
 class Extrude(ExtrudeBase):
+    """Extrudes faces a certain distance.
+
+    Args:
+        entity: The object to extrude. This can be a Face, an iterable of Faces, or a planar Component.
+        height: The distance to extrude the faces
+        name: The name of the component
+    """
     def __init__(self, entity: Onion[Component, Face, Iterable[Face]], height: float, name: str = None):
         if isinstance(entity, Component):
             component = entity
@@ -1734,6 +2291,13 @@ class Extrude(ExtrudeBase):
 
 
 class ExtrudeTo(ExtrudeBase):
+    """Extrudes the specified faces until they intersect with the face of another object.
+
+    Args:
+        entity: The faces to extrude. This can be a Face, an Iterable of Faces or a planar Component.
+        to_entity: The object to extrude the faces to
+        name: The name of the component
+    """
     def __init__(self, entity: Onion[Face, Component, Iterable[Face]],
                  to_entity: Onion[Component, Face, Body],
                  name: str = None):
@@ -1783,6 +2347,13 @@ class ExtrudeTo(ExtrudeBase):
 
 
 class SplitFace(ComponentWithChildren):
+    """Splits the faces of a Component at the areas where it intersects with another Face or Component.
+
+    Args:
+        component: The Component to split the faces of
+        splitting_tool: The Face or Component to use to split the faces
+        name: The name of the component
+    """
     def __init__(self, component: Component, splitting_tool: Onion[Face, Component], name: str = None):
         super().__init__(name)
 
@@ -1856,12 +2427,37 @@ class SplitFace(ComponentWithChildren):
 
     @property
     def split_faces(self) -> Sequence[Face]:
+        """Returns: The new faces that were created by this Split operation."""
         if not self._cached_split_faces:
             self._cached_split_faces = self._get_faces(self._split_face_indices)
         return list(self._cached_split_faces)
 
 
 class Threads(ComponentWithChildren):
+    """Represents the result of adding threads to a cylindrical object/face.
+
+    E.g., to create a triangular thread profile with 45 degree upper and lower faces, and a pitch of 1mm::
+
+        cylinder = Cylinder(10, 1)
+        threaded_cylinder = Threads(cylinder,
+                                    [(0, 0), (.5, .5), (0, 1)],
+                                    1)
+
+    Args:
+        entity: The Component or Face to add threads to. If a Component is given, there must be exactly 1
+            cylindrical face present in the Component. If a Face is given, it must be a cylindrical face. In either
+            case, a partial cylindrical face is acceptable.
+        thread_profile: The thread profile as a list of (x, y) tuples. (0, 0) is the "origin" of the thread profile,
+            while +x is a vector perpendicular and away from the face of the cylinder, and +y is a vector parallel with
+            the axis of the cylinder, pointing toward the top.
+        pitch:
+            The distance between each thread
+        reverse_axis:
+            In case of non-symmetric threads, the direction can be important. Set this to true to reverse the direction
+            of the threads, so the top is bottom, and vice versa. Note: This does not change the handed-ness of the
+            thread. To make a left-handed thread, you can apply a mirror operation afterward.
+        name: The name of the component
+    """
     def __init__(self, entity: Onion[Component, Face], thread_profile: Iterable[Tuple[float, float]],
                  pitch: float, reverse_axis=False, name: str = None):
         super().__init__(name)
@@ -2041,6 +2637,14 @@ class Threads(ComponentWithChildren):
 
 
 class Fillet(ComponentWithChildren):
+    """Represents a Fillet operation on a set of edges from the same component.
+
+    Args:
+        edges: The edges to fillet. All edges must be from the same component.
+        radius: The fillet radius
+        blend_corners: If true, use fusion's "setback" corner type, otherwise use the "rolling ball" corner type.
+        name: The name of the component
+    """
     def __init__(self, edges: Iterable[Edge], radius: float, blend_corners: bool = False, name: str = None):
         super().__init__(name)
 
@@ -2086,6 +2690,15 @@ class Fillet(ComponentWithChildren):
 
 
 class Chamfer(ComponentWithChildren):
+    """Represents a Chamfer operation on a set of edges from the same component.
+
+    Args:
+        edges: The edges to chamfer. All edges must be from the same component.
+        distance: The distance from the edge to start the chamfer. If distance2 is not given, this distance is used
+            for both sides of the edge.
+        distance2: If given, the distance from the other side of the edge to start the chamfer.
+        name: The name of the component
+    """
     def __init__(self, edges: Iterable[Edge], distance: float, distance2: float = None, name: str = None):
         super().__init__(name)
 
@@ -2136,6 +2749,19 @@ class Chamfer(ComponentWithChildren):
 
 
 class Scale(ComponentWithChildren):
+    """Represents a uniform on non-uniform scaling operation on a component
+
+    For uniform scaling, its usually preferred to just use `Component.scale`, which is limited to uniform scaling. This
+    class is useful when you need to perform a non-uniform scale.
+
+    Args:
+        component: The component to scale
+        sx: The scaling ratio in the x axis
+        sy: The scaling ratio in the y axis
+        sz: The scaling ratio in the z axis
+        center: The center of the scaling operation. Defaults to (0, 0, 0) if not specified.
+        name: The name of the component
+    """
     def __init__(self, component: Component, sx: float = 1, sy: float = 1, sz: float = 1,
                  center: Onion[Point3D, Point, Tuple[float, float, float]] = None, name: str = None):
         super().__init__(name)
@@ -2175,6 +2801,22 @@ class Scale(ComponentWithChildren):
 
 
 def setup_document(document_name="fSCAD-Preview"):
+    """Sets up a fresh document to run a script in.
+
+    This is normally called from run_design instead of being called directly.
+
+    If a document already exists with the given name, it will be forcibly closed (losing any changes, etc.), and
+    recreated as an empty document. In addition, the camera position from the existing document will be saved, and then
+    restored in the new document.
+
+    This enables a script-centric development cycle, where you run the script, view the results in fusion, go back to
+    the script to make changes, and re-run the script to recreate the design with the changes you made. In this
+    development style, the script is the primary document, while the fusion document is just an ephemeral artifact.
+
+    Args:
+        document_name: The name of the document to create. If a document of the given name already exists, it will
+            be forcibly closed and recreated.
+    """
     preview_doc = None
     saved_camera = None
     for document in app().documents:
@@ -2199,13 +2841,19 @@ def setup_document(document_name="fSCAD-Preview"):
 
 
 def run_design(design_func, message_box_on_error=True, document_name="fSCAD-Preview"):
-    """
-    Utility method to handle the common setup tasks for a script
+    """Utility method to handle the common setup tasks for a script
 
-    :param design_func: The function that actually creates the design
-    :param message_box_on_error: Set true to pop up a dialog with a stack trace if an error occurs
-    :param document_name: The name of the document to create. If a document of the given name already exists, it will
-    be forcibly closed and recreated.
+    This can be used in a script like this::
+
+        from fscad import *
+        def run(_):
+            run_design(_design, message_box_on_error=False, document_name=__name__)
+
+    Args:
+        design_func: The function that actually creates the design
+        message_box_on_error: Set true to pop up a dialog with a stack trace if an error occurs
+        document_name: The name of the document to create. If a document of the given name already exists, it will
+            be forcibly closed and recreated.
     """
     # noinspection PyBroadException
     try:
@@ -2218,6 +2866,11 @@ def run_design(design_func, message_box_on_error=True, document_name="fSCAD-Prev
 
 
 def run(_):
+    """Entry point for this Fusion 360 plugin.
+
+    This script can be set up to run as a Fusion 360 plugin on startup, so that the fscad module is automatically
+    available for use by other scripts.
+    """
     fscad = types.ModuleType("fscad")
     sys.modules['fscad'] = fscad
 
@@ -2231,4 +2884,5 @@ def run(_):
 
 
 def stop(_):
+    """Callback from Fusion 360 for when this script is being stopped."""
     del sys.modules['fscad']
