@@ -159,7 +159,7 @@ def _body_index(body: Onion[BRepBody, 'Body'], bodies: Iterable[Onion[BRepBody, 
 def _face_index(face: Onion[BRepFace, 'Face']) -> int:
     if isinstance(face, Face):
         return _face_index(face.brep)
-    for i, candidate_face in enumerate(face.body.named_faces):
+    for i, candidate_face in enumerate(face.body.faces):
         if candidate_face == face:
             return i
     assert False
@@ -175,7 +175,7 @@ def _edge_index(edge: Onion[BRepEdge, 'Edge']):
 
 
 def _map_face(face, new_body):
-    return new_body.named_faces[_face_index(face)]
+    return new_body.faces[_face_index(face)]
 
 
 def _flatten_face_selectors(selector: _face_selector_types) -> Iterable[BRepFace]:
@@ -224,7 +224,7 @@ def _check_intersection(entity1, entity2):
     entity1_copy = brep().copy(entity1)
     entity2_copy = brep().copy(entity2)
     brep().booleanOperation(entity1_copy, entity2_copy, adsk.fusion.BooleanTypes.IntersectionBooleanType)
-    return entity1_copy.named_faces.count > 0
+    return entity1_copy.faces.count > 0
 
 
 def _point_vector_to_line(point, vector):
@@ -672,7 +672,7 @@ class Face(BRepEntity):
         """Returns: All Faces that are connected to this Face, or an empty Sequence if there are None."""
         result = []
         for edge in self.brep.edges:
-            for face in edge.named_faces:
+            for face in edge.faces:
                 if face != self.brep:
                     if face not in result:
                         result.append(face)
@@ -1303,7 +1303,7 @@ class Component(BoundedEntity, ABC):
         edges = []
         for face in faces1:
             for edge in face.edges:
-                for other_face in edge.named_faces:
+                for other_face in edge.faces:
                     if other_face != face and other_face in faces2:
                         if edge not in edges:
                             edges.append(edge)
@@ -1635,7 +1635,7 @@ class Rect(PlanarShape):
             Point3D.create(x/2, y/2, -.5),
             self._pos_x, self._pos_y,
             x, y, 1))
-        super().__init__(brep().copy(box.named_faces[Box._top_index]), name)
+        super().__init__(brep().copy(box.faces[Box._top_index]), name)
 
 
 class Circle(PlanarShape):
@@ -1651,7 +1651,7 @@ class Circle(PlanarShape):
         # this is a bit faster than creating it from createWireFromCurves -> createFaceFromPlanarWires
         cylinder = brep().createCylinderOrCone(
             Point3D.create(0, 0, -1), radius, self._origin, radius)
-        super().__init__(brep().copy(cylinder.named_faces[self._top_index]), name)
+        super().__init__(brep().copy(cylinder.faces[self._top_index]), name)
 
 
 class Polygon(PlanarShape):
@@ -2112,7 +2112,7 @@ class Loft(ComponentWithChildren):
         loft_feature_input = occurrence.component.features.loftFeatures.createInput(
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         for body in occurrence.bRepBodies:
-            loft_feature_input.loftSections.add(body.named_faces[0])
+            loft_feature_input.loftSections.add(body.faces[0])
         loft_feature = occurrence.component.features.loftFeatures.add(loft_feature_input)
         self._bottom_index = _face_index(loft_feature.startFace)
         self._top_index = _face_index(loft_feature.endFace)
@@ -2337,7 +2337,7 @@ class ExtrudeTo(ExtrudeBase):
         elif isinstance(to_entity, Face):
             temp_occurrence = _create_component(root(), to_entity.body.brep, name="temp")
             component_to_add = to_entity.component
-            to_entity = temp_occurrence.bRepBodies[0].named_faces[_face_index(to_entity)]
+            to_entity = temp_occurrence.bRepBodies[0].faces[_face_index(to_entity)]
         else:
             raise ValueError("Unsupported type for to_entity: %s" % to_entity.__class__.__name__)
 
@@ -2360,13 +2360,13 @@ class SplitFace(ComponentWithChildren):
         temp_occurrence = component.create_occurrence(False)
         faces_to_split = []
         for body in temp_occurrence.bRepBodies:
-            faces_to_split.extend(body.named_faces)
+            faces_to_split.extend(body.faces)
 
         if isinstance(splitting_tool, Face):
             splitting_component = splitting_tool.component
             body_index, face_index = splitting_component._find_face_index(splitting_tool)
             temp_splitting_occurrence = splitting_component.create_occurrence(False)
-            splitting_entities = [temp_splitting_occurrence.bRepBodies[body_index].named_faces[face_index]]
+            splitting_entities = [temp_splitting_occurrence.bRepBodies[body_index].faces[face_index]]
         elif isinstance(splitting_tool, Component):
             splitting_component = splitting_tool
             temp_splitting_occurrence = splitting_component.create_occurrence(False)
@@ -2380,7 +2380,7 @@ class SplitFace(ComponentWithChildren):
 
         result_faces = []
         for body in temp_occurrence.component.bRepBodies:
-            result_faces.extend(body.named_faces)
+            result_faces.extend(body.faces)
 
         temp_occurrence_bodies = list(temp_occurrence.component.bRepBodies)
         bodies = []
@@ -2580,7 +2580,7 @@ class Threads(ComponentWithChildren):
         top_plane = adsk.core.Plane.create(top_point, axis)
 
         surface_bodies = []
-        for face in cumulative_body.named_faces:
+        for face in cumulative_body.faces:
             surface_bodies.append(brep().copy(face))
 
         thread_occurrence = _create_component(root(), *surface_bodies, name="thread")
@@ -2871,6 +2871,7 @@ def run(_):
     This script can be set up to run as a Fusion 360 plugin on startup, so that the fscad module is automatically
     available for use by other scripts.
     """
+
     fscad = types.ModuleType("fscad")
     sys.modules['fscad'] = fscad
 
