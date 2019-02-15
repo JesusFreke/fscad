@@ -936,7 +936,7 @@ class Component(BoundedEntity, ABC):
             construction_point = occurrence.component.constructionPoints.add(construction_point_input)
             construction_point.name = name
 
-    def place(self, x: _vector_like =_null_vector, y: _vector_like=Onion[Vector3D, Translation, Point3D],
+    def place(self, x: _vector_like =_null_vector, y: _vector_like=_null_vector,
               z: _vector_like=_null_vector):
         """Moves this component by the individual axes component of each of the 3 specified vectors.
 
