@@ -42,7 +42,15 @@ issue, or better, send a pull request :)
 
 The easiest way to use fscad is to add it as an "Add-In" in Fusion 360 that automatically starts
 when Fusion 360 is launched. This adds a global "fscad" module in Fusion's Python process that you
-can then easily import as "import fscad", or "from fscad import *" in your script.
+can then easily import as "import fscad", or "from fscad import *" in your scripts.
+
+You can use the ["Install scripts or addins from GitHub"](https://apps.autodesk.com/FUSION/en/List/Search?isAppSearch=True&searchboxstore=FUSION&facet=&collection=&sort=&query=Install+scripts+or+addins+from+GitHub)
+app from Fusion's app store to easily handle the installation. Just install the addin, run it
+from "Add-Ins->Scripts and Add-Ins", and enter the url to the fscad github project
+(https://github.com/JesusFreke/fscad). Once installed, restart Fusion 360 and you are good to go.
+
+Alternately, you may also clone or download the repository to your local machine and manually add
+the fscad directory as an Add-In via "Add-Ins->Scripts and Add-Ins".
 
 #### Example
 
