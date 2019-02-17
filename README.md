@@ -87,7 +87,7 @@ def run(context):
 #### Real-World Example
 
 To see an example of an actual, non-trivial project developed with fscad, see my
-[lalboard](https://github.com/JesusFreke/lalboard/blob/master/key_module.py) project.
+[lalboard](https://github.com/JesusFreke/lalboard/blob/master/lalboard.py) project.
 fscad was developed in parallel with lalboard. I would switch back and forth between the 2
 projects, adding new features to fscad as I needed them for lalboard.
 
