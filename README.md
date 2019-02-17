@@ -84,4 +84,12 @@ def run(context):
     run_design(my_design, message_box_on_error=False, document_name=__name__)
 ```
 
+#### Real-World Example
+
+To see an example of an actual, non-trivial project developed with fscad, see my
+[lalboard](https://github.com/JesusFreke/lalboard/blob/master/key_module.py) project.
+fscad was developed in parallel with lalboard. I would switch back and forth between the 2
+projects, adding new features to fscad as I needed them for lalboard.
+
+
 Note: This is not an officially supported Google product.
