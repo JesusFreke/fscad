@@ -149,6 +149,18 @@ class TransformTest(test_utils.FscadTestCase):
         self.assertEqual(box.mid().asArray(), (2, 2, 3))
         self.assertEqual(box.max().asArray(), (3, 4, 6))
 
+    def test_transform(self):
+        box = Box(1, 2, 3)
+
+        matrix = adsk.core.Matrix3D.create()
+        matrix.setToRotateTo(
+            adsk.core.Vector3D.create(0, 0, 1),
+            adsk.core.Vector3D.create(1, 1, 1))
+        matrix.translation = adsk.core.Vector3D.create(1, 2, 3)
+
+        box.transform(matrix)
+        box.create_occurrence()
+
 
 from test_utils import load_tests
 def run(context):

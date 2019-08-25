@@ -1024,6 +1024,21 @@ class Component(BoundedEntity, ABC):
         """Returns: The plane that this Component lies in, or None if this is not a Planar component."""
         return None
 
+    def transform(self, matrix: Matrix3D):
+        """Transforms this component with the given transform.
+
+        Note: matrices that produce a non-uniform scale will not work correctly.
+
+        Args:
+            matrix: The matrix transform
+
+        Returns: `self`
+        """
+        transform = self._local_transform
+        transform.transformBy(matrix)
+        self._reset_cache()
+        return self
+
     def rotate(self, rx: float = 0, ry: float = 0, rz: float = 0,
                center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
         """Rotates this Component.
