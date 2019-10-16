@@ -1476,6 +1476,22 @@ class Component(BoundedEntity, ABC):
 
         return self
 
+    def thickness(self, axis):
+        """Gets the maximum thickness of the component in the specified axis.
+
+        Args:
+            axis: A vector representing the axis to find the maximum thickness in.
+
+        Returns: The maximum thickness of the component in the specified axis.
+        """
+        self_body = _union_entities(self.bodies)
+
+        axis = axis.copy()
+        axis.normalize()
+        other_axis = _get_arbitrary_perpendicular_unit_vector(axis)
+
+        return app().measureManager.getOrientedBoundingBox(self_body, axis, other_axis).length
+
 
 class Shape(Component, ABC):
     def __init__(self, *bodies: BRepBody, name: str):

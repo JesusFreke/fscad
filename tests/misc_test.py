@@ -19,12 +19,14 @@ import fscad
 import adsk.core
 import adsk.fusion
 
+import math
+import random
 import unittest
+
 import test_utils
 import importlib
 importlib.reload(test_utils)
 import test_utils
-import math
 
 
 class MiscTest(test_utils.FscadTestCase):
@@ -130,6 +132,22 @@ class MiscTest(test_utils.FscadTestCase):
                          adsk.fusion.PointContainment.PointOnPointContainment)
         self.assertEqual(box2.bodies[0].brep.pointContainment(point2),
                          adsk.fusion.PointContainment.PointOnPointContainment)
+
+    def test_thickness_box(self):
+        box = Box(1, 1, 1)
+
+        self.assertEqual(box.thickness(Vector3D.create(1, 0, 0)), 1)
+        self.assertEqual(box.thickness(Vector3D.create(0, 1, 0)), 1)
+        self.assertEqual(box.thickness(Vector3D.create(0, 0, 1)), 1)
+        self.assertAlmostEqual(box.thickness(Vector3D.create(1, 1, 0)), math.sqrt(2))
+        self.assertAlmostEqual(box.thickness(Vector3D.create(1, 1, 1)), math.sqrt(3))
+
+    def test_thickness_sphere(self):
+        sphere = Sphere(1)
+        for i in range(0, 10):
+            self.assertAlmostEqual(
+                sphere.thickness(Vector3D.create(random.random(), random.random(), random.random())),
+                2)
 
 
 from test_utils import load_tests
