@@ -99,6 +99,16 @@ class FaceTest(test_utils.FscadTestCase):
         self.assertSetEqual({face.brep.tempId for face in box.back.connected_faces},
                             {face.brep.tempId for face in [box.top, box.bottom, box.left, box.right]})
 
+    def test_component_faces(self):
+        box1 = Box(1, 1, 1, name="box1")
+        box2 = Box(1, 1, 1, name="box2")
+        box2.place(
+            (-box2 == +box1) + 5,
+            ~box2 == ~box1,
+            ~box2 == ~box1)
+
+        self.assertEquals(len(Group([box1, box2]).faces), 12)
+
 
 from test_utils import load_tests
 def run(context):

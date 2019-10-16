@@ -61,6 +61,16 @@ class FaceTest(test_utils.FscadTestCase):
                                   [box1.top, box1.bottom, box1.right, box1.front])
         self.assertEqual(len(edges), 5)
 
+    def test_component_edges(self):
+        box1 = Box(1, 1, 1, name="box1")
+        box2 = Box(1, 1, 1, name="box2")
+        box2.place(
+            (-box2 == +box1) + 5,
+            ~box2 == ~box1,
+            ~box2 == ~box1)
+
+        self.assertEquals(len(Group([box1, box2]).edges), 24)
+
 
 from test_utils import load_tests
 def run(context):

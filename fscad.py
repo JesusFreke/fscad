@@ -15,7 +15,7 @@
 from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point2D, Point3D, ValueInput,\
     Vector3D
-from adsk.fusion import BRepBody, BRepEdge, BRepFace, BRepFaces
+from adsk.fusion import BRepBody, BRepEdge, BRepEdges, BRepFace, BRepFaces
 from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
@@ -607,6 +607,26 @@ class Body(BRepEntity):
         return self._body
 
     @property
+    def edges(self) -> Sequence['Edge']:
+        """Returns: All Edges that are a part of this Body, or an empty Sequence if there are None."""
+        class Edges(Sequence['Edge']):
+            def __init__(self, edges: Onion[Sequence[BRepEdge], BRepEdges], body: 'Body'):
+                self._edges = edges
+                self._body = body
+
+            def __getitem__(self, i: Onion[int, slice]) -> Onion['Edge', Sequence['Edge']]:
+                if isinstance(i, slice):
+                    return Edges(self._edges[i], self._body)
+                return Edge(self._edges[i], self._body)
+
+            def __iter__(self) -> Iterator['Edge']:
+                return _SequenceIterator(self)
+
+            def __len__(self) -> int:
+                return len(self._edges)
+        return Edges(self._body.edges, self)
+
+    @property
     def faces(self) -> Sequence['Face']:
         """Returns: All Faces that are a part of this Body, or an empty Sequence if there are None."""
         class Faces(Sequence['Face']):
@@ -620,23 +640,7 @@ class Body(BRepEntity):
                 return Face(self._faces[i], self._body)
 
             def __iter__(self) -> Iterator['Face']:
-                # Sequence's __iter__ is implemented via a generator, which doesn't currently place nice with
-                # fusion 360's SWIG objects
-                class FaceIter(object):
-                    def __init__(self, faces):
-                        self._faces = faces
-                        self._index = 0
-
-                    def __iter__(self):
-                        self._index = 0
-
-                    def __next__(self):
-                        if self._index < len(self._faces):
-                            result = self._faces[self._index]
-                            self._index += 1
-                            return result
-                        raise StopIteration()
-                return FaceIter(self)
+                return _SequenceIterator(self)
 
             def __len__(self) -> int:
                 return len(self._faces)
@@ -1210,6 +1214,24 @@ class Component(BoundedEntity, ABC):
 
         self._reset_cache()
         return self
+
+    @property
+    def edges(self) -> Sequence[Edge]:
+        """Returns: A Sequence of all edges associated with this component."""
+        result = []
+        for body in self.bodies:
+            for edge in body.edges:
+                result.append(edge)
+        return result
+
+    @property
+    def faces(self) -> Sequence[Face]:
+        """Returns: A Sequence of all faces associated with this component."""
+        result = []
+        for body in self.bodies:
+            for face in body.faces:
+                result.append(face)
+        return result
 
     def find_faces(self, selector: _face_selector_types) -> Sequence[Face]:
         """Finds any faces that is coincident with any face in the given entities.
@@ -2813,6 +2835,24 @@ class Scale(ComponentWithChildren):
     def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
         copy._bodies = list(self._bodies)
         super()._copy_to(copy, copy_children)
+
+
+# Sequence's __iter__ is implemented via a generator, which doesn't currently place nice with
+# fusion 360's SWIG objects (https://forums.autodesk.com/t5/fusion-360-api-and-scripts/strange-stopiteration-issue-caused-by-old-version-of-swig/m-p/8470361#M7106)
+class _SequenceIterator(object):
+    def __init__(self, sequence):
+        self._sequence = sequence
+        self._index = 0
+
+    def __iter__(self):
+        self._index = 0
+
+    def __next__(self):
+        if self._index < len(self._sequence):
+            result = self._sequence[self._index]
+            self._index += 1
+            return result
+        raise StopIteration()
 
 
 def setup_document(document_name="fSCAD-Preview"):
