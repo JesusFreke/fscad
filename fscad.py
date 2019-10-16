@@ -836,7 +836,7 @@ class Component(BoundedEntity, ABC):
         """
         copy = Component()
         copy.__class__ = self.__class__
-        copy._local_transform = self._get_world_transform()
+        copy._local_transform = self.world_transform()
         copy._cached_bounding_box = None
         copy._cached_bodies = None
         copy._cached_world_transform = None
@@ -882,7 +882,7 @@ class Component(BoundedEntity, ABC):
         if self._cached_bodies is not None:
             return self._cached_bodies
 
-        world_transform = self._get_world_transform()
+        world_transform = self.world_transform()
         bodies_copy = [Body(brep().copy(body), self) for body in self._raw_bodies()]
         for body in bodies_copy:
             brep().transform(body.brep, world_transform)
@@ -1005,18 +1005,18 @@ class Component(BoundedEntity, ABC):
         for component in self.children():
             component._reset_cache()
 
-    def _get_world_transform(self) -> Matrix3D:
+    def world_transform(self) -> Matrix3D:
         if self._cached_world_transform is not None:
             return self._cached_world_transform.copy()
         transform = self._local_transform.copy()
         if self.parent is not None:
-            transform.transformBy(self.parent._get_world_transform())
+            transform.transformBy(self.parent.world_transform())
         self._cached_world_transform = transform
         return transform.copy()
 
     def _inverse_world_transform(self):
         if self._cached_inverse_transform is None:
-            self._cached_inverse_transform = self._get_world_transform()
+            self._cached_inverse_transform = self.world_transform()
             self._cached_inverse_transform.invert()
         return self._cached_inverse_transform
 
@@ -1262,7 +1262,7 @@ class Component(BoundedEntity, ABC):
         if not point:
             return None
         point = point.copy()
-        point.transformBy(self._get_world_transform())
+        point.transformBy(self.world_transform())
         return Point(point)
 
     def _find_face_index(self, face: Face) -> Tuple[int, int]:
@@ -1801,7 +1801,7 @@ class Combination(ComponentWithChildren, ABC):
             self._cached_plane = None
             self._cached_plane_populated = True
         else:
-            world_transform = self._get_world_transform()
+            world_transform = self.world_transform()
             plane = raw_plane.copy()
             plane.transformBy(world_transform)
             self._cached_plane = plane

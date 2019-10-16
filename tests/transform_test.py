@@ -161,6 +161,21 @@ class TransformTest(test_utils.FscadTestCase):
         box.transform(matrix)
         box.create_occurrence()
 
+    def test_world_transform(self):
+        box = Box(1, 2, 3, name="box")
+        box.translate(1, 2, 3)
+
+        self.assertEqual(box.world_transform().asArray(),
+                         (1.0, 0.0, 0.0, 1.0,
+                          0.0, 1.0, 0.0, 2.0,
+                          0.0, 0.0, 1.0, 3.0,
+                          0.0, 0.0, 0.0, 1.0))
+
+        reverse_transform = box.world_transform().copy()
+        reverse_transform.invert()
+        box.transform(reverse_transform)
+        box.create_occurrence()
+
 
 from test_utils import load_tests
 def run(context):
