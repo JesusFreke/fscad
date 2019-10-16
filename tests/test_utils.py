@@ -67,6 +67,10 @@ class FscadTestCase(unittest.TestCase, metaclass=FscadWrapperMeta):
         if self._close_document:
             close_document(self._test_name)
 
+    @property
+    def script_dir(self):
+        return script_dir
+
     def _compare_occurrence(self, occurrence1, occurrence2, context):
         mycontext = list(context)
 

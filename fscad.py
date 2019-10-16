@@ -1843,6 +1843,33 @@ def import_fusion_archive(filename, name="import"):
     return BRepComponent(*bodies, name=name)
 
 
+def import_dxf(filename, name="import"):
+    """Imports the given fusion archive as a new Component
+
+    Args:
+        filename: The filename of the local fusion archive
+        name: The name of the component
+
+    Returns: A new Component containing the contents of the imported file.
+    """
+
+    import_options = app().importManager.createDXF2DImportOptions(filename, root().xYConstructionPlane)
+
+    result = app().importManager.importToTarget2(import_options, root())
+    sketch = result[0]  # type: adsk.fusion.Sketch
+
+    curves = []
+    for profile_curve in sketch.profiles[0].profileLoops[0].profileCurves:
+        curves.append(profile_curve.geometry)
+    wire_body, _ = brep().createWireFromCurves(curves)
+    face_silhouette = brep().createFaceFromPlanarWires([wire_body])
+
+    for sketch in result:
+        sketch.deleteMe()
+
+    return BRepComponent(face_silhouette, name=name)
+
+
 class Combination(ComponentWithChildren, ABC):
     def __init__(self, name):
         super().__init__(name)
