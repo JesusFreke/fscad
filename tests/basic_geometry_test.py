@@ -98,6 +98,11 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertEqual(cylinder.min().asArray(), (-1, -1, 0))
         self.assertEqual(cylinder.mid().asArray(), (0, 0, .5))
         self.assertEqual(cylinder.max().asArray(), (1, 1, 1))
+        self.assertEqual(cylinder.radius, 1)
+        self.assertEqual(cylinder.top_radius, 1)
+        self.assertEqual(cylinder.bottom_radius, 1)
+        self.assertEqual(cylinder.height, 1)
+        self.assertTrue(cylinder.axis.isEqualTo(Vector3D.create(0, 0, 1)))
 
         bottom = cylinder.bottom
         self.assertTrue(bottom.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
@@ -119,6 +124,11 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertEqual(cylinder.min().asArray(), (-1, -1, 0))
         self.assertEqual(cylinder.mid().asArray(), (0, 0, .5))
         self.assertEqual(cylinder.max().asArray(), (1, 1, 1))
+        self.assertEqual(cylinder.radius, 1)
+        self.assertEqual(cylinder.top_radius, .5)
+        self.assertEqual(cylinder.bottom_radius, 1)
+        self.assertEqual(cylinder.height, 1)
+        self.assertTrue(cylinder.axis.isEqualTo(Vector3D.create(0, 0, 1)))
 
         bottom = cylinder.bottom
         self.assertTrue(bottom.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
@@ -140,6 +150,11 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertEqual(cylinder.min().asArray(), (-1, -1, 0))
         self.assertEqual(cylinder.mid().asArray(), (0, 0, .5))
         self.assertEqual(cylinder.max().asArray(), (1, 1, 1))
+        self.assertEqual(cylinder.radius, 1)
+        self.assertEqual(cylinder.top_radius, 0)
+        self.assertEqual(cylinder.bottom_radius, 1)
+        self.assertEqual(cylinder.height, 1)
+        self.assertTrue(cylinder.axis.isEqualTo(Vector3D.create(0, 0, 1)))
 
         bottom = cylinder.bottom
         self.assertTrue(bottom.brep.geometry.normal.isParallelTo(Vector3D.create(0, 0, 1)))
@@ -159,6 +174,11 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         self.assertEqual(cylinder.min().asArray(), (-1, -1, 0))
         self.assertEqual(cylinder.mid().asArray(), (0, 0, .5))
         self.assertEqual(cylinder.max().asArray(), (1, 1, 1))
+        self.assertEqual(cylinder.radius, 0)
+        self.assertEqual(cylinder.top_radius, 1)
+        self.assertEqual(cylinder.bottom_radius, 0)
+        self.assertEqual(cylinder.height, 1)
+        self.assertTrue(cylinder.axis.isEqualTo(Vector3D.create(0, 0, 1)))
 
         self.assertIsNone(cylinder.bottom)
 

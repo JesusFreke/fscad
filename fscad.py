@@ -1608,28 +1608,32 @@ class Cylinder(Shape):
 
     def __init__(self, height: float, radius: float, top_radius: float = None, name: str = None):
         if radius == 0:
-            # The API doesn't support the bottom radius being 0, so create it in the opposite orientation and flip it
-            body = brep().createCylinderOrCone(self._origin, top_radius, Point3D.create(0, 0, height), radius)
-            # 180 degrees around the x axis
-            rotation = Matrix3D.create()
-            rotation.setCell(1, 1, -1)
-            rotation.setCell(2, 2, -1)
-            translation = Matrix3D.create()
-            translation.translation = Vector3D.create(0, 0, height)
-            rotation.transformBy(translation)
-            brep().transform(body, rotation)
+            # The API doesn't support the bottom radius being 0, so we have to swap the top and bottom points
+            body = brep().createCylinderOrCone(Point3D.create(0, 0, height), top_radius, self._origin, radius)
+
         else:
             body = brep().createCylinderOrCone(self._origin, radius, Point3D.create(0, 0, height),
                                                top_radius if top_radius is not None else radius)
         if radius == 0:
             self._bottom_index = None
             self._top_index = 1
+            self._reversed_axis = True
         elif top_radius == 0:
             self._bottom_index = 1
             self._top_index = None
+            self._reversed_axis = False
         else:
             self._bottom_index = 1
             self._top_index = 2
+            self._reversed_axis = False
+
+        self._bottom_radius = radius
+        if top_radius is None:
+            self._top_radius = radius
+        else:
+            self._top_radius = top_radius
+
+        self._height = height
 
         super().__init__(body, name=name)
 
@@ -1637,6 +1641,10 @@ class Cylinder(Shape):
         super()._copy_to(copy, copy_children)
         copy._bottom_index = self._bottom_index
         copy._top_index = self._top_index
+        copy._bottom_radius = self._bottom_radius
+        copy._top_radius = self._top_radius
+        copy._height = self._height
+        copy._reversed_axis = self._reversed_axis
 
     @property
     def top(self) -> Optional[Face]:
@@ -1656,6 +1664,29 @@ class Cylinder(Shape):
     def side(self) -> Face:
         """Returns: The side Face of the cylinder/cone."""
         return self.bodies[0].faces[self._side_index]
+
+    @property
+    def radius(self) -> float:
+        return self._bottom_radius
+
+    @property
+    def bottom_radius(self) -> float:
+        return self._bottom_radius
+
+    @property
+    def top_radius(self) -> float:
+        return self._top_radius
+
+    @property
+    def height(self) -> float:
+        return self._height
+
+    @property
+    def axis(self) -> Vector3D:
+        axis: Vector3D = self.side.brep.geometry.axis
+        if (self._reversed_axis):
+            axis.scaleBy(-1)
+        return axis
 
 
 class Sphere(Shape):
