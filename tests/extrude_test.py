@@ -130,6 +130,51 @@ class ExtrudeTest(test_utils.FscadTestCase):
         extrude.create_occurrence(True)
 
 
+    def build_relief_body(self, relief_cylinder: Cylinder, extrude_direction: Vector3D):
+        extrude_vector = extrude_direction
+        extrude_vector.scaleBy(relief_cylinder.radius * 2)
+
+        second_cylinder = relief_cylinder.copy().translate(*extrude_vector.asArray())
+
+        cut_rect = Rect(
+            max(relief_cylinder.radius * 2, relief_cylinder.height) * 2,
+            max(relief_cylinder.radius * 2, relief_cylinder.height) * 2)
+        cut_rect_transform = Matrix3D.create()
+        cut_rect_transform.setToRotateTo(
+            cut_rect.get_plane().normal,
+            extrude_direction)
+        cut_rect.transform(cut_rect_transform)
+        cut_rect.place(
+            ~cut_rect == ~relief_cylinder,
+            ~cut_rect == ~relief_cylinder,
+            ~cut_rect == ~relief_cylinder)
+
+        rect = Intersection(cut_rect, relief_cylinder)
+        box = Extrude(rect, extrude_vector.length)
+
+        full_shape = Union(relief_cylinder, second_cylinder, box)
+        bottom = BRepComponent(full_shape.find_faces(relief_cylinder.top)[0].brep)
+
+        half_shape = Extrude(bottom, 10, name="relief_body")
+        #half_shape_translation = bottom.get_plane().normal
+        #half_shape_translation.scaleBy(-.02)
+        #half_shape.translate(*half_shape_translation.asArray())
+
+        return half_shape
+
+    def test_extrude_extruded_face(self):
+        rect = Rect(2, 2, name="rect")
+        box = Extrude(rect, 1, name="extruded_box")
+        # for some reason, this causes the Extrusion feature to include the face in the feature bodies
+        extrusion = Extrude(BRepComponent(box.find_faces(rect)[0].brep), 10, name="re-extrusion")
+
+        # make sure that only the solid extruded body is part of the Extrude component. The face body should be
+        # filtered out
+        self.assertEqual(len(extrusion.bodies), 1)
+        self.assertTrue(extrusion.bodies[0].brep.isSolid)
+        extrusion.create_occurrence(create_children=True)
+
+
 from test_utils import load_tests
 def run(context):
     import sys

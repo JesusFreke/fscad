@@ -2287,25 +2287,36 @@ class ExtrudeBase(ComponentWithChildren):
         feature = temp_occurrence.component.features.extrudeFeatures[-1]
 
         bodies = []
+        feature_body_map = {}
         feature_bodies = list(feature.bodies)
-        for body in feature_bodies:
-            bodies.append(brep().copy(body))
+        # In some cases, the face being extruded is included in the bodies for some reason. If so, we want to
+        # exclude it.
+        for i, body in enumerate(feature_bodies):
+            if body.isSolid:
+                feature_body_map[i] = len(bodies)
+                bodies.append(brep().copy(body))
         self._bodies = bodies
 
         self._start_face_indices = []
         for face in feature.startFaces:
-            body_index = feature_bodies.index(face.body)
-            self._start_face_indices.append((body_index, _face_index(face)))
+            body_index = feature_body_map.get(feature_bodies.index(face.body))
+            # Exclude any faces that come from the input face
+            if body_index is not None:
+                self._start_face_indices.append((body_index, _face_index(face)))
 
         self._end_face_indices = []
         for face in feature.endFaces:
-            body_index = feature_bodies.index(face.body)
-            self._end_face_indices.append((body_index, _face_index(face)))
+            body_index = feature_body_map.get(feature_bodies.index(face.body))
+            # Exclude any faces that come from the input face
+            if body_index is not None:
+                self._end_face_indices.append((body_index, _face_index(face)))
 
         self._side_face_indices = []
         for face in feature.sideFaces:
-            body_index = feature_bodies.index(face.body)
-            self._side_face_indices.append((body_index, _face_index(face)))
+            body_index = feature_body_map.get(feature_bodies.index(face.body))
+            # Exclude any faces that come from the input face
+            if body_index is not None:
+                self._side_face_indices.append((body_index, _face_index(face)))
 
         self._add_children([component])
 
