@@ -29,6 +29,7 @@ test_modules = [
     "intersection_test",
     "loft_test",
     "misc_test",
+    "offset_edges_test",
     "place_test",
     "scale_test",
     "split_face_test",

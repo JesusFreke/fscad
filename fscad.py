@@ -15,8 +15,9 @@
 from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point2D, Point3D, ValueInput,\
     Vector3D
-from adsk.fusion import BRepBody, BRepEdge, BRepEdges, BRepFace, BRepFaces
-from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple
+from adsk.fusion import BRepBody, BRepCoEdge, BRepEdge, BRepEdges, BRepFace, BRepFaces, Occurrence, SketchCircle,\
+    SketchCurve, SketchEllipse
+from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple, List
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
 import adsk.core
@@ -409,6 +410,69 @@ def _create_point_body(point: Point3D, vector: Vector3D = None):
     return body
 
 
+def _get_outer_loop(brep_face: BRepFace):
+    loop: adsk.fusion.BRepLoop
+    for loop in brep_face.loops:
+        if loop.isOuter:
+            return loop
+
+
+def _find_connected_edge_endpoints(edges: Sequence['Edge'], face: 'Face') -> \
+        Tuple[Optional[BRepCoEdge], Optional[BRepCoEdge], adsk.fusion.BRepLoop]:
+    edges_to_process = list(edges)
+
+    first_edge = edges_to_process.pop()
+    start_coedge: adsk.fusion.BRepCoEdge = None
+    for coedge in first_edge.brep.coEdges:
+        if coedge.loop.face == face.brep:
+            start_coedge = coedge
+            break
+
+    if not start_coedge:
+        raise ValueError("The provided edges are not all on the provided face")
+
+    end_coedge = start_coedge
+    full_loop = False
+
+    def remove_edge_to_process(edge_to_remove: BRepEdge):
+        index_to_remove = None
+        for i, edge_to_process in enumerate(edges_to_process):
+            if edge_to_process.brep == edge_to_remove:
+                index_to_remove = i
+                break
+        if index_to_remove is not None:
+            del(edges_to_process[index_to_remove])
+            return True
+        return False
+
+    while True:
+        next_coedge = end_coedge.next
+
+        if next_coedge == start_coedge:
+            full_loop = True
+            break
+
+        if remove_edge_to_process(next_coedge.edge):
+            end_coedge = next_coedge
+        else:
+            break
+
+    if not full_loop:
+        while True:
+            prev_coedge = start_coedge.previous
+
+            if remove_edge_to_process(prev_coedge.edge):
+                start_coedge = prev_coedge
+            else:
+                break
+
+    if edges_to_process:
+        raise ValueError("All edges must be on the same face and connected")
+    if full_loop:
+        return None, None, start_coedge.loop
+    return start_coedge, end_coedge, start_coedge.loop
+
+
 class Translation(object):
     """A wrapper around a Vector3D, that provides functionality useful for use with the `Component.place` method.
 
@@ -690,6 +754,10 @@ class Face(BRepEntity):
         for edge in self.brep.edges:
             result.append(Edge(edge, self._body))
         return result
+
+    def outer_edges(self) -> Sequence['Edge']:
+        """Returns: All Edges that make up the outer boundary of this Face, or an empty Sequence if there are none."""
+        return [Edge(edge, self._body) for edge in _get_outer_loop(self.brep).edges]
 
 
 class Edge(BRepEntity):
@@ -1303,7 +1371,7 @@ class Component(BoundedEntity, ABC):
             name: The name to associate with the given Faces.
             *faces: The faces to associate a name with. These must be Faces within this Component.
         """
-        face_index_list = []
+        face_index_list = self._named_faces.get(name) or []
         for face in faces:
             face_index_list.append(self._find_face_index(face))
         self._named_faces[name] = face_index_list
@@ -1323,6 +1391,9 @@ class Component(BoundedEntity, ABC):
         for face_index in face_index_list:
             result.append(self.bodies[face_index[0]].faces[face_index[1]])
         return result
+
+    def all_face_names(self) -> Sequence[str]:
+        return list(self._named_faces.keys())
 
     def shared_edges(self, face_selector1: _face_selector_types,
                      face_selector2: _face_selector_types) -> Sequence[Edge]:
@@ -2466,6 +2537,148 @@ class ExtrudeTo(ExtrudeBase):
         super().__init__(component, faces, adsk.fusion.ToEntityExtentDefinition.create(to_entity, False), name)
         self._add_children([component_to_add])
         temp_occurrence.deleteMe()
+
+
+class OffsetEdges(ComponentWithChildren):
+    """Offset the given edges on the given face by some amount.
+
+    Args:
+        face: A planar face containing the edges to offset
+        edges: The edges to offset
+        offset: How far to offset the edges. A positive grows the face, while a negative offset shrinks the face.
+        name: The name of the component
+    """
+    def __init__(self, face: Face, edges: Sequence[Edge], offset: float, name: str = None):
+        super().__init__(name)
+
+        temp_occurrence = _create_component(root(), face.body, name="temp")
+
+        temp_face = _map_face(face, temp_occurrence.bRepBodies[0])
+        temp_body = temp_face.body
+
+        sketch = temp_occurrence.component.sketches.addWithoutEdges(temp_face)
+
+        to_offset = []
+        for edge in edges:
+            to_offset.extend(sketch.include(temp_body.edges[_edge_index(edge.brep)]))
+
+        offset_sketch_curves: Sequence[SketchCurve] = sketch.offset(
+            _collection_of(to_offset), sketch.modelToSketchSpace(face.brep.pointOnFace), -offset)
+
+        start_edge, end_edge, loop = _find_connected_edge_endpoints(edges, face)
+
+        new_face_edges = [sketch_curve.worldGeometry for sketch_curve in offset_sketch_curves]
+
+        if not start_edge:
+            # the original set of curves for a closed loop, so the offset curves should too
+            for edge in edges:
+                new_face_edges.append(edge.brep.geometry)
+        else:
+            # The original set of curves do not form a closed loop. The offset curves may or may not.
+            offset_closed = False
+            if len(offset_sketch_curves) == 1 and (isinstance(offset_sketch_curves[0], SketchCircle) or isinstance(offset_sketch_curves[0], SketchEllipse)):
+                offset_closed = True
+            elif len(offset_sketch_curves) > 1 and offset_sketch_curves[0].startSketchPoint == offset_sketch_curves[-1].endSketchPoint:
+                offset_closed = True
+
+            if offset_closed:
+                # if the offset curve forms a closed loop, then we want to use the full profile of the original curve
+                # as the other bound for the new partial face
+                for edge in start_edge.loop.edges:
+                    new_face_edges.append(edge.geometry)
+            else:
+                # TODO: the end and start may be reversed for reversed coedges?
+                for edge in edges:
+                    new_face_edges.append(edge.brep.geometry)
+                start_point = None
+                start_sketch_point = None
+                end_point = None
+                end_sketch_point = None
+                # TODO: add test where isParamReversed = true
+                if start_edge.isParamReversed:
+                    start_point = start_edge.edge.endVertex.geometry
+                    start_sketch_point = offset_sketch_curves[-1].endSketchPoint.geometry
+                else:
+                    start_point = start_edge.edge.startVertex.geometry
+                    start_sketch_point = offset_sketch_curves[0].startSketchPoint.geometry
+                if end_edge.isParamReversed:
+                    end_point = end_edge.edge.startVertex.geometry
+                    end_sketch_point = offset_sketch_curves[0].startSketchPoint.geometry
+                else:
+                    end_point = end_edge.edge.endVertex.geometry
+                    end_sketch_point = offset_sketch_curves[-1].endSketchPoint.geometry
+
+                new_face_edges.append(
+                    sketch.sketchCurves.sketchLines.addByTwoPoints(
+                        sketch.modelToSketchSpace(start_point),
+                        start_sketch_point).worldGeometry)
+                new_face_edges.append(
+                    sketch.sketchCurves.sketchLines.addByTwoPoints(
+                        sketch.modelToSketchSpace(end_point),
+                        end_sketch_point).worldGeometry)
+
+        wire_body, _ = brep().createWireFromCurves(new_face_edges)
+        new_face = brep().createFaceFromPlanarWires([wire_body])
+        original_face_body = brep().copy(face.brep)
+
+        intersection_body = brep().copy(new_face)
+
+        if loop.isOuter:
+            original_face_outer_wires, _ = brep().createWireFromCurves(
+                [edge.geometry for edge in _get_outer_loop(face.brep).edges])
+
+            original_face_no_holes = brep().createFaceFromPlanarWires([original_face_outer_wires])
+            if not brep().booleanOperation(
+                    original_face_no_holes,
+                    original_face_body, adsk.fusion.BooleanTypes.DifferenceBooleanType):
+                raise ValueError("Couldn't combine the offset parts of the face with the original face")
+            only_holes = original_face_no_holes
+
+            # any holes in the original face should remain unfilled after the offset
+            if not brep().booleanOperation(new_face, only_holes, adsk.fusion.BooleanTypes.DifferenceBooleanType):
+                raise ValueError("Couldn't combine the offset parts of the face with the original face")
+        else:
+            original_face_outer_wires, _ = brep().createWireFromCurves(
+                [edge.geometry for edge in _get_outer_loop(face.brep).edges])
+            original_face_outer = brep().createFaceFromPlanarWires([original_face_outer_wires])
+
+            original_hole_wires, _ = brep().createWireFromCurves(
+                [edge.geometry for edge in loop.edges])
+            original_hole = brep().createFaceFromPlanarWires([original_hole_wires])
+
+            offset_operation_area = original_face_outer
+            # The only areas that the offset operation can change are the original hole, or any of the rest of the
+            # non-hole area of the face
+            if not brep().booleanOperation(offset_operation_area, original_hole, adsk.fusion.BooleanTypes.UnionBooleanType):
+                raise ValueError("Couldn't combine the offset parts of the face with the original face")
+            if not brep().booleanOperation(new_face, offset_operation_area, adsk.fusion.BooleanTypes.IntersectionBooleanType):
+                raise ValueError("Couldn't combine the offset parts of the face with the original face")
+
+        if not brep().booleanOperation(intersection_body, original_face_body, adsk.fusion.BooleanTypes.IntersectionBooleanType):
+            raise ValueError("Couldn't combine the offset parts of the face with the original face")
+
+        if not brep().booleanOperation(new_face, original_face_body, adsk.fusion.BooleanTypes.UnionBooleanType):
+            raise ValueError("Couldn't combine the offset parts of the face with the original face")
+
+        if not brep().booleanOperation(new_face, intersection_body, adsk.fusion.BooleanTypes.DifferenceBooleanType):
+            raise ValueError("Couldn't combine the offset parts of the face with the original face")
+
+        temp_occurrence.deleteMe()
+
+        self._body = new_face
+        self._add_children([face.component])
+        self._plane = face.brep.geometry
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._body,
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._body = self._body
+        copy._plane = self._plane
+
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        return self._plane
 
 
 class SplitFace(ComponentWithChildren):
