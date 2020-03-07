@@ -35,6 +35,13 @@ _face_selector_types = Onion[_singular_face_selector_types, Iterable[
         Onion[_singular_face_selector_types, Iterable[
             Onion[_singular_face_selector_types, Iterable['_face_selector_types']]]]]]]]
 
+# recursive type hints don't actually work yet, so let's expand the recursion a few levels and call it good
+_singular_edge_selector_types = Onion['Component', 'Body', 'Face', 'Edge']
+_edge_selector_types = Onion[_singular_edge_selector_types, Iterable[
+    Onion[_singular_edge_selector_types, Iterable[
+        Onion[_singular_edge_selector_types, Iterable[
+            Onion[_singular_edge_selector_types, Iterable['_edge_selector_types']]]]]]]]
+
 _singular_entity_types = Onion['Component', 'Body', 'Face', 'Point']
 _entity_types = Onion[_singular_entity_types, Iterable[
     Onion[_singular_entity_types, Iterable[
@@ -194,6 +201,25 @@ def _flatten_face_selectors(selector: _face_selector_types) -> Iterable[BRepFace
     return selector.brep,
 
 
+def _flatten_edge_selectors(selector: _edge_selector_types) -> Iterable[Onion[BRepFace, BRepEdge]]:
+    if isinstance(selector, Iterable):
+        selectors = []
+        for sub_selector in selector:
+            for selector in _flatten_edge_selectors(sub_selector):
+                if selector not in selectors:
+                    selectors.append(selector)
+        return selectors
+    if isinstance(selector, Component):
+        return _flatten_edge_selectors(selector.bodies)
+    if isinstance(selector, Body):
+        return selector.brep.faces
+    if isinstance(selector, Face) or isinstance(selector, Edge):
+        return selector.brep,
+    if isinstance(selector, BRepFace) or isinstance(selector, BRepEdge):
+        return selector,
+    raise ValueError("Invalid selector type: %s" % type(selector))
+
+
 def _union_entities(entity: _entity_types, result_body: BRepBody = None, vector: Vector3D=None) -> BRepBody:
     if isinstance(entity, Iterable):
         for sub_entity in entity:
@@ -324,6 +350,41 @@ def _find_coincident_faces_on_body(body: BRepBody, selectors: Iterable[BRepFace]
                     coincident_faces.append(body_face)
                     break
     return coincident_faces
+
+
+def _check_edge_coincidence(entity1, entity2):
+    entity1_copy = brep().copy(entity1)
+    entity2_copy = brep().copy(entity2)
+    brep().booleanOperation(entity1_copy, entity2_copy, adsk.fusion.BooleanTypes.IntersectionBooleanType)
+    return entity1_copy.edges.count > 0
+
+
+def _find_coincident_edges_on_body(
+        body: BRepBody, selectors: Iterable[Onion[BRepFace, BRepEdge]]) -> Iterable[BRepEdge]:
+    coincident_edges = []
+    candidate_selectors = []
+    for selector in selectors:
+        selector_bounding_box = selector.boundingBox
+        expanded_bounding_box = adsk.core.BoundingBox3D.create(
+            adsk.core.Point3D.create(
+                selector_bounding_box.minPoint.x - app().pointTolerance,
+                selector_bounding_box.minPoint.y - app().pointTolerance,
+                selector_bounding_box.minPoint.z - app().pointTolerance),
+            adsk.core.Point3D.create(
+                selector_bounding_box.maxPoint.x + app().pointTolerance,
+                selector_bounding_box.maxPoint.y + app().pointTolerance,
+                selector_bounding_box.maxPoint.z + app().pointTolerance),
+        )
+        if body.boundingBox.intersects(expanded_bounding_box):
+            candidate_selectors.append((selector, expanded_bounding_box))
+
+    for body_edge in body.edges:
+        for selector, expanded_bounding_box in candidate_selectors:
+            if body_edge.boundingBox.intersects(expanded_bounding_box):
+                if _check_edge_coincidence(body_edge, selector):
+                    coincident_edges.append(body_edge)
+                    break
+    return coincident_edges
 
 
 def _point_3d(point: Onion[Point2D, Point3D, Tuple[float, float], Tuple[float, float, float], 'Point']):
@@ -893,6 +954,7 @@ class Component(BoundedEntity, ABC):
         self._cached_world_transform = None
         self._cached_inverse_transform = None
         self._named_points = {}
+        self._named_edges = {}
         self._named_faces = {}
 
     def _calculate_bounding_box(self) -> BoundingBox3D:
@@ -919,6 +981,7 @@ class Component(BoundedEntity, ABC):
         copy._cached_world_transform = None
         copy._cached_inverse_transform = None
         copy._named_points = dict(self._named_points)
+        copy._named_edges = dict(self._named_edges)
         copy._named_faces = dict(self._named_faces)
         copy.name = self.name
         self._copy_to(copy, copy_children)
@@ -1399,6 +1462,61 @@ class Component(BoundedEntity, ABC):
 
     def all_face_names(self) -> Sequence[str]:
         return list(self._named_faces.keys())
+
+    def _find_edge_index(self, edge: Edge) -> Tuple[int, int]:
+        edge_index = _edge_index(edge)
+        body_index = _body_index(edge.body, self.bodies)
+        if body_index is None:
+            raise ValueError("Could not find edge in component")
+        return body_index, edge_index
+
+    def add_named_edges(self, name: str, *edges: Edge):
+        """Associates a name with the specified Edges in this Component.
+
+        The Edges can later be looked up by name using `named_edges(name)`
+
+        Args:
+            name: The name to associate with the given Edges.
+            *edges: The edges to associate a name with. These must be Edges within this Component.
+        """
+        edge_index_list = self._named_edges.get(name) or []
+        for edge in edges:
+            edge_index_list.append(self._find_edge_index(edge))
+        self._named_edges[name] = edge_index_list
+
+    def named_edges(self, name) -> Optional[Sequence[Edge]]:
+        """Gets all edges with the specified name in this Component.
+
+        Args:
+            name: The name of the edge
+
+        Returns: A Sequence of Edges, or None if no Edges with the given name were found.
+        """
+        edge_index_list = self._named_edges.get(name)
+        if edge_index_list is None:
+            return None
+        result = []
+        for edge_index in edge_index_list:
+            result.append(self.bodies[edge_index[0]].edges[edge_index[1]])
+        return result
+
+    def find_edges(self, selector: _edge_selector_types) -> Sequence[Edge]:
+        """Finds any edges that is coincident with any face or edge in the given entities.
+
+        This finds any edge in this Component that is coincident with any of the given selectors
+
+        Args:
+            selector: The entities used to find any coincident edges of in this Component
+
+        Returns: A Sequence of the Edges that are coincident with one of the selector's Faces or Edges, or an empty
+            Sequence if there are no such edges.
+        """
+        selectors = _flatten_edge_selectors(selector)
+        result = []
+        for body in self.bodies:
+            for edge in _find_coincident_edges_on_body(body.brep, selectors):
+                result.append(Edge(edge, body))
+        return result
 
     def shared_edges(self, face_selector1: _face_selector_types,
                      face_selector2: _face_selector_types) -> Sequence[Edge]:

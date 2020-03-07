@@ -162,6 +162,18 @@ def close_document(name):
             return
 
 
+def unordered_compare(list1, list2):
+    list1_copy = list1.copy()
+
+    for item in list2:
+        if item in list1_copy:
+            list1_copy.remove(item)
+        else:
+            return False
+    if len(list1_copy) != 0:
+        return False
+
+
 def load_tests(loader, standard_tests, pattern):
     test_cases = unittest.TestSuite()
 
