@@ -83,6 +83,26 @@ class FaceTest(test_utils.FscadTestCase):
         self.assertEqual(len(faces), 1)
         self.assertTrue(isinstance(faces[0].brep.geometry, adsk.core.Sphere))
 
+    def test_face_with_multiple_coincident_faces(self):
+        box = Box(1, 1, 1)
+        selector = Box(1, 1, 1)
+        selector_cut = Box(.25, .25, 1)
+        selector_cut.place(
+            ~selector_cut == ~selector,
+            -selector_cut == -selector,
+            -selector_cut == -selector)
+
+        selector = Difference(selector, selector_cut)
+
+        selector.place(
+            ~selector == ~box,
+            -selector == +box,
+            -selector == -box)
+
+        faces = box.find_faces(selector)
+        self.assertEqual(len(faces), 1)
+        self.assertEqual(faces[0].brep, box.back.brep)
+
     def test_connected_faces(self):
         box = Box(1, 1, 1)
 

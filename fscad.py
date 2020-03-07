@@ -221,7 +221,7 @@ def _union_entities(entity: _entity_types, result_body: BRepBody = None, vector:
             return result_body
 
 
-def _check_intersection(entity1, entity2):
+def _check_face_intersection(entity1, entity2):
     entity1_copy = brep().copy(entity1)
     entity2_copy = brep().copy(entity2)
     brep().booleanOperation(entity1_copy, entity2_copy, adsk.fusion.BooleanTypes.IntersectionBooleanType)
@@ -292,32 +292,37 @@ def _check_face_coincidence(face1, face2):
     if face1.geometry.surfaceType == adsk.core.SurfaceTypes.PlaneSurfaceType:
         if not face1.geometry.isCoPlanarTo(face2.geometry):
             return False
-        return _check_intersection(face1, face2)
+        return _check_face_intersection(face1, face2)
     else:
         if not _check_face_geometry(face1, face2):
             return False
-        return _check_intersection(face1, face2)
+        return _check_face_intersection(face1, face2)
 
 
-def _find_coincident_faces_on_body(body: BRepBody, faces: Iterable[BRepFace]) -> Iterable[BRepFace]:
+def _find_coincident_faces_on_body(body: BRepBody, selectors: Iterable[BRepFace]) -> Iterable[BRepFace]:
     coincident_faces = []
-    for face in faces:
-        face_bounding_box = face.boundingBox
+    candidate_selectors = []
+    for selector in selectors:
+        selector_bounding_box = selector.boundingBox
         expanded_bounding_box = adsk.core.BoundingBox3D.create(
             adsk.core.Point3D.create(
-                face_bounding_box.minPoint.x - app().pointTolerance,
-                face_bounding_box.minPoint.y - app().pointTolerance,
-                face_bounding_box.minPoint.z - app().pointTolerance),
+                selector_bounding_box.minPoint.x - app().pointTolerance,
+                selector_bounding_box.minPoint.y - app().pointTolerance,
+                selector_bounding_box.minPoint.z - app().pointTolerance),
             adsk.core.Point3D.create(
-                face_bounding_box.maxPoint.x + app().pointTolerance,
-                face_bounding_box.maxPoint.y + app().pointTolerance,
-                face_bounding_box.maxPoint.z + app().pointTolerance),
+                selector_bounding_box.maxPoint.x + app().pointTolerance,
+                selector_bounding_box.maxPoint.y + app().pointTolerance,
+                selector_bounding_box.maxPoint.z + app().pointTolerance),
         )
         if body.boundingBox.intersects(expanded_bounding_box):
-            for body_face in body.faces:
-                if body_face.boundingBox.intersects(expanded_bounding_box):
-                    if _check_face_coincidence(face, body_face):
-                        coincident_faces.append(body_face)
+            candidate_selectors.append((selector, expanded_bounding_box))
+
+    for body_face in body.faces:
+        for selector, expanded_bounding_box in candidate_selectors:
+            if body_face.boundingBox.intersects(expanded_bounding_box):
+                if _check_face_coincidence(selector, body_face):
+                    coincident_faces.append(body_face)
+                    break
     return coincident_faces
 
 
@@ -2727,7 +2732,7 @@ class SplitFace(ComponentWithChildren):
         for face in result_faces:
             for splitting_entity in splitting_entities:
                 if isinstance(splitting_entity, BRepBody):
-                    if _check_intersection(face, splitting_entity):
+                    if _check_face_intersection(face, splitting_entity):
                         body_index = temp_occurrence_bodies.index(face.body)
                         self._split_face_indices.append((body_index, _face_index(face)))
                 else:
