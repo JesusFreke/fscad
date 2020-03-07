@@ -33,6 +33,25 @@ class AlignTest(test_utils.FscadTestCase):
         box1.create_occurrence(True)
         box2.create_occurrence(True)
 
+    def test_align_to_multiple_bodies(self):
+        box1 = Box(1, 1, 1, "box1")
+        box2 = Box(1, 1, 1, "box2")
+        box3 = Box(1, 1, 1, "box3")
+
+        box2.place(
+            (+box2 == -box1) - 1,
+            ~box2 == ~box1,
+            ~box2 == ~box1)
+
+        box3.place((-box3 == +box1) + 1)
+
+        assembly = Group([box1, box2])
+
+        box3.align_to(assembly, Vector3D.create(-1, 0, 0))
+
+        assembly.create_occurrence(True)
+        box3.create_occurrence(True)
+
     def test_rotated_box_align(self):
         box1 = Box(1, 1, 1, "box1")
         box2 = Box(1, 1, 1, "box2")
@@ -109,6 +128,6 @@ def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(
         sys.modules[__name__]
-        #, pattern="bounding_boxes_intersect_but_geometry_doesnt"
+        #, pattern="align_to_multiple_bodies"
         )
     unittest.TextTestRunner(failfast=True).run(test_suite)

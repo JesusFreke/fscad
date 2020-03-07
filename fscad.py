@@ -220,7 +220,7 @@ def _flatten_edge_selectors(selector: _edge_selector_types) -> Iterable[Onion[BR
     raise ValueError("Invalid selector type: %s" % type(selector))
 
 
-def _union_entities(entity: _entity_types, result_body: BRepBody = None, vector: Vector3D=None) -> BRepBody:
+def _union_entities(entity: _entity_types, result_body: BRepBody = None, vector: Vector3D = None) -> BRepBody:
     if isinstance(entity, Iterable):
         for sub_entity in entity:
             result_body = _union_entities(sub_entity, result_body)
@@ -230,7 +230,7 @@ def _union_entities(entity: _entity_types, result_body: BRepBody = None, vector:
             if result_body is None:
                 result_body = brep().copy(body.brep)
             else:
-                brep().booleanOperation(result_body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+                brep().booleanOperation(result_body, body.brep, adsk.fusion.BooleanTypes.UnionBooleanType)
         return result_body
     if isinstance(entity, BRepEntity):
         if result_body is None:
