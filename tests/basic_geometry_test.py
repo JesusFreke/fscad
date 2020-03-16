@@ -246,8 +246,32 @@ class BasicGeometryTest(test_utils.FscadTestCase):
     def test_regular_polygon_inner_odd(self):
         RegularPolygon(7, 1, False).create_occurrence(True)
 
+    def test_torus(self):
+        torus = Torus(10, 1)
+
+        self.assertEqual(torus.size().asArray(), (22, 22, 2))
+
+        torus.create_occurrence(True)
+
+    def test_torus_no_center(self):
+        torus = Torus(2, 2)
+
+        self.assertEqual(torus.size().asArray(), (8, 8, 4))
+
+        torus.create_occurrence(True)
+
+    def test_torus_self_intersecting(self):
+        torus = Torus(2, 3)
+
+        self.assertEqual(torus.size().asArray(), (10, 10, 6))
+
+        torus.create_occurrence(True)
+
+
 from test_utils import load_tests
 def run(context):
     import sys
-    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],
+                                                                #pattern="torus_self_intersecting"
+                                                                )
     unittest.TextTestRunner(failfast=True).run(test_suite)

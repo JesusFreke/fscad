@@ -1899,6 +1899,24 @@ class Sphere(Shape):
         return self.bodies[0].faces[0]
 
 
+class Torus(Shape):
+    """Defines a torus.
+
+    Args:
+        major_radius: The major radius of the torus
+        minor_radius: The minor radius of the torus
+        name: The name of the component
+    """
+    def __init__(self, major_radius: float, minor_radius: float, name: str = None):
+        super().__init__(brep().createTorus(self._origin, Vector3D.create(0, 0, 1), major_radius, minor_radius),
+                         name=name)
+
+    @property
+    def surface(self) -> Face:
+        """Returns: the Face representing the surface of the torus."""
+        return self.bodies[0].faces[0]
+
+
 class Rect(PlanarShape):
     """Defines a 2D rectangle.
 
