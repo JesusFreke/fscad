@@ -825,6 +825,12 @@ class Face(BRepEntity):
         """Returns: All Edges that make up the outer boundary of this Face, or an empty Sequence if there are none."""
         return [Edge(edge, self._body) for edge in _get_outer_loop(self.brep).edges]
 
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        """Returns: The plane that this Face lies in, or None if this is not a planar component."""
+        if isinstance(self.brep.geometry, adsk.core.Plane):
+            return self.brep.geometry
+        return None
+
 
 class Edge(BRepEntity):
     """Represents a single Edge.
@@ -2467,6 +2473,108 @@ class Loft(ComponentWithChildren):
             if i != self._bottom_index and i != self._top_index:
                 side_faces.append(self.bodies[0].faces[i])
         return side_faces
+
+
+class Revolve(ComponentWithChildren):
+    """Revolves face about an axis.
+
+    Args:
+        entity: The object to revolve. This can be a Face, an iterable of Faces, or a planar Component.
+        axis: The axis to rotate around
+        angle: The angle to revolve, in degrees. If not provided, a full 360 is used.
+        name: The name of the component
+    """
+    _bodies = ...  # type: Sequence[BRepBody]
+
+    def __init__(self, entity: Onion[Component, Face, Iterable[Face]], axis: Onion[adsk.core.Line3D, Edge],
+                 angle: float = 360.0, name: str = None):
+        super().__init__(name)
+
+        if isinstance(entity, Component):
+            component = entity
+            if component.get_plane() is None:
+                raise ValueError("Can't revolve non-planar geometry with Revolve.")
+            faces = []
+            for body in component.bodies:
+                faces.extend(body.brep.faces)
+        elif isinstance(entity, Face):
+            component = entity.component
+            if entity.get_plane() is None:
+                raise ValueError("Can't revolve non-planar geometry with Revolve.")
+            faces = [entity.brep]
+        elif isinstance(entity, Iterable):
+            component = None
+            faces = []
+            plane: adsk.core.Plane = None
+            for face in entity:
+                if component is None:
+                    component = face.component
+                elif face.component != component:
+                    raise ValueError("All faces must be from the same component")
+
+                if face.get_plane() is None:
+                    raise ValueError("Can't revolve non-planar geometry with Revolve.")
+                if plane is None:
+                    plane = face.get_plane()
+                elif not plane.isCoPlanarTo(face.get_plane()):
+                    raise ValueError("All faces to revolve must be coplanar.")
+                faces.append(face)
+        else:
+            raise ValueError("Unsupported object type for revolve: %s" % entity.__class__.__name__)
+
+        input_bodies = []
+        for face in faces:
+            if face.body not in input_bodies:
+                input_bodies.append(face.body)
+        temp_occurrence = _create_component(root(), *input_bodies, name="temp")
+
+        axis_line = None
+        if isinstance(axis, Edge):
+            if not isinstance(axis.brep.geometry, adsk.core.Line3D):
+                raise ValueError("Only linear edges may be used as an axis.")
+            axis_line = axis.brep.geometry
+        elif isinstance(axis, adsk.core.Line3D):
+            axis_line = axis
+        else:
+            raise ValueError("Unsupported axis type for revolve: %s" % axis.__class__.__name__)
+
+        axis_input = temp_occurrence.component.constructionAxes.createInput()
+        axis_input.setByLine(
+            adsk.core.InfiniteLine3D.create(axis_line.endPoint, axis_line.startPoint.vectorTo(axis_line.endPoint)))
+        axis_value = temp_occurrence.component.constructionAxes.add(axis_input)
+
+        temp_bodies = list(temp_occurrence.bRepBodies)
+
+        temp_faces = []
+        for face in faces:
+            body_index = input_bodies.index(face.body)
+            temp_body = temp_bodies[body_index]
+            temp_faces.append(_map_face(face, temp_body))
+
+        revolve_input = temp_occurrence.component.features.revolveFeatures.createInput(
+            _collection_of(temp_faces),
+            axis_value,
+            adsk.fusion.FeatureOperations.JoinFeatureOperation)
+        revolve_input.setAngleExtent(False, ValueInput.createByReal(math.radians(angle)))
+        temp_occurrence.component.features.revolveFeatures.add(revolve_input)
+
+        feature = temp_occurrence.component.features.revolveFeatures[-1]
+
+        bodies = []
+        for body in feature.bodies:
+            bodies.append(brep().copy(body))
+        self._bodies = bodies
+
+        self._add_children((component,))
+
+        temp_occurrence.deleteMe()
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._bodies
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._bodies = list(self._bodies)
 
 
 class ExtrudeBase(ComponentWithChildren):
