@@ -3405,9 +3405,18 @@ class Chamfer(ComponentWithChildren):
             chamfer_input.setToEqualDistance(
                 ValueInput.createByReal(distance))
 
-        occurrence.component.features.chamferFeatures.add(chamfer_input)
+        feature = occurrence.component.features.chamferFeatures.add(chamfer_input)
+
+        feature_bodies = list(feature.bodies)
 
         self._bodies = [brep().copy(body) for body in occurrence.bRepBodies]
+
+        self._chamfered_face_indices = []
+        for face in feature.faces:
+            body_index = feature_bodies.index(face.body)
+            self._chamfered_face_indices.append((body_index, _face_index(face)))
+
+        self._cached_chamfered_faces = None
 
         occurrence.deleteMe()
 
@@ -3418,7 +3427,22 @@ class Chamfer(ComponentWithChildren):
 
     def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
         copy._bodies = list(self._bodies)
+        copy._chamfered_face_indices = list(self._chamfered_face_indices)
+        self._cached_chamfered_faces = None
         super()._copy_to(copy, copy_children)
+
+    def _get_faces(self, indices) -> Sequence[Face]:
+        result = []
+        for body_index, face_index in indices:
+            result.append(self.bodies[body_index].faces[face_index])
+        return result
+
+    @property
+    def chamfered_faces(self) -> Sequence[Face]:
+        """The new chamfered faces that were created."""
+        if not self._cached_chamfered_faces:
+            self._cached_chamfered_faces = self._get_faces(self._chamfered_face_indices)
+        return list(self._cached_chamfered_faces)
 
 
 class Scale(ComponentWithChildren):

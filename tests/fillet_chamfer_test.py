@@ -18,6 +18,7 @@ import adsk.fusion
 import unittest
 import test_utils
 import importlib
+import math
 importlib.reload(test_utils)
 import test_utils
 
@@ -68,6 +69,17 @@ class FilletChamferTest(test_utils.FscadTestCase):
         box = Box(1, 1, 1)
         chamfer = Chamfer(box.shared_edges(box.front, box.left), .25, .5)
         chamfer.create_occurrence(True)
+
+    def test_chamfered_faces(self):
+        box = Box(1, 1, 1)
+        chamfer = Chamfer(box.shared_edges(box.top, [box.left, box.right, box.front, box.back]), .25)
+        chamfer.create_occurrence(True)
+
+        self.assertEqual(len(chamfer.chamfered_faces), 4)
+        for face in chamfer.chamfered_faces:
+            self.assertEqual(
+                math.degrees(face.get_plane().normal.angleTo(Vector3D.create(0, 0, 1))),
+                45)
 
 from test_utils import load_tests
 def run(context):
