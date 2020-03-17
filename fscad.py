@@ -22,7 +22,10 @@ from typing import Union as Onion  # Haha, why not? Prevents a conflict with our
 
 import adsk.core
 import adsk.fusion
+import importlib
+import inspect
 import math
+import os
 import random
 import sys
 import time
@@ -3602,6 +3605,40 @@ def run(_):
         if key == "run" or key == "stop":
             continue
         fscad.__setattr__(key, value)
+
+
+def relative_import(path):
+    """Import a module given a path relative to the calling module.
+
+    This is useful for Fusion 360 scripts, in cases where you need to import a module that's not directly below
+    the directory containing the script. The module will be imported as a top level module with a name based on the
+    given filename.
+
+    The typical use of this is something like:
+
+        utils = relative_import("../utils.py")
+
+    or
+
+        relative_import("../utils.py")
+        from utils import some_utility
+
+    :param path: A relative path to the module to import. e.g. "../utils.py". The path should be relative to the path
+        containing the script that is calling the relative_import function.
+    :return: The module that was imported.
+    """
+    caller_path = os.path.abspath(inspect.getfile(inspect.currentframe().f_back))
+
+    script_path = os.path.abspath(os.path.join(os.path.dirname(caller_path), path))
+    script_name = os.path.splitext(os.path.basename(script_path))[0]
+
+    sys.path.append(os.path.dirname(script_path))
+    try:
+        module = importlib.import_module(script_name)
+        importlib.reload(module)
+        return module
+    finally:
+        del sys.path[-1]
 
 
 def stop(_):
