@@ -42,7 +42,7 @@ _edge_selector_types = Onion[_singular_edge_selector_types, Iterable[
         Onion[_singular_edge_selector_types, Iterable[
             Onion[_singular_edge_selector_types, Iterable['_edge_selector_types']]]]]]]]
 
-_singular_entity_types = Onion['Component', 'Body', 'Face', 'Point']
+_singular_entity_types = Onion['Component', 'Body', 'Face', 'Edge', 'Point']
 _entity_types = Onion[_singular_entity_types, Iterable[
     Onion[_singular_entity_types, Iterable[
         Onion[_singular_entity_types, Iterable[
