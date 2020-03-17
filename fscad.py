@@ -798,7 +798,7 @@ class Face(BRepEntity):
 
     @property
     def body(self) -> Body:
-        """Returns: The Body object that this edge is a part of."""
+        """Returns: The Body object that this face is a part of."""
         return self._body
 
     @property
