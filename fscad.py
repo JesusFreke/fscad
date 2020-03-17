@@ -2374,7 +2374,8 @@ class Group(Combination):
 
         bodies = []
         for child in self._visible_children:
-            bodies.extend(child.bodies)
+            for body in child.bodies:
+                bodies.append(Body(body.brep, self))
         self._cached_bodies = bodies
 
         return bodies

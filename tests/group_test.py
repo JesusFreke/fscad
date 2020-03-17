@@ -23,6 +23,10 @@ import test_utils
 
 
 class GroupTest(test_utils.FscadTestCase):
+    def validate_test(self):
+        if self._test_name == "components":
+            return
+
     def test_group(self):
         box1 = Box(1, 1, 1, "box1")
         box2 = Box(1, 1, 1, "box2")
@@ -94,6 +98,21 @@ class GroupTest(test_utils.FscadTestCase):
         group.create_occurrence(True)
 
         self.assertIsNone(group.get_plane())
+
+    def test_components(self):
+        rect1 = Rect(1, 1)
+        rect2 = Rect(1, 1)
+        rect2.tx(2)
+        group = Group([rect1, rect2])
+
+        for body in group.bodies:
+            self.assertEqual(body.component, group)
+
+        for face in group.faces:
+            self.assertEqual(face.component, group)
+
+        for edge in group.edges:
+            self.assertEqual(edge.component, group)
 
 
 from test_utils import load_tests
