@@ -25,6 +25,7 @@ import adsk.fusion
 import math
 import random
 import sys
+import time
 import traceback
 import types
 
@@ -3555,7 +3556,7 @@ def setup_document(document_name="fSCAD-Preview"):
     design().designType = adsk.fusion.DesignTypes.DirectDesignType
 
 
-def run_design(design_func, message_box_on_error=True, document_name="fSCAD-Preview"):
+def run_design(design_func, message_box_on_error=True, print_runtime=True, document_name="fSCAD-Preview"):
     """Utility method to handle the common setup tasks for a script
 
     This can be used in a script like this::
@@ -3572,8 +3573,12 @@ def run_design(design_func, message_box_on_error=True, document_name="fSCAD-Prev
     """
     # noinspection PyBroadException
     try:
+        start = time.time()
         setup_document(document_name)
         design_func()
+        end = time.time()
+        if print_runtime:
+            print("Run time: %f" % (end-start))
     except Exception:
         print(traceback.format_exc())
         if message_box_on_error:
