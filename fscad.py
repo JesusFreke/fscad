@@ -67,8 +67,17 @@ def ui():
     return app().userInterface
 
 
+_brep = None
+
+
 def brep():
-    return adsk.fusion.TemporaryBRepManager.get()
+    # caching the brep is a workaround for a weird bug where an exception from calling a TemporaryBRepManager method
+    # and then catching the exception causes TemporaryBRepManager.get() to then throw the same error that was previously
+    # thrown and caught. Probably some weird SWIG bug or something.
+    global _brep
+    if not _brep:
+        _brep = adsk.fusion.TemporaryBRepManager.get()
+    return _brep
 
 
 def design():
@@ -419,26 +428,11 @@ def _project_point_to_line(point: Point3D, line: adsk.core.InfiniteLine3D):
     return projected_point
 
 
-def _create_silhouette(body: BRepBody, oriented_bounding_box: OrientedBoundingBox3D) -> BRepBody:
-    temp_occurrence = _create_component(root(), body, name="temp")
-
-    sketch = temp_occurrence.component.sketches.add(
-        adsk.core.Plane.create(
-            oriented_bounding_box.centerPoint,
-            oriented_bounding_box.lengthDirection),
-        temp_occurrence)
-
-    silhouette = None
-    for body in temp_occurrence.bRepBodies:
-        for face in body:
-            projections = sketch.project(face)
-            wire_body, _ = brep().createWireFromCurves(list(projections), False)
-            face_silhouette = brep().createFaceFromPlanarWires([wire_body])
-            if silhouette is None:
-                silhouette = face_silhouette
-            else:
-                brep().booleanOperation(silhouette, face_silhouette, adsk.fusion.BooleanTypes.UnionBooleanType)
-    return silhouette
+def _create_empty_body() -> BRepBody:
+    body1 = brep().createSphere(Point3D.create(0, 0, 0), 1.0)
+    body2 = brep().createSphere(Point3D.create(10, 0, 0), 1.0)
+    brep().booleanOperation(body1, body2, adsk.fusion.BooleanTypes.IntersectionBooleanType)
+    return body1
 
 
 def _create_point_body(point: Point3D, vector: Vector3D = None):
@@ -3016,6 +3010,97 @@ class SplitFace(ComponentWithChildren):
         if not self._cached_split_faces:
             self._cached_split_faces = self._get_faces(self._split_face_indices)
         return list(self._cached_split_faces)
+
+
+class Silhouette(ComponentWithChildren):
+    """Projects the given faces onto a plane.
+
+    Args:
+        entity: The faces to revolve. This can be a Face, a Body, a Component, or an iterable of Faces.
+        plane: The plane to project onto.
+        name: The name of the component
+    """
+    def __init__(self, entity: Onion[Component, Body, Face, Iterable[Face]], plane: adsk.core.Plane, name: str = None):
+        super().__init__(name)
+
+        temp_occurrence = _create_component(root(), name="temp")
+        entities_to_project = []
+        input_component = None
+
+        if isinstance(entity, Component):
+            input_component = entity
+            for body in entity.bodies:
+                entities_to_project.append(temp_occurrence.component.bRepBodies.add(body.brep))
+        elif isinstance(entity, Body):
+            input_component = entity.component
+            entities_to_project.append(temp_occurrence.component.bRepBodies.add(entity.brep))
+        elif isinstance(entity, Face):
+            input_component = entity.component
+            new_body = temp_occurrence.component.bRepBodies.add(brep().copy(entity.brep))
+            entities_to_project.extend(new_body.faces)
+        elif isinstance(entity, Iterable):
+            if not entity:
+                raise ValueError("No entities were provided")
+            for face in entity:
+                if not isinstance(face, Face):
+                    raise ValueError(
+                        "Iterable contains invalid entity type: %s. Expecting Face." % entity.__class__.__name__)
+                if input_component is None:
+                    input_component = face.component
+                elif face.component != input_component:
+                    raise ValueError("All faces must be from the same component")
+                entities_to_project.append(temp_occurrence.component.bRepBodies.add(brep().copy(face.brep)))
+        else:
+            raise ValueError("Invalid entity type: %s" % entity.__class__.__name__)
+
+        construction_plane_input = temp_occurrence.component.constructionPlanes.createInput(temp_occurrence)
+        construction_plane_input.setByPlane(plane)
+        construction_plane = temp_occurrence.component.constructionPlanes.add(construction_plane_input)
+        sketch = temp_occurrence.component.sketches.add(construction_plane, temp_occurrence)
+
+        silhouette = None
+        for entity in entities_to_project:
+            projections = sketch.project(entity)
+
+            wires_body = None
+            for projection in projections:
+                if isinstance(projection.worldGeometry, Point3D):
+                    continue
+                wire_body, _ = brep().createWireFromCurves((projection.worldGeometry,), False)
+                if wires_body is None:
+                    wires_body = wire_body
+                else:
+                    brep().booleanOperation(wires_body, wire_body, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+            try:
+                face_silhouette = brep().createFaceFromPlanarWires([wires_body])
+            except:
+                continue
+            if silhouette is None:
+                silhouette = face_silhouette
+            else:
+                brep().booleanOperation(silhouette, face_silhouette, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+        if silhouette is None or silhouette.area == 0:
+            silhouette = _create_empty_body()
+
+        temp_occurrence.deleteMe()
+
+        self._add_children((input_component,))
+
+        self._body = silhouette
+        self._plane = plane
+
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        return self._plane
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._body,
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._body = self._body
+        copy._plane = self._plane
 
 
 class Threads(ComponentWithChildren):

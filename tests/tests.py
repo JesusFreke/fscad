@@ -33,6 +33,7 @@ test_modules = [
     "place_test",
     "revolve_test",
     "scale_test",
+    "silhouette_test",
     "split_face_test",
     "thread_test",
     "transform_test",
