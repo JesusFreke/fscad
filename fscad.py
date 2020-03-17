@@ -909,6 +909,9 @@ class BoundingBox(BoundedEntity):
                   ~box == ~self)
         return box
 
+    def __str__(self) -> str:
+        return "(%s, %s)" % (self._bounding_box.minPoint.asArray(), self._bounding_box.maxPoint.asArray())
+
 
 class Component(BoundedEntity, ABC):
     """The top level Object of an fscad design.
