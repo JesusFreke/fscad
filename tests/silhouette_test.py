@@ -117,6 +117,40 @@ class SilhouetteTest(test_utils.FscadTestCase):
 
         self.assertEquals(silhouette.size().asArray(), (cyl.size().x, cyl.size().y, 0))
 
+    def test_single_edge(self):
+        circle = Circle(1)
+
+        silhouette = Silhouette(circle.edges[0], adsk.core.Plane.create(
+            Point3D.create(0, 0, -1),
+            Vector3D.create(0, 0, 1)))
+        silhouette.create_occurrence(True)
+
+        self.assertEquals(silhouette.size().asArray(), circle.size().asArray())
+
+    def test_multiple_edges(self):
+        rect = Rect(1, 1)
+
+        hole1 = Circle(.1)
+        hole2 = Circle(.2)
+
+        hole1.place(
+            (-hole1 == -rect) + .1,
+            (-hole1 == -rect) + .1,
+            ~hole1 == ~rect)
+
+        hole2.place(
+            (+hole2 == +rect) - .1,
+            (+hole2 == +rect) - .1,
+            ~hole2 == ~rect)
+
+        assembly = Difference(rect, hole1, hole2)
+
+        silhouette = Silhouette(assembly.faces[0].outer_edges(), assembly.get_plane())
+
+        silhouette.create_occurrence(True)
+
+        self.assertEquals(silhouette.size().asArray(), rect.size().asArray())
+        self.assertEquals(len(silhouette.edges), 4)
 
 
 from test_utils import load_tests

@@ -3023,11 +3023,12 @@ class Silhouette(ComponentWithChildren):
     """Projects the given faces onto a plane.
 
     Args:
-        entity: The faces to revolve. This can be a Face, a Body, a Component, or an iterable of Faces.
+        entity: The faces to revolve. This can be a Face, a Body, a Component, an Edge, or an iterable of Faces or
+            Edges.
         plane: The plane to project onto.
         name: The name of the component
     """
-    def __init__(self, entity: Onion[Component, Body, Face, Iterable[Face]], plane: adsk.core.Plane, name: str = None):
+    def __init__(self, entity: Onion[Component, Body, Edge, Face, Iterable[Face], Iterable[Edge]], plane: adsk.core.Plane, name: str = None):
         super().__init__(name)
 
         temp_occurrence = _create_component(root(), name="temp")
@@ -3044,19 +3045,34 @@ class Silhouette(ComponentWithChildren):
         elif isinstance(entity, Face):
             input_component = entity.component
             new_body = temp_occurrence.component.bRepBodies.add(brep().copy(entity.brep))
-            entities_to_project.extend(new_body.faces)
+            entities_to_project.append(new_body)
+        elif isinstance(entity, Edge):
+            input_component = entity.component
+            new_body = temp_occurrence.component.bRepBodies.add(brep().copy(entity.brep))
+            entities_to_project.append(new_body)
         elif isinstance(entity, Iterable):
             if not entity:
                 raise ValueError("No entities were provided")
-            for face in entity:
-                if not isinstance(face, Face):
+            all_edges = None
+            for subentity in entity:
+                if isinstance(subentity, Face):
+                    entities_to_project.append(temp_occurrence.component.bRepBodies.add(brep().copy(subentity.brep)))
+                elif isinstance(subentity, Edge):
+                    if all_edges is None:
+                        all_edges = brep().copy(subentity.brep)
+                    else:
+                        brep().booleanOperation(all_edges,
+                                                brep().copy(subentity.brep), adsk.fusion.BooleanTypes.UnionBooleanType)
+                else:
                     raise ValueError(
                         "Iterable contains invalid entity type: %s. Expecting Face." % entity.__class__.__name__)
                 if input_component is None:
-                    input_component = face.component
-                elif face.component != input_component:
-                    raise ValueError("All faces must be from the same component")
-                entities_to_project.append(temp_occurrence.component.bRepBodies.add(brep().copy(face.brep)))
+                    input_component = subentity.component
+                elif subentity.component != input_component:
+                    raise ValueError("All faces and edges must be from the same component")
+            if all_edges:
+                entities_to_project.append(temp_occurrence.component.bRepBodies.add(all_edges))
+
         else:
             raise ValueError("Invalid entity type: %s" % entity.__class__.__name__)
 
