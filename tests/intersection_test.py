@@ -170,7 +170,7 @@ class IntersectionTest(test_utils.FscadTestCase):
 
         rect3 = Rect(1, 1, "rect3")
         rect3.place(y=-rect2 == ~rect1)
-        intersection.add(rect3)
+        intersection = Intersection(*intersection.children(), rect3)
         intersection.create_occurrence(True)
         self.assertTrue(rect1.get_plane().isCoPlanarTo(intersection.get_plane()))
 
@@ -185,7 +185,7 @@ class IntersectionTest(test_utils.FscadTestCase):
 
         rect = Rect(1, 1)
         rect.place(y=-rect == ~box1)
-        intersection.add(rect)
+        intersection = Intersection(*intersection.children(), rect)
         intersection.create_occurrence(True)
         self.assertTrue(rect.get_plane().isCoPlanarTo(intersection.get_plane()))
 
@@ -198,33 +198,9 @@ class IntersectionTest(test_utils.FscadTestCase):
 
         box = Box(1, 1, 1)
         box.place(y=-box == ~rect1)
-        intersection.add(box)
+        intersection = Intersection(*intersection.children(), box)
         intersection.create_occurrence(True)
         self.assertTrue(rect1.get_plane().isCoPlanarTo(intersection.get_plane()))
-
-    def test_named_face_after_intersection_add(self):
-        box1 = Box(1, 1, 1, "box1")
-        box2 = Box(1, 1, 1, "box2")
-        box2.place(~box2 == +box1,
-                   ~box2 == ~box1,
-                   ~box2 == ~box1)
-        intersection = Intersection(box1, box2)
-
-        intersection.add_named_faces("right", *intersection.find_faces(box1.right))
-        intersection.add_named_faces("bottom", *intersection.find_faces(box1.bottom))
-
-        box3 = Box(1, 1, 1, "box3")
-        box3.place(~box3 == ~box2,
-                   ~box3 == ~box2,
-                   ~box3 == +box2)
-
-        intersection.add(box3)
-        intersection.create_occurrence(True)
-
-        self.assertIsNone(intersection.named_faces("bottom"))
-        right_faces = intersection.named_faces("right")
-        self.assertEqual(len(right_faces), 1)
-        self.assertEqual(right_faces[0].size().asArray(), (0, 1, .5))
 
 
 from test_utils import load_tests

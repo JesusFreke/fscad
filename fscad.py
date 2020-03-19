@@ -1547,32 +1547,6 @@ class Component(BoundedEntity, ABC):
                             edges.append(edge)
         return [Edge(edge, Body(edge.body, self)) for edge in edges]
 
-    def _recalculate_faces(self):
-        class Context(object):
-            def __init__(self, component: Component):
-                self._component = component
-                self._saved_faces = {}
-
-            def __enter__(self):
-                for name in self._component._named_faces.keys():
-                    faces = self._component.named_faces(name)
-                    face_copies = []
-                    for face in faces:
-                        face_copies.append(brep().copy(face.brep))
-                    self._saved_faces[name] = face_copies
-
-            def __exit__(self, _, __, ___):
-                self._component._named_faces = {}
-                for key, saved_face_list in self._saved_faces.items():
-                    new_face_list = []
-                    for saved_face in saved_face_list:
-                        new_face = self._component.find_faces(Body(saved_face, self._component))
-                        if new_face is not None:
-                            new_face_list.extend(new_face)
-                    if new_face_list:
-                        self._component.add_named_faces(key, *new_face_list)
-        return Context(self)
-
     def closest_points(self, entity: _entity_types) -> Tuple[Point3D, Point3D]:
         """Finds the points on this entity and the specified entity that are closest to one another.
 
@@ -2255,25 +2229,6 @@ class Intersection(Combination):
         copy._bodies = [brep().copy(body) for body in self._bodies]
         copy._plane = self._plane
         super()._copy_to(copy, copy_children)
-
-    def add(self, *components: Component) -> Component:
-        """Adds new Components to this intersection.
-
-        Args:
-            *components: The the new Components to add to this intersection.
-
-        Returns: `self`
-        """
-        with self._recalculate_faces():
-            def process_child(child):
-                self._reset_cache()
-                self._plane = self._check_coplanarity(child, self._plane)
-                for target_body in self._bodies:
-                    for tool_body in child.bodies:
-                        brep().booleanOperation(target_body, tool_body.brep,
-                                                adsk.fusion.BooleanTypes.IntersectionBooleanType)
-            self._add_children(components, process_child)
-        return self
 
     def _check_coplanarity(self, child, plane):
         if self._bodies:
