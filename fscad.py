@@ -2168,24 +2168,6 @@ class Union(Combination):
             if plane is not None and not plane.isCoPlanarTo(child_plane):
                 raise ValueError("Cannot union planar entities that are non-coplanar")
 
-    def add(self, *components: Component) -> Component:
-        """Adds new Components to this Union.
-
-        Args:
-            *components: The Components to add to this Union. If the existing Components are planar, the new Components
-                must also be planar, or if the existing Components are non-planar, the new Components must also be
-                non-planar.
-
-        Returns: `self`
-        """
-        with self._recalculate_faces():
-            def process_child(child):
-                self._check_coplanarity(child)
-                for body in child.bodies:
-                    brep().booleanOperation(self._body, body.brep, adsk.fusion.BooleanTypes.UnionBooleanType)
-            self._add_children(components, process_child)
-        return self
-
 
 class Difference(Combination):
     """Represents the difference between a Component and any number of other Components.

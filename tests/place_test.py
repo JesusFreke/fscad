@@ -63,7 +63,7 @@ class PlaceTest(test_utils.FscadTestCase):
         union.place(-union == +box3,
                     ~union == ~box3,
                     ~union == ~box3)
-        union.add(box3)
+        union = Union(*union.children(), box3)
 
         self.assertEqual(box1.size().asArray(), (1, 1, 1))
         self.assertEqual(box1.min().asArray(), (1, 0, 0))

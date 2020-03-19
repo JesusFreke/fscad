@@ -55,7 +55,7 @@ class UnionTest(test_utils.FscadTestCase):
 
         union2.create_occurrence(True)
 
-    def test_union_add(self):
+    def test_union_flatten(self):
         box1 = Box(1, 1, 1, "box1")
         box2 = Box(1, 1, 1, "box2")
         box2.place(-box2 == +box1,
@@ -67,7 +67,7 @@ class UnionTest(test_utils.FscadTestCase):
         box3.place(-box3 == +union,
                    ~box3 == ~union,
                    ~box3 == ~union)
-        union.add(box3)
+        union = Union(*union.children(), box3)
 
         union.create_occurrence(True)
 
@@ -159,7 +159,7 @@ class UnionTest(test_utils.FscadTestCase):
         except ValueError:
             pass
 
-    def test_planar_union_add(self):
+    def test_planar_union_flatten(self):
         rect1 = Rect(1, 1, "rect1")
         rect2 = Rect(1, 1, "rect2")
         rect2.place(-rect2 == +rect1, ~rect2 == ~rect1)
@@ -167,12 +167,12 @@ class UnionTest(test_utils.FscadTestCase):
 
         rect3 = Rect(1, 1, "rect3")
         rect3.place(-rect3 == +rect2, ~rect3 == ~rect2)
-        union.add(rect3)
+        union = Union(*union.children(), rect3)
 
         union.create_occurrence(True)
         self.assertTrue(rect1.get_plane().isCoPlanarTo(union.get_plane()))
 
-    def test_non_coplanar_union_add(self):
+    def test_non_coplanar_union_flatten(self):
         rect1 = Rect(1, 1, "rect1")
         rect2 = Rect(1, 1, "rect2")
         rect2.place(-rect2 == +rect1, ~rect2 == ~rect1)
@@ -181,12 +181,12 @@ class UnionTest(test_utils.FscadTestCase):
         rect3 = Rect(1, 1, "rect3")
         rect3.place(-rect3 == +rect2, ~rect3 == ~rect2, (~rect3 == ~rect2) + 1)
         try:
-            union.add(rect3)
+            union = Union(*union.children(), rect3)
             self.fail("Expected error did not occur")
         except ValueError:
             pass
 
-    def test_add_3D_to_planar_union(self):
+    def test_flatten_3D_to_planar_union(self):
         rect1 = Rect(1, 1, "rect1")
         rect2 = Rect(1, 1, "rect2")
         rect2.place(-rect2 == +rect1, ~rect2 == ~rect1)
@@ -194,12 +194,12 @@ class UnionTest(test_utils.FscadTestCase):
 
         box = Box(1, 1, 1)
         try:
-            union.add(box)
+            union = Union(*union.children(), box)
             self.fail("Expected error did not occur")
         except ValueError:
             pass
 
-    def test_add_planar_to_3D_union(self):
+    def test_flatten_planar_to_3D_union(self):
         box1 = Box(1, 1, 1, "box1")
         box2 = Box(1, 1, 1, "box2")
         box2.place(-box2 == +box1, ~box2 == ~box1)
@@ -207,29 +207,10 @@ class UnionTest(test_utils.FscadTestCase):
 
         rect = Rect(1, 1)
         try:
-            union.add(rect)
+            union = Union(*union.children(), rect)
             self.fail("Expected error did not occur")
         except ValueError:
             pass
-
-    def test_named_face_after_union_add(self):
-        box1 = Box(1, 1, 1, "box1")
-        box2 = Box(1, 1, 1, "box2")
-        box2.place(-box2 == +box1)
-        union = Union(box1, box2)
-        box3 = Box(1, 1, 1, "box3")
-        box3.place(-box3 == +box2)
-
-        union.add_named_faces("right", *union.find_faces(box2.right))
-        union.add_named_faces("bottom", *union.find_faces(box2.bottom))
-
-        union.add(box3)
-        union.create_occurrence(True)
-
-        self.assertIsNone(union.named_faces("right"))
-        bottom_faces = union.named_faces("bottom")
-        self.assertEqual(len(bottom_faces), 1)
-        self.assertEqual(bottom_faces[0].size().asArray(), (3, 1, 0))
 
 
 from test_utils import load_tests
