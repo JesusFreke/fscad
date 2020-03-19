@@ -2220,26 +2220,6 @@ class Difference(Combination):
                 if child_plane is not None and not plane.isCoPlanarTo(child_plane):
                     raise ValueError("Cannot subtract planar entities that are non-coplanar")
 
-    def add(self, *components: Component) -> Component:
-        """Adds new Components to this Difference.
-
-        The new Components will be subtracted from the first Component.
-
-        Args:
-            *components: The Components to add
-
-        Returns: `self`
-        """
-        with self._recalculate_faces():
-            def process_child(child):
-                self._check_coplanarity(child)
-                for target_body in self._bodies:
-                    for tool_body in child.bodies:
-                        brep().booleanOperation(target_body, tool_body.brep,
-                                                adsk.fusion.BooleanTypes.DifferenceBooleanType)
-            self._add_children(components, process_child)
-        return self
-
 
 class Intersection(Combination):
     """Represents the intersection between multiple Components.

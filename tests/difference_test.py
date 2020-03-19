@@ -187,7 +187,7 @@ class DifferenceTest(test_utils.FscadTestCase):
 
         rect3 = Rect(1, 1, "rect3")
         rect3.place(y=+rect3 == ~rect1)
-        diff.add(rect3)
+        diff = Difference(*diff.children(), rect3)
         diff.create_occurrence(True)
         self.assertTrue(rect1.get_plane().isCoPlanarTo(diff.get_plane()))
 
@@ -199,7 +199,7 @@ class DifferenceTest(test_utils.FscadTestCase):
 
         box = Box(1, 1, 1)
         box.place(y=+box == ~rect1)
-        diff.add(box)
+        diff = Difference(*diff.children(), box)
         diff.create_occurrence(True)
         self.assertTrue(rect1.get_plane().isCoPlanarTo(diff.get_plane()))
 
@@ -212,7 +212,7 @@ class DifferenceTest(test_utils.FscadTestCase):
         rect = Rect(1, 1)
         rect.place(y=+rect == ~box1)
         try:
-            diff.add(rect)
+            diff = Difference(*diff.children(), rect)
             self.fail("Expected error did not occur")
         except ValueError:
             pass
@@ -226,34 +226,10 @@ class DifferenceTest(test_utils.FscadTestCase):
         rect3 = Rect(1, 1, "rect3")
         rect3.place(y=+rect3 == ~rect1, z=(~rect3 == ~rect1) + 1)
         try:
-            diff.add(rect3)
+            diff = Difference(*diff.children(), rect3)
             self.fail("Expected error did not occur")
         except ValueError:
             pass
-
-    def test_named_face_after_difference_add(self):
-        box1 = Box(1, 1, 1, "box1")
-        box2 = Box(1, 1, 1, "box2")
-        box2.place(~box2 == +box1,
-                   ~box2 == ~box1,
-                   ~box2 == ~box1)
-        difference = Difference(box1, box2)
-
-        difference.add_named_faces("right", *difference.find_faces(box2.left))
-        difference.add_named_faces("bottom", *difference.find_faces(box1.bottom))
-
-        box3 = Box(1, 1, 1, "box3")
-        box3.place(~box3 == ~box1,
-                   ~box3 == ~box1,
-                   ~box3 == -box2)
-
-        difference.add(box3)
-        difference.create_occurrence(True)
-
-        self.assertIsNone(difference.named_faces("bottom"))
-        right_faces = difference.named_faces("right")
-        self.assertEqual(len(right_faces), 1)
-        self.assertEqual(right_faces[0].size().asArray(), (0, 1, .5))
 
 
 from test_utils import load_tests
