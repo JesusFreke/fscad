@@ -114,12 +114,29 @@ class GroupTest(test_utils.FscadTestCase):
         for edge in group.edges:
             self.assertEqual(edge.component, group)
 
+    def test_named_faces_on_children(self):
+        box1 = Box(1, 1, 1, name="box1")
+        box2 = Box(1, 1, 1, name="box2")
+        box2.tx(2)
+
+        box1.add_named_faces("top", box1.top)
+
+        group = Group([box1, box2])
+
+        self.assertEqual(group.find_children("box1", recursive=False)[0].named_faces("top")[0].mid().asArray(),
+                         (.5, .5, 1.0))
+
+        group.tx(10)
+
+        self.assertEqual(group.find_children("box1", recursive=False)[0].named_faces("top")[0].mid().asArray(),
+                         (10.5, .5, 1.0))
+
 
 from test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(
         sys.modules[__name__]
-        #, pattern="bounding_boxes_intersect_but_geometry_doesnt"
+        #, pattern="named_faces_on_children"
         )
     unittest.TextTestRunner(failfast=True).run(test_suite)

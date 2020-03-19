@@ -145,7 +145,7 @@ class SilhouetteTest(test_utils.FscadTestCase):
 
         assembly = Difference(rect, hole1, hole2)
 
-        silhouette = Silhouette(assembly.faces[0].outer_edges(), assembly.get_plane())
+        silhouette = Silhouette(assembly.faces[0].outer_edges, assembly.get_plane())
 
         silhouette.create_occurrence(True)
 
@@ -157,6 +157,6 @@ from test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],
-                                                                #pattern="parallel_face_silhouette",
+                                                                #pattern="multiple_edges",
                                                                 )
     unittest.TextTestRunner(failfast=True).run(test_suite)

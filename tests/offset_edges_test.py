@@ -25,11 +25,11 @@ import test_utils
 class OffsetEdgesTest(test_utils.FscadTestCase):
     def test_positive_offset(self):
         box = Box(1, 1, 1)
-        OffsetEdges(box.top, box.top.outer_edges(), .5).create_occurrence(True)
+        OffsetEdges(box.top, box.top.outer_edges, .5).create_occurrence(True)
 
     def test_negative_offset(self):
         box = Box(1, 1, 1)
-        OffsetEdges(box.top, box.top.outer_edges(), -.25).create_occurrence(True)
+        OffsetEdges(box.top, box.top.outer_edges, -.25).create_occurrence(True)
 
     def test_partial_profile_negative_offset(self):
         box = Box(1, 1, 1)
@@ -163,6 +163,6 @@ from test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],
-                                                                #pattern="inner_profile_positive_offset",
+                                                                #pattern="positive_offset",
                                                                 )
     unittest.TextTestRunner(failfast=True).run(test_suite)

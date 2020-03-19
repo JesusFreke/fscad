@@ -15,9 +15,9 @@
 from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point2D, Point3D, ValueInput,\
     Vector3D
-from adsk.fusion import BRepBody, BRepCoEdge, BRepEdge, BRepEdges, BRepFace, BRepFaces, Occurrence, SketchCircle,\
-    SketchCurve, SketchEllipse
-from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple, List
+from adsk.fusion import BRepBody, BRepCoEdge, BRepEdge, BRepEdges, BRepFace, BRepFaces, BRepLoop, Occurrence,\
+    SketchCircle, SketchCurve, SketchEllipse
+from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple, List, TypeVar, overload
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
 import adsk.core
@@ -191,6 +191,13 @@ def _edge_index(edge: Onion[BRepEdge, 'Edge']):
         return _edge_index(edge.brep)
     for i, candidate_edge in enumerate(edge.body.edges):
         if candidate_edge == edge:
+            return i
+    assert False
+
+
+def _loop_index(loop: BRepLoop):
+    for i, candidate_loop in enumerate(loop.face.loops):
+        if candidate_loop == loop:
             return i
     assert False
 
@@ -474,7 +481,7 @@ def _create_point_body(point: Point3D, vector: Vector3D = None):
     return body
 
 
-def _get_outer_loop(brep_face: BRepFace):
+def _get_outer_loop(brep_face: BRepFace) -> BRepLoop:
     loop: adsk.fusion.BRepLoop
     for loop in brep_face.loops:
         if loop.isOuter:
@@ -636,13 +643,21 @@ class BoundedEntity(object):
     """
     def __init__(self):
         self._cached_bounding_box = None
+        self._cache_key = None
 
     @property
     def bounding_box(self) -> 'BoundingBox':
         """Returns: The bounding box of this entity."""
+        cache_key = self._get_cache_key()
+        if self._cache_key != cache_key:
+            self._reset_cache()
         if self._cached_bounding_box is None:
             self._cached_bounding_box = BoundingBox(self._calculate_bounding_box())
+            self._cache_key = cache_key
         return self._cached_bounding_box
+
+    def _get_cache_key(self):
+        return 0
 
     def _calculate_bounding_box(self) -> 'BoundingBox3D':
         raise NotImplementedError()
@@ -705,6 +720,9 @@ class BRepEntity(BoundedEntity, ABC):
     def _calculate_bounding_box(self) -> 'BoundingBox3D':
         return _get_exact_bounding_box(self.brep)
 
+    def _get_cache_key(self):
+        return self.brep
+
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -713,7 +731,27 @@ class BRepEntity(BoundedEntity, ABC):
     def __ne__(self, other):
         if not isinstance(other, self.__class__):
             return True
-        return brep != other.brep
+        return self.brep != other.brep
+
+
+T = TypeVar('T')
+
+
+class _VirtualSequence(Sequence[T]):
+    def __init__(self, indices: Sequence[int], producer: Callable[[int], T]):
+        self._indices = indices
+        self._producer = producer
+
+    def __getitem__(self, i: Onion[int, slice]) -> Onion['Edge', Sequence['Edge']]:
+        if isinstance(i, slice):
+            return _VirtualSequence(self._indices[i], self._producer)
+        return self._producer(i)
+
+    def __iter__(self) -> Iterator['Edge']:
+        return _SequenceIterator(self)
+
+    def __len__(self) -> int:
+        return len(self._indices)
 
 
 class Body(BRepEntity):
@@ -722,57 +760,27 @@ class Body(BRepEntity):
     This is a wrapper around Fusion 360's BRepBody object.
 
     Args:
-        body: The BRepBody object to wrap
+        brep_provider: A Callable that returns the BRepBody for this body
         component: The Component that this BRepBody is a part of
     """
-    def __init__(self, body: BRepBody, component: 'Component'):
+    def __init__(self, brep_provider: Callable[[], BRepBody], component: 'Component'):
         super().__init__(component)
-        self._body = body
+        self._brep_provider = brep_provider
 
     @property
     def brep(self) -> BRepBody:
         """Returns: The raw BRepBody this object wraps."""
-        return self._body
+        return self._brep_provider()
 
     @property
     def edges(self) -> Sequence['Edge']:
         """Returns: All Edges that are a part of this Body, or an empty Sequence if there are None."""
-        class Edges(Sequence['Edge']):
-            def __init__(self, edges: Onion[Sequence[BRepEdge], BRepEdges], body: 'Body'):
-                self._edges = edges
-                self._body = body
-
-            def __getitem__(self, i: Onion[int, slice]) -> Onion['Edge', Sequence['Edge']]:
-                if isinstance(i, slice):
-                    return Edges(self._edges[i], self._body)
-                return Edge(self._edges[i], self._body)
-
-            def __iter__(self) -> Iterator['Edge']:
-                return _SequenceIterator(self)
-
-            def __len__(self) -> int:
-                return len(self._edges)
-        return Edges(self._body.edges, self)
+        return _VirtualSequence(range(0, len(self.brep.edges)), lambda i: Edge(lambda: self.brep.edges[i], self))
 
     @property
     def faces(self) -> Sequence['Face']:
         """Returns: All Faces that are a part of this Body, or an empty Sequence if there are None."""
-        class Faces(Sequence['Face']):
-            def __init__(self, faces: Onion[Sequence[BRepFace], BRepFaces], body: 'Body'):
-                self._faces = faces
-                self._body = body
-
-            def __getitem__(self, i: Onion[int, slice]) -> Onion['Face', Sequence['Face']]:
-                if isinstance(i, slice):
-                    return Faces(self._faces[i], self._body)
-                return Face(self._faces[i], self._body)
-
-            def __iter__(self) -> Iterator['Face']:
-                return _SequenceIterator(self)
-
-            def __len__(self) -> int:
-                return len(self._faces)
-        return Faces(self._body.faces, self)
+        return _VirtualSequence(range(0, len(self.brep.faces)), lambda i: Face(lambda: self.brep.faces[i], self))
 
 
 class Face(BRepEntity):
@@ -781,18 +789,18 @@ class Face(BRepEntity):
     This is a wrapper around Fusion 360's BRepFace object.
 
     Args:
-        face: The BRepFace object to wrap
+        brep_provider: A Callable that returns the BRepFace for this face
         body: The Body object that the BRepFace is a part of
     """
-    def __init__(self, face: BRepFace, body: Body):
+    def __init__(self, brep_provider: Callable[[], BRepFace], body: Body):
         super().__init__(body.component)
-        self._face = face
+        self._brep_provider = brep_provider
         self._body = body
 
     @property
     def brep(self) -> BRepFace:
         """Returns: The raw BRepFace this object wraps."""
-        return self._face
+        return self._brep_provider()
 
     @property
     def body(self) -> Body:
@@ -809,19 +817,26 @@ class Face(BRepEntity):
                     if face not in result:
                         result.append(face)
                     break
-        return [Face(face, self._body) for face in result]
+        result_faces = []
+
+        for face in result:
+            face_index = _face_index(face)
+            result_faces.append(Face(lambda index=face_index: self._body.brep.faces[index], self._body))
+        return result_faces
 
     @property
     def edges(self) -> Sequence['Edge']:
         """Returns: All Edges that make up the boundary of this Face, or an empty Sequence if there are None."""
-        result = []
-        for edge in self.brep.edges:
-            result.append(Edge(edge, self._body))
-        return result
+        return _VirtualSequence(range(0, len(self.brep.edges)), lambda i: Edge(lambda: self.brep.edges[i], self.body))
 
+    @property
     def outer_edges(self) -> Sequence['Edge']:
         """Returns: All Edges that make up the outer boundary of this Face, or an empty Sequence if there are none."""
-        return [Edge(edge, self._body) for edge in _get_outer_loop(self.brep).edges]
+        loop = _get_outer_loop(self.brep)
+        loop_index = _loop_index(loop)
+        return _VirtualSequence(
+            range(0, len(loop.edges)),
+            lambda i: Edge(lambda: self.brep.loops[loop_index].edges[i], self.body))
 
     def get_plane(self) -> Optional[adsk.core.Plane]:
         """Returns: The plane that this Face lies in, or None if this is not a planar component."""
@@ -836,23 +851,29 @@ class Edge(BRepEntity):
     This is a wrapper around Fusion 360's BRepEdge object.
 
     Args:
-        edge: The BRepEdge object to wrap
+        brep_provider: A Callable that returns the BRepEdge for this edge
         body: The Body object that the BRepEdge is a part of
     """
-    def __init__(self, edge: BRepEdge, body: Body):
+    def __init__(self, brep_provider: Callable[[], BRepEdge], body: Body):
         super().__init__(body.component)
-        self._edge = edge
+        self._brep_provider = brep_provider
         self._body = body
 
     @property
     def brep(self) -> BRepEdge:
         """Returns: The raw BRepEdge this object wraps."""
-        return self._edge
+        return self._brep_provider()
 
     @property
     def body(self) -> Body:
         """Returns: The Body object that this edge is a part of."""
         return self._body
+
+    @property
+    def faces(self) -> Sequence[Face]:
+        """Returns: The faces associated with this edge."""
+        return _VirtualSequence(range(0, len(self.brep.faces)),
+                                lambda i: self.body.faces[_face_index(self.brep.faces[i])])
 
 
 class Point(BoundedEntity):
@@ -957,7 +978,7 @@ class Component(BoundedEntity, ABC):
         self._parent = None
         self._local_transform = Matrix3D.create()
         self.name = name
-        self._cached_bodies = None
+        self._cached_brep_bodies = None
         self._cached_world_transform = None
         self._cached_inverse_transform = None
         self._named_points = {}
@@ -984,7 +1005,7 @@ class Component(BoundedEntity, ABC):
         copy.__class__ = self.__class__
         copy._local_transform = self.world_transform()
         copy._cached_bounding_box = None
-        copy._cached_bodies = None
+        copy._cached_brep_bodies = None
         copy._cached_world_transform = None
         copy._cached_inverse_transform = None
         copy._named_points = dict(self._named_points)
@@ -1023,18 +1044,21 @@ class Component(BoundedEntity, ABC):
         """
         return self._parent
 
+    def _get_cached_brep_bodies(self):
+        if self._cached_brep_bodies is None:
+            world_transform = self.world_transform()
+            raw_bodies_copy = [brep().copy(body) for body in self._raw_bodies()]
+            for raw_body in raw_bodies_copy:
+                brep().transform(raw_body, world_transform)
+            self._cached_brep_bodies = tuple(raw_bodies_copy)
+        return self._cached_brep_bodies
+
     @property
     def bodies(self) -> Sequence[Body]:
         """Returns: All bodies that make up this Component."""
-        if self._cached_bodies is not None:
-            return self._cached_bodies
-
-        world_transform = self.world_transform()
-        bodies_copy = [Body(brep().copy(body), self) for body in self._raw_bodies()]
-        for body in bodies_copy:
-            brep().transform(body.brep, world_transform)
-        self._cached_bodies = tuple(bodies_copy)
-        return bodies_copy
+        return _VirtualSequence(
+            range(0, len(self._get_cached_brep_bodies())),
+            lambda i: Body(lambda: self._get_cached_brep_bodies()[i], self))
 
     def create_occurrence(self, create_children=False, scale=1) -> adsk.fusion.Occurrence:
         """Creates an occurrence of this Component in the root of the document in Fusion 360.
@@ -1083,8 +1107,8 @@ class Component(BoundedEntity, ABC):
             construction_point = occurrence.component.constructionPoints.add(construction_point_input)
             construction_point.name = name
 
-    def place(self, x: _vector_like =_null_vector, y: _vector_like=_null_vector,
-              z: _vector_like=_null_vector):
+    def place(self, x: _vector_like = _null_vector, y: _vector_like = _null_vector,
+              z: _vector_like = _null_vector):
         """Moves this component by the individual axes component of each of the 3 specified vectors.
 
         This is a powerful method that can be used in various ways to specify the location of a component.
@@ -1146,7 +1170,7 @@ class Component(BoundedEntity, ABC):
 
     def _reset_cache(self):
         super()._reset_cache()
-        self._cached_bodies = None
+        self._cached_brep_bodies = None
         self._cached_world_transform = None
         self._cached_inverse_transform = None
         for component in self.children():
@@ -1187,7 +1211,7 @@ class Component(BoundedEntity, ABC):
         return self
 
     def rotate(self, rx: float = 0, ry: float = 0, rz: float = 0,
-               center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
+               center: Onion[Iterable[Onion[float, int]], Point3D] = None) -> 'Component':
         """Rotates this Component.
 
         The component will first be rotated around the X axis, then the Y axis, then the Z axis.
@@ -1229,7 +1253,7 @@ class Component(BoundedEntity, ABC):
         self._reset_cache()
         return self
 
-    def rx(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
+    def rx(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D] = None) -> 'Component':
         """Rotates this Component around the X axis.
 
         Args:
@@ -1241,7 +1265,7 @@ class Component(BoundedEntity, ABC):
         """
         return self.rotate(angle, center=center)
 
-    def ry(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
+    def ry(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D] = None) -> 'Component':
         """Rotates this Component around the Y axis.
 
         Args:
@@ -1253,7 +1277,7 @@ class Component(BoundedEntity, ABC):
         """
         return self.rotate(ry=angle, center=center)
 
-    def rz(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
+    def rz(self, angle: float, center: Onion[Iterable[Onion[float, int]], Point3D] = None) -> 'Component':
         """Rotates this Component around the Z axis.
 
         Args:
@@ -1312,7 +1336,7 @@ class Component(BoundedEntity, ABC):
         return self.translate(tz=tz)
 
     def scale(self, sx: float = 1, sy: float = 1, sz: float = 1,
-              center: Onion[Iterable[Onion[float, int]], Point3D]=None) -> 'Component':
+              center: Onion[Iterable[Onion[float, int]], Point3D] = None) -> 'Component':
         """Uniformly scales this object.
 
         A mirror along one of the 3 major axes can also be achieved by specifying a negative scale factor, but the
@@ -1392,7 +1416,7 @@ class Component(BoundedEntity, ABC):
         result = []
         for body in self.bodies:
             for face in _find_coincident_faces_on_body(body.brep, selector_faces):
-                result.append(Face(face, body))
+                result.append(body.faces[_face_index(face)])
         return result
 
     def add_named_point(self, name: str, point: Onion[Sequence[float], Point3D, Point]):
@@ -1522,7 +1546,7 @@ class Component(BoundedEntity, ABC):
         result = []
         for body in self.bodies:
             for edge in _find_coincident_edges_on_body(body.brep, selectors):
-                result.append(Edge(edge, body))
+                result.append(body.edges[_edge_index(edge)])
         return result
 
     def shared_edges(self, face_selector1: _face_selector_types,
@@ -1535,17 +1559,16 @@ class Component(BoundedEntity, ABC):
 
         Returns: All edges that are shared between the 2 sets of faces.
         """
-        faces1 = [face.brep for face in self.find_faces(face_selector1)]
-        faces2 = [face.brep for face in self.find_faces(face_selector2)]
+        other_faces = self.find_faces(face_selector2)
 
-        edges = []
-        for face in faces1:
+        result_edges = []
+        for face in self.find_faces(face_selector1):
             for edge in face.edges:
                 for other_face in edge.faces:
-                    if other_face != face and other_face in faces2:
-                        if edge not in edges:
-                            edges.append(edge)
-        return [Edge(edge, Body(edge.body, self)) for edge in edges]
+                    if other_face != face and other_face in other_faces:
+                        if edge not in result_edges:
+                            result_edges.append(edge)
+        return result_edges
 
     def closest_points(self, entity: _entity_types) -> Tuple[Point3D, Point3D]:
         """Finds the points on this entity and the specified entity that are closest to one another.
@@ -2259,6 +2282,7 @@ class Group(Combination):
 
         self._visible_children = []
         self._hidden_children = []
+        self._raw_brep_bodies = []
 
         self._plane = None
 
@@ -2269,6 +2293,9 @@ class Group(Combination):
             elif child_plane and self._plane:
                 if not child_plane.isCoPlanarTo(self._plane):
                     self._plane = None
+
+            for body in child.bodies:
+                self._raw_brep_bodies.append(brep().copy(body.brep))
 
             self._visible_children.append(child)
         self._add_children(visible_children, process_visible_child)
@@ -2285,45 +2312,25 @@ class Group(Combination):
                 self._hidden_children.append(child)
             self._add_children(hidden_children, process_hidden_child)
 
-    @property
-    def bodies(self) -> Sequence[Body]:
-        if self._cached_bodies is not None:
-            return self._cached_bodies
-
-        bodies = []
-        for child in self._visible_children:
-            for body in child.bodies:
-                bodies.append(Body(body.brep, self))
-        self._cached_bodies = bodies
-
-        return bodies
-
     def _raw_bodies(self) -> Iterable[BRepBody]:
-        # not used, since we override the bodies method directly
-        pass
+        return self._raw_brep_bodies
 
     def _raw_plane(self) -> Optional[adsk.core.Plane]:
         return self._plane
 
-    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+    def _copy_to(self, copy: 'Union', copy_children: bool):
+        copy._raw_brep_bodies = [brep().copy(body) for body in self._raw_brep_bodies]
         copy._visible_children = []
         copy._hidden_children = []
-
         copy._plane = self._plane
 
-        copy._cached_inverse_transform = None
-        copy._children = []
-
-        for child in self._visible_children:
-            child_copy = child.copy(copy_children)
-            copy._visible_children.append(child_copy)
-        copy._add_children(copy._visible_children)
-
         if copy_children:
+            for child in self._visible_children:
+                copy._visible_children.append(child.copy(copy_children))
             for child in self._hidden_children:
-                child_copy = child.copy()
-                copy._hidden_children.append(child_copy)
-            copy._add_children(copy._hidden_children)
+                copy._hidden_children.append(child.copy())
+
+        super()._copy_to(copy, copy_children)
 
 
 class Loft(ComponentWithChildren):

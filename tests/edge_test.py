@@ -22,7 +22,7 @@ importlib.reload(test_utils)
 import test_utils
 
 
-class FaceTest(test_utils.FscadTestCase):
+class EdgeTest(test_utils.FscadTestCase):
     def validate_test(self):
         pass
 
@@ -71,9 +71,21 @@ class FaceTest(test_utils.FscadTestCase):
 
         self.assertEquals(len(Group([box1, box2]).edges), 24)
 
+    def test_edge_after_translate(self):
+        box = Box(1, 1, 1)
+        edge = box.shared_edges(box.top, box.right)[0]
+
+        self.assertEqual(edge.mid().asArray(), (1, .5, 1))
+
+        box.tx(1)
+
+        self.assertEqual(edge.mid().asArray(), (2, .5, 1))
+
 
 from test_utils import load_tests
 def run(context):
     import sys
-    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],
+                                                                #pattern="multiple_faces_both"
+                                                                )
     unittest.TextTestRunner(failfast=True).run(test_suite)

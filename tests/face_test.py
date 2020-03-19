@@ -129,9 +129,21 @@ class FaceTest(test_utils.FscadTestCase):
 
         self.assertEquals(len(Group([box1, box2]).faces), 12)
 
+    def test_face_after_translate(self):
+        box = Box(1, 1, 1)
+        face = box.top
+
+        self.assertEqual(face.mid().asArray(), (.5, .5, 1))
+
+        box.tx(1)
+
+        self.assertEqual(face.mid().asArray(), (1.5, .5, 1))
+
 
 from test_utils import load_tests
 def run(context):
     import sys
-    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],
+                                                                #pattern="connected_faces",
+                                                                )
     unittest.TextTestRunner(failfast=True).run(test_suite)
