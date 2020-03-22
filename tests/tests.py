@@ -28,6 +28,7 @@ test_modules = [
     "fillet_chamfer_test",
     "find_edge_test",
     "group_test",
+    "hull_test",
     "import_test",
     "intersection_test",
     "loft_test",

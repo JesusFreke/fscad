@@ -22,6 +22,7 @@ from typing import Union as Onion  # Haha, why not? Prevents a conflict with our
 
 import adsk.core
 import adsk.fusion
+import functools
 import importlib
 import inspect
 import math
@@ -542,6 +543,19 @@ def _find_connected_edge_endpoints(edges: Sequence['Edge'], face: 'Face') -> \
     if full_loop:
         return None, None, start_coedge.loop
     return start_coedge, end_coedge, start_coedge.loop
+
+
+def _find_coedge_for_face(edge: BRepEdge, face: BRepFace) -> BRepCoEdge:
+    for coedge in edge.coEdges:
+        if coedge.loop.face == face:
+            return coedge
+    raise ValueError("The face is not associated with the given edge")
+
+
+def _create_construction_point(component: adsk.fusion.Component, point: Point3D):
+    input = component.constructionPoints.createInput()
+    input.setByPoint(point)
+    return component.constructionPoints.add(input)
 
 
 class Translation(object):
@@ -3048,6 +3062,159 @@ class Silhouette(ComponentWithChildren):
         super()._copy_to(copy, copy_children)
         copy._body = self._body
         copy._plane = self._plane
+
+
+class Hull(ComponentWithChildren):
+
+    def __init__(self, component: Component, tolerance: float = .01, name: str = None):
+        super().__init__(name=name)
+        plane = component.get_plane()
+        if plane is None:
+            raise ValueError("Input component must be planar")
+
+        transform = Matrix3D.create()
+        transform.setToRotateTo(plane.normal, Vector3D.create(0, 0, 1))
+
+        all_points = []
+        for face in component.faces:
+            loop_points = []
+            for edge in face.outer_edges:
+                evaluator = edge.brep.evaluator
+                success, start_param, end_param = evaluator.getParameterExtents()
+                if not success:
+                    raise ValueError("Couldn't get curve extents")
+                success, points = evaluator.getStrokes(start_param, end_param, tolerance)
+                if not success:
+                    raise ValueError("Couldn't get curve strokes")
+
+                if loop_points:
+                    if points[0].distanceTo(loop_points[-1]) < app().pointTolerance:
+                        points = points[1:]
+                    elif points[0].distanceTo(loop_points[0]) < app().pointTolerance:
+                        loop_points = loop_points[::-1]
+                        points = points[1:]
+                    elif points[-1].distanceTo(loop_points[-1]) < app().pointTolerance:
+                        points = points[-2::-1]
+                    else:
+                        loop_points = loop_points[::-1]
+                        points = points[-2::-1]
+                edge_points = []
+                for point in points:
+                    point.transformBy(transform)
+                    edge_points.append(point)
+                loop_points.extend(edge_points)
+            assert loop_points[-1].distanceTo(loop_points[0]) < app().pointTolerance
+            del(loop_points[-1])
+            all_points.extend(loop_points)
+
+        hull_points = Hull._hull(all_points)
+
+        # Note: the last point of the hull points should be a duplicate of the first
+        if len(hull_points) < 4:
+            raise ValueError("The hull is a line")
+
+        curves = []
+        for point1, point2 in zip(hull_points, hull_points[1:]):
+            curves.append(adsk.core.Line3D.create(point1, point2))
+
+        wire_body, _ = brep().createWireFromCurves(curves, True)
+        hull_body = brep().createFaceFromPlanarWires([wire_body])
+
+        transform.invert()
+        brep().transform(hull_body, transform)
+
+        for face in component.faces:
+            brep().booleanOperation(hull_body, brep().copy(face.brep), adsk.fusion.BooleanTypes.UnionBooleanType)
+
+        self._body = hull_body
+
+        self._add_children([component])
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._body,
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._body = self._body,
+
+    @staticmethod
+    def _is_left(p0: Point3D, p1: Point3D, p2: Point3D):
+        return (p1.x - p0.x) * (p2.y - p0.y) - (p2.x - p0.x) * (p1.y - p0.y)
+
+    @staticmethod
+    def _hull(points: Sequence[Point3D]):
+        """
+
+        Derived from http://geomalgorithms.com/a10-_hull-1.html#chainHull_2D()
+
+        :param points:
+        :return:
+        """
+
+        def point_comparison(p1, p2):
+            if p1.x < p2.x:
+                return -1
+            if p1.x > p2.x:
+                return 1
+            if p1.y < p2.y:
+                return -1
+            if p1.y > p2.y:
+                return 1
+            return 0
+
+        points = sorted(points, key=functools.cmp_to_key(point_comparison))
+
+        def find_last_same_x(_points):
+
+            for i, (point1, point2) in enumerate(zip(_points, _points[1:])):
+                if point2.x != point1.x:
+                    return i
+            return None
+
+        minmin_point = points[0]
+
+        minmax_index = find_last_same_x(points)
+        if minmax_index == len(points) - 1:
+            return [points[0], points[-1]]
+        minmax_point = points[minmax_index]
+
+        maxmin_index = len(points) - 1 - find_last_same_x(points[::-1])
+        maxmin_point = points[maxmin_index]
+
+        maxmax_point = points[-1]
+
+        lower_stack = [minmin_point]
+        for index in range(minmax_index + 1, maxmin_index + 1):
+            point = points[index]
+            if Hull._is_left(minmin_point, maxmin_point, point) >= 0 and index < maxmin_index:
+                continue
+            while len(lower_stack) > 1:
+                if Hull._is_left(lower_stack[-2], lower_stack[-1], point) > 0:
+                    break
+                lower_stack.pop()
+            lower_stack.append(point)
+
+        if maxmin_index != len(points) - 1:
+            upper_stack = [maxmax_point]
+        else:
+            upper_stack = [lower_stack.pop()]
+
+        for index in range(maxmin_index - 1, minmax_index - 1, -1):
+            point = points[index]
+
+            if Hull._is_left(maxmax_point, minmax_point, point) >= 0 and index > minmax_index:
+                continue
+
+            while len(upper_stack) > 1:
+                if Hull._is_left(upper_stack[-2], upper_stack[-1], point) > 0:
+                    break
+                upper_stack.pop()
+            upper_stack.append(point)
+
+        if minmax_index != 0:
+            upper_stack.append(points[0])
+
+        return lower_stack + upper_stack
 
 
 class Threads(ComponentWithChildren):
