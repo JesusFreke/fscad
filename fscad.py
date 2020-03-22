@@ -2578,9 +2578,9 @@ class ExtrudeBase(ComponentWithChildren):
         copy._start_face_indices = list(self._start_face_indices)
         copy._end_face_indices = list(self._end_face_indices)
         copy._side_face_indices = list(self._side_face_indices)
-        self._cached_start_faces = None
-        self._cached_end_faces = None
-        self._cached_side_faces = None
+        copy._cached_start_faces = None
+        copy._cached_end_faces = None
+        copy._cached_side_faces = None
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
         return self._bodies
