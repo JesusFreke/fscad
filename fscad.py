@@ -84,7 +84,7 @@ def brep():
     return _brep
 
 
-def design():
+def design() -> adsk.fusion.Design:
     return adsk.fusion.Design.cast(app().activeProduct)
 
 
@@ -3465,8 +3465,8 @@ def setup_document(document_name="fSCAD-Preview"):
     This is normally called from run_design instead of being called directly.
 
     If a document already exists with the given name, it will be forcibly closed (losing any changes, etc.), and
-    recreated as an empty document. In addition, the camera position from the existing document will be saved, and then
-    restored in the new document.
+    recreated as an empty document. In addition, the camera position and unit settings from the existing document will
+    be saved, and then restored in the new document.
 
     This enables a script-centric development cycle, where you run the script, view the results in fusion, go back to
     the script to make changes, and re-run the script to recreate the design with the changes you made. In this
@@ -3478,6 +3478,7 @@ def setup_document(document_name="fSCAD-Preview"):
     """
     preview_doc = None
     saved_camera = None
+    saved_units = None
     for document in app().documents:
         if document.name == document_name:
             preview_doc = document
@@ -3485,6 +3486,7 @@ def setup_document(document_name="fSCAD-Preview"):
     if preview_doc is not None:
         preview_doc.activate()
         saved_camera = app().activeViewport.camera
+        saved_units = design().fusionUnitsManager.distanceDisplayUnits
         preview_doc.close(False)
 
     preview_doc = app().documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
@@ -3496,6 +3498,8 @@ def setup_document(document_name="fSCAD-Preview"):
         app().activeViewport.camera = saved_camera
         saved_camera.isSmoothTransition = is_smooth_transition_bak
         app().activeViewport.camera = saved_camera
+    if saved_units is not None:
+        design().fusionUnitsManager.distanceDisplayUnits = saved_units
     design().designType = adsk.fusion.DesignTypes.DirectDesignType
 
 
