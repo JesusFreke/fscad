@@ -23,10 +23,10 @@ import math
 import random
 import unittest
 
-import test_utils
+from . import test_utils
 import importlib
 importlib.reload(test_utils)
-import test_utils
+from . import test_utils
 
 
 class MiscTest(test_utils.FscadTestCase):
@@ -150,7 +150,7 @@ class MiscTest(test_utils.FscadTestCase):
                 2)
 
 
-from test_utils import load_tests
+from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])

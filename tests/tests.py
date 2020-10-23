@@ -14,6 +14,7 @@
 
 import adsk.fusion
 import importlib
+import sys
 import unittest
 
 test_modules = [
@@ -47,9 +48,9 @@ test_modules = [
 def run(context):
     test_suites = []
     for module_name in test_modules:
-        module = importlib.import_module(module_name)
+        module = importlib.import_module("." + module_name, __name__)
         importlib.reload(module)
-        module = importlib.import_module(module_name)
+        module = importlib.import_module("." + module_name, __name__)
         test_suites.append(unittest.defaultTestLoader.loadTestsFromModule(module))
 
     unittest.TextTestRunner(failfast=True).run(unittest.TestSuite(test_suites))

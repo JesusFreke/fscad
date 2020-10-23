@@ -16,10 +16,10 @@ from fscad import *
 
 import adsk.fusion
 import unittest
-import test_utils
+from . import test_utils
 import importlib
 importlib.reload(test_utils)
-import test_utils
+from . import test_utils
 
 
 class GroupTest(test_utils.FscadTestCase):
@@ -132,7 +132,7 @@ class GroupTest(test_utils.FscadTestCase):
                          (10.5, .5, 1.0))
 
 
-from test_utils import load_tests
+from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(

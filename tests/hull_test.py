@@ -16,10 +16,10 @@ from fscad import *
 
 import adsk.fusion
 import unittest
-import test_utils
+from . import test_utils
 import importlib
 importlib.reload(test_utils)
-import test_utils
+from . import test_utils
 
 
 class HullTest(test_utils.FscadTestCase):
@@ -172,7 +172,7 @@ class HullTest(test_utils.FscadTestCase):
         Hull(Union(*bottom_faces)).create_occurrence(True)
 
 
-from test_utils import load_tests
+from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],
