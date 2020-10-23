@@ -74,7 +74,7 @@ class ThreadTest(test_utils.FscadTestCase):
         ]
         Threads(diff, points, 1, name="threaded_hole").create_occurrence(True)
 
-    def test_partial_thread(self):
+    def test_partial_female_thread(self):
         outer = Box(20, 20, 10, name="outer")
         inner = Cylinder(20, 5, name="inner")
 
@@ -87,6 +87,21 @@ class ThreadTest(test_utils.FscadTestCase):
             (0, .75),
         ]
         Threads(diff, points, 1, name="threaded_hole").create_occurrence(True)
+
+    def test_partial_male_thread(self):
+        outer = Box(20, 20, 10, name="outer")
+        inner = Cylinder(20, 5, name="inner")
+
+        intersection = Intersection(outer, inner)
+
+        points = [
+            (0, 0),
+            (.25, .25),
+            (.25, .5),
+            (0, .75),
+        ]
+        Threads(intersection, points, 1, name="threads").create_occurrence(True)
+
 
     def test_reverse_axis(self):
         cyl = Cylinder(10, 5)

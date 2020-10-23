@@ -3385,16 +3385,19 @@ class Threads(ComponentWithChildren):
                 brep().booleanOperation(cumulative_body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
 
         axis_line = adsk.core.InfiniteLine3D.create(cylinder.origin, cylinder.axis)
-        bottom_point = axis_line.intersectWithSurface(bottom_plane)[0]
-        top_point = axis_line.intersectWithSurface(top_plane)[0]
-        bounding_cylinder = brep().createCylinderOrCone(
-            bottom_point, cylinder.radius + max_x, top_point, cylinder.radius + max_x)
-
-        brep().booleanOperation(cumulative_body, bounding_cylinder, adsk.fusion.BooleanTypes.IntersectionBooleanType)
 
         point_on_face = face_brep.pointOnFace
         _, normal = face_brep.evaluator.getNormalAtPoint(point_on_face)
         point_projection = _project_point_to_line(point_on_face, axis_line)
+
+        is_male_thread = point_on_face.vectorTo(point_projection).dotProduct(normal) < 0
+
+        if is_male_thread:
+            bounding_shell = Thicken(BRepComponent(face_brep), max_x).bodies[0].brep
+        else:
+            bounding_shell = Thicken(BRepComponent(face_brep), -max_x).bodies[0].brep
+
+        brep().booleanOperation(cumulative_body, bounding_shell, adsk.fusion.BooleanTypes.IntersectionBooleanType)
 
         base_components = []
         for body in cylindrical_face.component.bodies:
@@ -3403,7 +3406,7 @@ class Threads(ComponentWithChildren):
 
         thread_component = BRepComponent(cumulative_body)
 
-        if point_on_face.vectorTo(point_projection).dotProduct(normal) < 0:
+        if is_male_thread:
             # face normal is outward, and we're adding threads onto the surface
             result = Union(base_component, thread_component)
         else:
