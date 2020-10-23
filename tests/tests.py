@@ -40,6 +40,7 @@ test_modules = [
     "scale_test",
     "silhouette_test",
     "split_face_test",
+    "thicken_test",
     "thread_test",
     "transform_test",
     "union_test",

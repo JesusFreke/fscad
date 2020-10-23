@@ -3610,6 +3610,97 @@ class Scale(ComponentWithChildren):
         super()._copy_to(copy, copy_children)
 
 
+class Thicken(ComponentWithChildren):
+    """Adds thickness to a given face.
+
+    If the given face belongs to a solid body, the returned result will be an extension of the existing body.
+    Otherwise, if the given face is not solid, a new solid body will be created and returned.
+
+    If thickness is negative, the thickness will be added to the face opposite of its normal, and then unioned with
+    the body that the face belongs to, if applicable.
+
+    Args:
+        entity: The face to thicken. This can be a Face, a Body consisting of a single Face, or a Component consisting
+            of a single Face
+        thickness: How much thickness to add
+        name: The name of the component"""
+
+    def __init__(self, entity: Onion[Component, Body, Face], thickness: float, name: str = None):
+        super().__init__(name)
+
+        target_component = None
+        target_body = None
+        target_face = None
+        if isinstance(entity, Component):
+            target_component = entity
+            component = entity
+            for body in component.bodies:
+                for face in body.faces:
+                    if target_face is not None:
+                        raise ValueError("Thicken can only be used with a single face")
+                    target_body = body
+                    target_face = face
+        elif isinstance(entity, Body):
+            for face in entity.faces:
+                if target_face is not None:
+                    raise ValueError("Thicken can only be used with a single face")
+                target_component = entity.component
+                target_body = entity
+                target_face = face
+        elif isinstance(entity, Face):
+            target_component = entity.component
+            target_body = entity.body
+            target_face = entity
+        else:
+            raise ValueError("Unsupported object type for thicken: %s" % entity.__class__.__name__)
+
+        if target_face is None:
+            raise ValueError("No face found")
+
+        temp_occurrence = _create_component(root(), brep().copy(target_face.brep), name="temp")
+
+        temp_face = None
+        for body in temp_occurrence.bRepBodies:
+            for face in body.faces:
+                if temp_face is not None:
+                    raise ValueError("Multiple faces unexpected found in temporary occurrence")
+                temp_face = face
+
+        if not temp_face:
+            raise ValueError("Face unexpectedly not found in temporary occurrence")
+
+        thicken_input = temp_occurrence.component.features.thickenFeatures.createInput(
+            _collection_of([temp_face]),
+            ValueInput.createByReal(thickness),
+            False,
+            adsk.fusion.FeatureOperations.JoinFeatureOperation,
+            False)
+
+        feature = temp_occurrence.component.features.thickenFeatures.add(thicken_input)
+
+        self._add_children([target_component])
+
+        result_bodies = []
+        feature_bodies = list(feature.bodies)
+        # In some cases, the face being extruded is included in the bodies for some reason. If so, we want to
+        # exclude it.
+        for i, body in enumerate(feature_bodies):
+            if body.isSolid:
+                result_bodies.append(brep().copy(body))
+
+        self._bodies = [_union_entities(target_body, *result_bodies)]
+
+        feature.deleteMe()
+        temp_occurrence.deleteMe()
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._bodies = list(self._bodies)
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._bodies
+
+
 # Sequence's __iter__ is implemented via a generator, which doesn't currently place nice with
 # fusion 360's SWIG objects (https://forums.autodesk.com/t5/fusion-360-api-and-scripts/strange-stopiteration-issue-caused-by-old-version-of-swig/m-p/8470361#M7106)
 class _SequenceIterator(object):
