@@ -2385,7 +2385,7 @@ class Loft(ComponentWithChildren):
         loft_feature = occurrence.component.features.loftFeatures.add(loft_feature_input)
         self._bottom_index = _face_index(loft_feature.startFace)
         self._top_index = _face_index(loft_feature.endFace)
-        self._body = brep().copy(occurrence.bRepBodies[-1])
+        self._body = brep().copy(loft_feature.bodies[0])
         occurrence.deleteMe()
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
@@ -2498,7 +2498,8 @@ class Revolve(ComponentWithChildren):
         revolve_input.setAngleExtent(False, ValueInput.createByReal(math.radians(angle)))
         temp_occurrence.component.features.revolveFeatures.add(revolve_input)
 
-        feature = temp_occurrence.component.features.revolveFeatures[-1]
+        feature = temp_occurrence.component.features.revolveFeatures[
+            temp_occurrence.component.features.revolveFeatures.count - 1]
 
         bodies = []
         for body in feature.bodies:
@@ -2544,7 +2545,8 @@ class ExtrudeBase(ComponentWithChildren):
         temp_occurrence.component.features.extrudeFeatures.add(extrude_input)
         # extrudeFeatures.add sometimes returns a feature with the wrong body? wth?
         # Getting it by index seems to work at least.
-        feature = temp_occurrence.component.features.extrudeFeatures[-1]
+        feature = temp_occurrence.component.features.extrudeFeatures[
+            temp_occurrence.component.features.extrudeFeatures.count - 1]
 
         bodies = []
         feature_body_map = {}
@@ -2767,7 +2769,7 @@ class OffsetEdges(ComponentWithChildren):
             offset_closed = False
             if len(offset_sketch_curves) == 1 and (isinstance(offset_sketch_curves[0], SketchCircle) or isinstance(offset_sketch_curves[0], SketchEllipse)):
                 offset_closed = True
-            elif len(offset_sketch_curves) > 1 and offset_sketch_curves[0].startSketchPoint == offset_sketch_curves[-1].endSketchPoint:
+            elif len(offset_sketch_curves) > 1 and offset_sketch_curves[0].startSketchPoint == offset_sketch_curves[offset_sketch_curves.count - 1].endSketchPoint:
                 offset_closed = True
 
             if offset_closed:
@@ -2786,7 +2788,7 @@ class OffsetEdges(ComponentWithChildren):
                 # TODO: add test where isParamReversed = true
                 if start_edge.isParamReversed:
                     start_point = start_edge.edge.endVertex.geometry
-                    start_sketch_point = offset_sketch_curves[-1].endSketchPoint.geometry
+                    start_sketch_point = offset_sketch_curves[offset_sketch_curves.count - 1].endSketchPoint.geometry
                 else:
                     start_point = start_edge.edge.startVertex.geometry
                     start_sketch_point = offset_sketch_curves[0].startSketchPoint.geometry
@@ -2795,7 +2797,7 @@ class OffsetEdges(ComponentWithChildren):
                     end_sketch_point = offset_sketch_curves[0].startSketchPoint.geometry
                 else:
                     end_point = end_edge.edge.endVertex.geometry
-                    end_sketch_point = offset_sketch_curves[-1].endSketchPoint.geometry
+                    end_sketch_point = offset_sketch_curves[offset_sketch_curves.count - 1].endSketchPoint.geometry
 
                 new_face_edges.append(
                     sketch.sketchCurves.sketchLines.addByTwoPoints(
