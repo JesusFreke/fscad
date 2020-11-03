@@ -952,10 +952,22 @@ class BoundingBox(BoundedEntity):
 
         Returns: The new Box component.
         """
-        box = Box(*self.size().asArray())
-        box.place(~box == ~self,
-                  ~box == ~self,
-                  ~box == ~self)
+
+        if self.size().x == 0:
+            box = Rect(self.size().z, self.size().y)
+            box.ry(90)
+        elif self.size().y == 0:
+            box = Rect(self.size().x, self.size().z)
+            box.rx(90)
+        elif self.size().z == 0:
+            box = Rect(self.size().x, self.size().y)
+        else:
+            box = Box(*self.size().asArray())
+
+        box.place(
+            ~box == ~self,
+            ~box == ~self,
+            ~box == ~self)
         return box
 
     def __str__(self) -> str:

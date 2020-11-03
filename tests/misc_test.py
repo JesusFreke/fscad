@@ -149,6 +149,43 @@ class MiscTest(test_utils.FscadTestCase):
                 sphere.thickness(Vector3D.create(random.random(), random.random(), random.random())),
                 2)
 
+    def test_xy_bounding_box(self):
+        circle1 = Circle(1)
+        circle2 = Circle(1)
+        circle2.place(
+            -circle2 == +circle1)
+        combined = Union(circle1, circle2)
+        bounding_box = combined.bounding_box.make_box()
+
+        self.assertTrue(bounding_box.get_plane().isCoPlanarTo(circle1.get_plane()))
+        self.assertEqual(bounding_box.size().asArray(), (4, 2, 0))
+
+    def test_yz_bounding_box(self):
+        circle1 = Circle(1)
+        circle2 = Circle(1)
+        circle2.place(
+            -circle2 == +circle1)
+        combined = Union(circle1, circle2)
+        combined.ry(90)
+        bounding_box = combined.bounding_box.make_box()
+
+        bounding_box.create_occurrence(scale=.1)
+        combined.create_occurrence(scale=.1)
+
+        self.assertTrue(bounding_box.get_plane().isCoPlanarTo(circle1.get_plane()))
+        self.assertEqual(bounding_box.size().asArray(), (0, 2, 4))
+
+    def test_xz_bounding_box(self):
+        circle1 = Circle(1)
+        circle2 = Circle(1)
+        circle2.place(
+            -circle2 == +circle1)
+        combined = Union(circle1, circle2)
+        combined.rx(90)
+        bounding_box = combined.bounding_box.make_box()
+
+        self.assertTrue(bounding_box.get_plane().isCoPlanarTo(circle1.get_plane()))
+        self.assertEqual(bounding_box.size().asArray(), (4, 0, 2))
 
 from .test_utils import load_tests
 def run(context):
