@@ -171,6 +171,19 @@ class HullTest(test_utils.FscadTestCase):
 
         Hull(Union(*bottom_faces)).create_occurrence(True)
 
+    def test_get_plane(self):
+        rect = Rect(1, 1)
+        circle = Circle(1)
+        circle.place(
+            (-circle == +rect) + 2,
+            ~circle == ~rect,
+            ~circle == ~rect)
+
+        hull = Hull(Union(rect, circle))
+
+        self.assertTrue(hull.get_plane().isCoPlanarTo(rect.get_plane()))
+        hull.create_occurrence(True)
+
 
 from .test_utils import load_tests
 def run(context):

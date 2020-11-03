@@ -3157,7 +3157,12 @@ class Hull(ComponentWithChildren):
 
     def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
         super()._copy_to(copy, copy_children)
-        copy._body = self._body,
+        copy._body = self._body
+
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        if not self.faces:
+            return None
+        return self.faces[0].get_plane()
 
     @staticmethod
     def _is_left(p0: Point3D, p1: Point3D, p2: Point3D):
