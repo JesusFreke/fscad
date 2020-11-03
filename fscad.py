@@ -3692,6 +3692,7 @@ class Thicken(ComponentWithChildren):
         if not temp_face:
             raise ValueError("Face unexpectedly not found in temporary occurrence")
 
+        temp_occurrence.activate()
         thicken_input = temp_occurrence.component.features.thickenFeatures.createInput(
             _collection_of([temp_face]),
             ValueInput.createByReal(thickness),
@@ -3713,7 +3714,6 @@ class Thicken(ComponentWithChildren):
 
         self._bodies = [_union_entities(target_body, *result_bodies)]
 
-        feature.deleteMe()
         temp_occurrence.deleteMe()
 
     def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
