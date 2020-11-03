@@ -115,6 +115,8 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         side = cylinder.side
         self.assertTrue(isinstance(side.brep.geometry, adsk.core.Cylinder))
 
+        self.assertEqual(cylinder.angle, 0)
+
         cylinder.create_occurrence()
 
     def test_partial_cone(self):
@@ -165,6 +167,8 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         side = cylinder.side
         self.assertTrue(isinstance(side.brep.geometry, adsk.core.Cone))
 
+        self.assertEqual(cylinder.angle, 45)
+
         cylinder.create_occurrence()
 
     def test_inverse_cone(self):
@@ -188,6 +192,8 @@ class BasicGeometryTest(test_utils.FscadTestCase):
 
         side = cylinder.side
         self.assertTrue(isinstance(side.brep.geometry, adsk.core.Cone))
+
+        self.assertEqual(cylinder.angle, -45)
 
         cylinder.create_occurrence()
 

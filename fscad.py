@@ -1953,6 +1953,11 @@ class Cylinder(Shape):
             axis.scaleBy(-1)
         return axis
 
+    @property
+    def angle(self) -> float:
+        """Returns: the angle of the side wall in degrees. A positive angle has a larger bottom radius."""
+        return math.degrees(math.atan((self.bottom_radius - self.top_radius) / self.height))
+
 
 class Sphere(Shape):
     """Defines a sphere.
