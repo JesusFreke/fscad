@@ -797,6 +797,46 @@ class Body(BRepEntity):
         return _VirtualSequence(range(0, len(self.brep.faces)), lambda i: Face(lambda: self.brep.faces[i], self))
 
 
+class Loop(BRepEntity):
+    """Represents a single Loop.
+
+    This is a wrapper around Fusion 360's BRepLoop object.
+
+    Args:
+          brep_provider: A Callable that returns the BRepLoop for this loop
+          face: The Face object that the BRepLoop is a part of
+    """
+    def __init__(self, brep_provider: Callable[[], BRepLoop], face: 'Face'):
+        super().__init__(face.component)
+        self._brep_provider = brep_provider
+        self._face = face
+
+    @property
+    def brep(self) -> BRepLoop:
+        """Returns: The raw BRepLoop this object wraps."""
+        return self._brep_provider()
+
+    @property
+    def face(self) -> 'Face':
+        """Returns: The Face object that this loop is a part of."""
+        return self._face
+
+    @property
+    def edges(self) -> Sequence['Edge']:
+        """Returns: All Edges that make up this loop."""
+        return _VirtualSequence(
+            range(0, len(self.brep.edges)),
+            lambda i: Edge(lambda: self.brep.edges[i], self.face.body))
+
+    @property
+    def is_outer(self) -> bool:
+        return self.brep.isOuter
+
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        """Returns: The plane that this Loop lies in, or None if this is not a planar component."""
+        return self.face.get_plane()
+
+
 class Face(BRepEntity):
     """Represents a single Face.
 
@@ -851,6 +891,13 @@ class Face(BRepEntity):
         return _VirtualSequence(
             range(0, len(loop.edges)),
             lambda i: Edge(lambda: self.brep.loops[loop_index].edges[i], self.body))
+
+    @property
+    def loops(self) -> Sequence[Loop]:
+        """Returns: All Loops in this Face, or an empty Sequence if there are none."""
+        return _VirtualSequence(
+            range(0, len(self.brep.loops)),
+            lambda i: Loop(lambda: self.brep.loops[i], self))
 
     def get_plane(self) -> Optional[adsk.core.Plane]:
         """Returns: The plane that this Face lies in, or None if this is not a planar component."""
@@ -3000,7 +3047,8 @@ class Silhouette(ComponentWithChildren):
         plane: The plane to project onto.
         name: The name of the component
     """
-    def __init__(self, entity: Onion[Component, Body, Edge, Face, Iterable[Face], Iterable[Edge]], plane: adsk.core.Plane, name: str = None):
+    def __init__(self, entity: Onion[Component, Body, Edge, Face, Loop, Iterable[Face], Iterable[Edge], Iterable[Loop]],
+                 plane: adsk.core.Plane, name: str = None):
         super().__init__(name)
 
         temp_occurrence = _create_component(root(), name="temp")
@@ -3019,6 +3067,10 @@ class Silhouette(ComponentWithChildren):
             new_body = temp_occurrence.component.bRepBodies.add(brep().copy(entity.brep))
             entities_to_project.append(new_body)
         elif isinstance(entity, Edge):
+            input_component = entity.component
+            new_body = temp_occurrence.component.bRepBodies.add(brep().copy(entity.brep))
+            entities_to_project.append(new_body)
+        elif isinstance(entity, Loop):
             input_component = entity.component
             new_body = temp_occurrence.component.bRepBodies.add(brep().copy(entity.brep))
             entities_to_project.append(new_body)

@@ -24,7 +24,7 @@ from . import test_utils
 
 class FaceTest(test_utils.FscadTestCase):
     def validate_test(self):
-        if self._test_name in ("make_component",):
+        if self._test_name in ("make_component", "loops"):
             return super().validate_test()
         return
 
@@ -144,6 +144,33 @@ class FaceTest(test_utils.FscadTestCase):
     def test_make_component(self):
         cylinder = Cylinder(1, 1)
         cylinder.side.make_component(name="CylinderFace").create_occurrence(create_children=True)
+
+    def test_loops(self):
+        box = Box(1, 1, 1)
+        inner_box = Box(.5, .5, 1)
+
+        inner_box.place(
+            ~inner_box == ~box,
+            ~inner_box == ~box,
+            ~inner_box == ~box)
+
+        difference = Difference(box, inner_box)
+        top_face = difference.find_faces(box.top)[0]
+
+        self.assertEqual(len(top_face.loops), 2)
+
+        outer_loop = top_face.loops[0] if top_face.loops[0].is_outer else top_face.loops[1]
+        inner_loop = top_face.loops[1] if top_face.loops[0].is_outer else top_face.loops[0]
+
+        self.assertEqual(outer_loop.size().asArray(), (1, 1, 0))
+        self.assertEqual(inner_loop.size().asArray(), (.5, .5, 0))
+
+        self.assertEqual(len(outer_loop.edges), 4)
+        self.assertEqual(len(inner_loop.edges), 4)
+
+        Silhouette(outer_loop, box.top.get_plane()).create_occurrence(True)
+        Silhouette(inner_loop, box.top.get_plane()).create_occurrence(True)
+
 
 
 from .test_utils import load_tests
