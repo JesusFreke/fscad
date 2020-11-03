@@ -24,7 +24,9 @@ from . import test_utils
 
 class FaceTest(test_utils.FscadTestCase):
     def validate_test(self):
-        pass
+        if self._test_name in ("make_component",):
+            return super().validate_test()
+        return
 
     def test_adjacent_coincident_faces(self):
         box1 = Box(1, 1, 1, "box1")
@@ -138,6 +140,10 @@ class FaceTest(test_utils.FscadTestCase):
         box.tx(1)
 
         self.assertEqual(face.mid().asArray(), (1.5, .5, 1))
+
+    def test_make_component(self):
+        cylinder = Cylinder(1, 1)
+        cylinder.side.make_component(name="CylinderFace").create_occurrence(create_children=True)
 
 
 from .test_utils import load_tests

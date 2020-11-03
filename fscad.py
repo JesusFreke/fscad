@@ -858,6 +858,16 @@ class Face(BRepEntity):
             return self.brep.geometry
         return None
 
+    def make_component(self, name="Face") -> 'Component':
+        """Create a separate component that consists of just this face.
+
+        Args:
+              name: (optional) The name of the new component.
+        Returns:
+              A new component that consists of just this face. It will also contain the component containing this face
+              as a non-visible child."""
+        return BRepComponent(self.brep, component=self.component, name=name)
+
 
 class Edge(BRepEntity):
     """Represents a single Edge.
@@ -1705,7 +1715,45 @@ class Component(BoundedEntity, ABC):
         return app().measureManager.getOrientedBoundingBox(self_body, axis, other_axis).length
 
 
-class Shape(Component, ABC):
+class ComponentWithChildren(Component, ABC):
+    def __init__(self, name):
+        super().__init__(name)
+        self._children = []
+
+    def _add_children(self, children: Iterable[Component], func: Callable[[Component], None] = None):
+        for child in children:
+            if child.parent is not None:
+                child = child.copy()
+            child._local_transform.transformBy(self._inverse_world_transform())
+            child._reset_cache()
+            if func:
+                func(child)
+            child._parent = self
+            self._children.append(child)
+        self._reset_cache()
+
+    def children(self) -> Sequence['Component']:
+        return tuple(self._children)
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        copy._cached_inverse_transform = None
+        copy._children = []
+        if copy_children:
+            copy._add_children([child.copy() for child in self._children])
+
+    def find_children(self, name, recursive=True) -> Sequence[Component]:
+        result = []
+        for child in self._children:
+            if child.name == name:
+                result.append(child)
+        if recursive:
+            for child in self._children:
+                if isinstance(child, ComponentWithChildren):
+                    result.extend(child.find_children(name, recursive))
+        return result
+
+
+class Shape(ComponentWithChildren):
     def __init__(self, *bodies: BRepBody, name: str):
         super().__init__(name)
         self._bodies = list(bodies)
@@ -1714,6 +1762,7 @@ class Shape(Component, ABC):
         return self._bodies
 
     def _copy_to(self, copy: 'Shape', copy_children: bool):
+        super()._copy_to(copy, copy_children)
         copy._bodies = [brep().copy(body) for body in self._bodies]
 
 
@@ -1725,10 +1774,14 @@ class BRepComponent(Shape):
 
     Args:
         *brep_entities: The BRepBody or BRepFace objects that this Component will contain
+        component: If provided, the component will be added as a hidden child of this component. e.g. this can be used
+          to add the component the face comes from as a child
         name: The name of the Component
     """
-    def __init__(self, *brep_entities: Onion[BRepBody, BRepFace], name: str = None):
+    def __init__(self, *brep_entities: Onion[BRepBody, BRepFace], component: Component = None, name: str = None):
         super().__init__(*[brep().copy(brep_entity) for brep_entity in brep_entities], name=name)
+        if component:
+            self._add_children((component,))
 
     def get_plane(self) -> Optional[adsk.core.Plane]:
         plane = None
@@ -2011,44 +2064,6 @@ class RegularPolygon(Polygon):
                 -radius * math.cos(math.radians(angle)),
                 0))
         super().__init__(*points, name=name)
-
-
-class ComponentWithChildren(Component, ABC):
-    def __init__(self, name):
-        super().__init__(name)
-        self._children = []
-
-    def _add_children(self, children: Iterable[Component], func: Callable[[Component], None] = None):
-        for child in children:
-            if child.parent is not None:
-                child = child.copy()
-            child._local_transform.transformBy(self._inverse_world_transform())
-            child._reset_cache()
-            if func:
-                func(child)
-            child._parent = self
-            self._children.append(child)
-        self._reset_cache()
-
-    def children(self) -> Sequence['Component']:
-        return tuple(self._children)
-
-    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
-        copy._cached_inverse_transform = None
-        copy._children = []
-        if copy_children:
-            copy._add_children([child.copy() for child in self._children])
-
-    def find_children(self, name, recursive=True) -> Sequence[Component]:
-        result = []
-        for child in self._children:
-            if child.name == name:
-                result.append(child)
-        if recursive:
-            for child in self._children:
-                if isinstance(child, ComponentWithChildren):
-                    result.extend(child.find_children(name, recursive))
-        return result
 
 
 def import_fusion_archive(filename, name="import"):
