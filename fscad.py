@@ -15,8 +15,8 @@
 from abc import ABC
 from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point2D, Point3D, ValueInput,\
     Vector3D
-from adsk.fusion import BRepBody, BRepCoEdge, BRepEdge, BRepEdges, BRepFace, BRepFaces, BRepLoop, Occurrence,\
-    SketchCircle, SketchCurve, SketchEllipse
+from adsk.fusion import BRepBody, BRepBodyDefinition, BRepCoEdge, BRepEdge, BRepEdges, BRepFace, BRepFaceDefinition,\
+    BRepFaces, BRepLoop, BRepLoopDefinition, Occurrence,SketchCircle, SketchCurve, SketchEllipse
 from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple, List, TypeVar, overload
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
@@ -556,6 +556,23 @@ def _create_construction_point(component: adsk.fusion.Component, point: Point3D)
     input = component.constructionPoints.createInput()
     input.setByPoint(point)
     return component.constructionPoints.add(input)
+
+
+def _pairwise_indices(count):
+    for i in range(0, count):
+        yield i, (i+1) % count
+
+
+def _iterate_pairwise(collection):
+    for i, j in _pairwise_indices(len(collection)):
+        yield collection[i], collection[j]
+
+
+def _add_face_def(shell_def: adsk.fusion.BRepShellDefinition, surface_geometry, edges):
+    face_def = shell_def.faceDefinitions.add(surface_geometry, isParamReversed=False)
+    loop_def = face_def.loopDefinitions.add()
+    for edge in edges:
+        loop_def.bRepCoEdgeDefinitions.add(edge, False)
 
 
 class Translation(object):
@@ -3306,6 +3323,111 @@ class Hull(ComponentWithChildren):
             upper_stack.append(points[0])
 
         return lower_stack + upper_stack
+
+
+class RawThreads(Shape):
+    """Creates a raw thread object, not associated with or attached to any cylindrical surface.
+
+    E.g., to create a triangular thread profile with 45 degree upper and lower faces, and a pitch of 1mm::
+
+        threads = RawThreads(
+            inner_radius=10,
+            pitch=1,
+            turns=1,
+            thread_profile = [(0, 0), (.5, .5), (0, 1)])
+
+    Args:
+        inner_radius: The inner radius of the threads.
+        thread_profile: The thread profile as a list of (x, y) tuples. (0, 0) is the "origin" of the thread profile,
+            while +x is a vector perpendicular and away from the face of the cylinder, and +y is a vector parallel with
+            the axis of the cylinder, pointing toward the top.
+        pitch: The pitch of the threads.
+        turns: The number of turns of the thread to create.
+        name: The name of the component
+    """
+
+    def __init__(self, inner_radius: float, thread_profile: Iterable[Tuple[float, float]], pitch: float, turns: float,
+                 name: str = None):
+
+        # When the upper point of the thread profile is the same as the lower point of the next turn of the thread,
+        # we get an error when creating the ruled surface for the back face about the surface being self-intersecting.
+        # In order to avoid this, we split the back profile edge into 2, so that there are 2 separate ruled surfaces
+        # that aren't self-intersecting.
+        augmented_thread_profile = list(thread_profile)
+        augmented_thread_profile.append(((augmented_thread_profile[-1][0] + augmented_thread_profile[0][0]) / 2,
+                                         (augmented_thread_profile[-1][1] + augmented_thread_profile[0][1]) / 2))
+
+        start_points = [
+            Point3D.create(inner_radius + point[0], 0, point[1])
+            for point in augmented_thread_profile]
+
+        helixes = [
+            brep().createHelixWire(
+                axisPoint=Point3D.create(0, 0, 0),
+                axisVector=Vector3D.create(0, 0, 1),
+                startPoint=point,
+                pitch=pitch,
+                turns=turns,
+                taperAngle=0) for point in start_points]
+
+        end_points = [helix.edges[0].endVertex.geometry for helix in helixes]
+
+        helix_surfaces = [
+            brep().createRuledSurface(first.wires[0], second.wires[0])
+            for first, second in _iterate_pairwise(helixes)]
+
+        start_lines = [
+            adsk.core.Line3D.create(first, second)
+            for first, second in _iterate_pairwise(start_points)]
+        start_wires = brep().createWireFromCurves(start_lines, allowSelfIntersections=False)[0]
+        start_face_body = brep().createFaceFromPlanarWires([start_wires])
+
+        end_lines = [
+            adsk.core.Line3D.create(second, first)
+            for first, second in _iterate_pairwise(end_points)]
+        end_wires = brep().createWireFromCurves(end_lines, allowSelfIntersections=False)[0]
+        end_face_body = brep().createFaceFromPlanarWires([end_wires])
+
+        temp_occurrence = _create_component(
+            root(), *helix_surfaces, start_face_body, end_face_body, name="temp")
+        stitch_input = temp_occurrence.component.features.stitchFeatures.createInput(
+            _collection_of(temp_occurrence.bRepBodies),
+            adsk.core.ValueInput.createByReal(app().pointTolerance),
+            adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+        temp_occurrence.component.features.stitchFeatures.add(stitch_input)
+
+        body = brep().copy(temp_occurrence.bRepBodies[0])
+        temp_occurrence.deleteMe()
+
+        planar_face_count = 0
+        for index, face in enumerate(body.faces):
+            if isinstance(face.geometry, adsk.core.Plane):
+                planar_face_count += 1
+                to_origin_vector = face.pointOnFace.vectorTo(Point3D.create(0, 0, 0))
+                cross = face.geometry.normal.crossProduct(to_origin_vector)
+                if cross.z < 0:
+                    self._start_face_index = index
+                else:
+                    self._end_face_index = index
+
+        # the only 2 planar faces should be the start and end faces
+        assert(planar_face_count == 2)
+        super().__init__(body, name=name)
+
+    @property
+    def start_face(self) -> Face:
+        """Returns: The flat face at the beginning of the thread. This will be the flat face at the bottom."""
+        return self.bodies[0].faces[self._start_face_index]
+
+    @property
+    def end_face(self) -> Face:
+        """Returns: The flat face at the end of the thread. This will be flat face at the top."""
+        return self.bodies[0].faces[self._end_face_index]
+
+    def _copy_to(self, copy: 'Shape', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._start_face_index = self._start_face_index
+        copy._end_face_index = self._end_face_index
 
 
 class Threads(ComponentWithChildren):

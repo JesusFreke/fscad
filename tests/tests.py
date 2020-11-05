@@ -36,6 +36,7 @@ test_modules = [
     "misc_test",
     "offset_edges_test",
     "place_test",
+    "raw_thread_test",
     "revolve_test",
     "scale_test",
     "silhouette_test",
