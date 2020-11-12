@@ -13,11 +13,11 @@
 # limitations under the License.
 
 from abc import ABC
-from adsk.core import BoundingBox3D, Matrix3D, ObjectCollection, OrientedBoundingBox3D, Point2D, Point3D, ValueInput,\
-    Vector3D
+from adsk.core import BoundingBox3D, Curve3D, Line3D, Matrix3D, NurbsCurve3D, ObjectCollection, OrientedBoundingBox3D,\
+    Point2D, Point3D, ValueInput, Vector3D
 from adsk.fusion import BRepBody, BRepBodyDefinition, BRepCoEdge, BRepEdge, BRepEdges, BRepFace, BRepFaceDefinition,\
-    BRepFaces, BRepLoop, BRepLoopDefinition, Occurrence,SketchCircle, SketchCurve, SketchEllipse
-from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple, List, TypeVar, overload
+    BRepFaces, BRepLoop, BRepLoopDefinition, BRepWire, Occurrence,SketchCircle, SketchCurve, SketchEllipse
+from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple, List, TypeVar, overload, Any
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
 import adsk.core
@@ -96,7 +96,7 @@ def _collection_of(collection):
     return object_collection
 
 
-def _create_component(parent_component, *bodies: Onion[BRepBody, 'Body'], name):
+def _create_component(parent_component, *bodies: Onion[BRepBody, 'Body'], name) -> Occurrence:
     new_occurrence = parent_component.occurrences.addNewComponent(Matrix3D.create())
     new_occurrence.component.name = name
     for body in bodies:
@@ -425,6 +425,13 @@ def _point_3d(point: Onion[Point2D, Point3D, Tuple[float, float], Tuple[float, f
     raise ValueError("Unsupported type: %s" % point.__class__.__name__)
 
 
+def _point_2d(point: Onion[Point2D, Point3D, Tuple[float, float], Tuple[float, float, float], 'Point']) -> Point3D:
+    point = _point_3d(point)
+    if point.z != 0:
+        raise ValueError("Only points in the x/y plane (z=0) are supported")
+    return point
+
+
 def _project_point_to_line(point: Point3D, line: adsk.core.InfiniteLine3D):
     axis = line.direction
     axis.normalize()
@@ -480,6 +487,27 @@ def _create_point_body(point: Point3D, vector: Vector3D = None):
     brep().transform(body, matrix)
 
     return body
+
+
+def _create_wire(curve: Curve3D):
+    return brep().createWireFromCurves([curve], allowSelfIntersections=False)[0]
+
+
+def _create_fit_point_spline(*points: Sequence[Onion[Tuple[float, float], Point2D, Point3D, 'Point']]) -> NurbsCurve3D:
+    temp_occurrence = _create_component(root(), name="temp")
+
+    construction_plane_input = temp_occurrence.component.constructionPlanes.createInput(temp_occurrence)
+    construction_plane_input.setByPlane(adsk.core.Plane.create(
+        Point3D.create(0, 0, 0),
+        Vector3D.create(0, 0, 1)))
+    construction_plane = temp_occurrence.component.constructionPlanes.add(construction_plane_input)
+    sketch = temp_occurrence.component.sketches.add(construction_plane, temp_occurrence)
+
+    spline = sketch.sketchCurves.sketchFittedSplines.add(_collection_of([_point_2d(point) for point in points]))
+    curve = spline.worldGeometry
+
+    temp_occurrence.deleteMe()
+    return curve
 
 
 def _get_outer_loop(brep_face: BRepFace) -> BRepLoop:
@@ -2100,6 +2128,68 @@ class Circle(PlanarShape):
         cylinder = brep().createCylinderOrCone(
             Point3D.create(0, 0, -1), radius, self._origin, radius)
         super().__init__(brep().copy(cylinder.faces[self._top_index]), name)
+
+
+class Builder2D(object):
+    """Builds a Planar 2D face in the x/y plane from a sequence of edge movements.
+
+    Each call to one of the edge directives implicitly uses the ending point of the previous edge as the starting point
+    of the next edge. All points should be "2d" - with either 2 components, or 3 components but with z=0.
+
+    Args:
+        start_point: The starting point of the face being built. The next edge directive will be relative to this point.
+        name: The name of the component
+    """
+
+    _segments: List[Curve3D]
+
+    def __init__(self, start_point: Onion[Tuple[float, float], Point2D, Point3D, Point], name: str = None):
+        self._start_point = _point_2d(start_point)
+        self._segments = []
+
+    @property
+    def first_point(self):
+        """Returns: The first point that was added."""
+        return self._start_point
+
+    @property
+    def last_point(self):
+        """Returns: The endpoint of the last edge that has been added."""
+        if self._segments:
+            return self._segments[-1].evaluator.getEndPoints()[2]
+        else:
+            return self._start_point
+
+    def line_to(self, point: Onion[Tuple[float, float], Point2D, Point3D, Point]):
+        """Define a line from the previous end point to the given point.
+
+        Args:
+            point: The end point of the new line.
+        """
+        start_point = self.last_point
+        end_point = _point_2d(point)
+        self._segments.append(Line3D.create(start_point, end_point))
+
+    def fit_spline_through(self, *points: List[Onion[Tuple[float, float], Point2D, Point3D, Point]]):
+        """Create a fit point spline through the given points.
+
+        The end point of the previously defined edge will be implicitly used as the first point of the spline.
+
+        Args:
+            points: The points that the smoothed spline should run through.
+        """
+        self._segments.append(_create_fit_point_spline(self.last_point, *points))
+
+    def build(self, name=None):
+        """Builds a Planar face in the x/y plane from the edges that have been defined on this builder.
+
+        The edges should all be non-overlapping, and should form a closed loop.
+
+        :param name: If given, the name of the component being made.
+        :return: A Component containing the newly built face.
+        """
+        wire_body = brep().createWireFromCurves(self._segments, allowSelfIntersections=False)[0]
+        return BRepComponent(brep().createFaceFromPlanarWires([wire_body]), name=name)
 
 
 class Polygon(PlanarShape):

@@ -21,6 +21,7 @@ test_modules = [
     "align_test",
     "basic_geometry_test",
     "body_test",
+    "builder2d_test",
     "copy_test",
     "difference_test",
     "edge_test",
