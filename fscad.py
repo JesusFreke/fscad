@@ -489,7 +489,7 @@ def _create_point_body(point: Point3D, vector: Vector3D = None):
     return body
 
 
-def _create_wire(curve: Curve3D):
+def _create_wire(curve: Curve3D) -> BRepBody:
     return brep().createWireFromCurves([curve], allowSelfIntersections=False)[0]
 
 
@@ -2693,6 +2693,127 @@ class Revolve(ComponentWithChildren):
         self._bodies = bodies
 
         self._add_children((component,))
+
+        temp_occurrence.deleteMe()
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._bodies
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._bodies = list(self._bodies)
+
+
+class Sweep(ComponentWithChildren):
+    """Sweeps a planar face along a path, optionally with a twist.
+
+    Args:
+        entity: The object to twist. This can be a Face, an iterable of Faces, or a planar Component.
+        path: The path to sweep the face along
+        turns: The number of turns to twist
+        name: The name of the component
+    """
+    _bodies = ...  # type: Sequence[BRepBody]
+
+    def __init__(self,
+                 entity: Onion[Component, Face, Iterable[Face]],
+                 path: Sequence[Onion[adsk.core.Curve3D, Edge]],
+                 turns: float = 0,
+                 name: str = None):
+        super().__init__(name)
+
+        components = []
+
+        if isinstance(entity, Component):
+            component = entity
+            components.append(component)
+            if component.get_plane() is None:
+                raise ValueError("Can't sweep non-planar geometry with Sweep.")
+            faces = []
+            for body in component.bodies:
+                faces.extend(body.brep.faces)
+        elif isinstance(entity, Face):
+            component = entity.component
+            components.append(component)
+            if entity.get_plane() is None:
+                raise ValueError("Can't sweep non-planar geometry with Sweep.")
+            faces = [entity.brep]
+        elif isinstance(entity, Iterable):
+            component = None
+            faces = []
+            plane: adsk.core.Plane = None
+            for face in entity:
+                if component is None:
+                    component = face.component
+                elif face.component != component:
+                    raise ValueError("All faces must be from the same component")
+
+                if face.get_plane() is None:
+                    raise ValueError("Can't sweep non-planar geometry with Sweep.")
+                if plane is None:
+                    plane = face.get_plane()
+                elif not plane.isCoPlanarTo(face.get_plane()):
+                    raise ValueError("All faces to sweep must be coplanar.")
+                faces.append(face)
+            components.append(component)
+        else:
+            raise ValueError("Unsupported object type for sweep: %s" % entity.__class__.__name__)
+
+        input_bodies = []
+        for face in faces:
+            if face.body not in input_bodies:
+                input_bodies.append(face.body)
+        temp_occurrence = _create_component(root(), *input_bodies, name="temp")
+
+        temp_bodies = list(temp_occurrence.bRepBodies)
+        temp_faces = []
+        for face in faces:
+            body_index = input_bodies.index(face.body)
+            temp_body = temp_bodies[body_index]
+            temp_faces.append(_map_face(face, temp_body))
+
+        construction_plane_input = temp_occurrence.component.constructionPlanes.createInput(temp_occurrence)
+        construction_plane_input.setByPlane(adsk.core.Plane.create(
+            Point3D.create(0, 0, 0),
+            Vector3D.create(0, 0, 1)))
+        construction_plane = temp_occurrence.component.constructionPlanes.add(construction_plane_input)
+        sketch = temp_occurrence.component.sketches.add(construction_plane, temp_occurrence)
+
+        edges = []
+        for item in path:
+            if isinstance(item, Edge):
+                if item.component not in components:
+                    components.append(item.component)
+                wire = brep().copy(item.brep)
+            elif isinstance(item, Curve3D):
+                wire = _create_wire(item)
+            else:
+                raise ValueError("Unsupported axis type for sweep: %s" % item.__class__.__name__)
+
+            wire = temp_occurrence.component.bRepBodies.add(wire)
+            edges.append(sketch.include(wire.edges[0])[0])
+            wire.deleteMe()
+
+        path_object = temp_occurrence.component.features.createPath(
+            _collection_of(edges),
+            isChain=False)
+
+        sweep_input = temp_occurrence.component.features.sweepFeatures.createInput(
+            _collection_of(temp_faces),
+            path_object,
+            adsk.fusion.FeatureOperations.JoinFeatureOperation)
+
+        sweep_input.distanceOne = ValueInput.createByReal(1.0)
+        sweep_input.twistAngle = ValueInput.createByReal(turns * math.pi * 2)
+
+        feature = temp_occurrence.component.features.sweepFeatures.add(sweep_input)
+
+        bodies = []
+        for body in feature.bodies:
+            bodies.append(brep().copy(body))
+        self._bodies = bodies
+
+        self._add_children(components)
 
         temp_occurrence.deleteMe()
 
