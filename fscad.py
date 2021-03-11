@@ -4036,6 +4036,9 @@ class Scale(ComponentWithChildren):
         copy._bodies = list(self._bodies)
         super()._copy_to(copy, copy_children)
 
+    def get_plane(self):
+        return self.children()[0].get_plane()
+
 
 class Thicken(ComponentWithChildren):
     """Adds thickness to a given face.
