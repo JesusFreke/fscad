@@ -27,6 +27,7 @@ import importlib
 import inspect
 import math
 import os
+import pathlib
 import random
 import sys
 import time
@@ -4193,7 +4194,7 @@ def setup_document(document_name="fSCAD-Preview"):
     design().designType = adsk.fusion.DesignTypes.DirectDesignType
 
 
-def run_design(design_func, message_box_on_error=True, print_runtime=True, document_name="fSCAD-Preview"):
+def run_design(design_func, message_box_on_error=True, print_runtime=True, document_name=None):
     """Utility method to handle the common setup tasks for a script
 
     This can be used in a script like this::
@@ -4205,12 +4206,18 @@ def run_design(design_func, message_box_on_error=True, print_runtime=True, docum
     Args:
         design_func: The function that actually creates the design
         message_box_on_error: Set true to pop up a dialog with a stack trace if an error occurs
+        print_runtime: If true, print the amount of time the design took to run
         document_name: The name of the document to create. If a document of the given name already exists, it will
             be forcibly closed and recreated.
     """
     # noinspection PyBroadException
     try:
         start = time.time()
+        if not document_name:
+            frame = inspect.stack()[1]
+            module = inspect.getmodule(frame[0])
+            filename = module.__file__
+            document_name = pathlib.Path(filename).stem
         setup_document(document_name)
         design_func()
         end = time.time()
