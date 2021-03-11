@@ -2991,6 +2991,7 @@ class ExtrudeTo(ExtrudeBase):
     """
     def __init__(self, entity: Onion[Face, Component, Iterable[Face]],
                  to_entity: Onion[Component, Face, Body],
+                 offset=0.0,
                  name: str = None):
         if isinstance(entity, Component):
             component = entity
@@ -3032,7 +3033,8 @@ class ExtrudeTo(ExtrudeBase):
         else:
             raise ValueError("Unsupported type for to_entity: %s" % to_entity.__class__.__name__)
 
-        super().__init__(component, faces, adsk.fusion.ToEntityExtentDefinition.create(to_entity, False), name)
+        super().__init__(component, faces, adsk.fusion.ToEntityExtentDefinition.create(
+            to_entity, False, ValueInput.createByReal(offset)), name)
         self._add_children([component_to_add])
         temp_occurrence.deleteMe()
 

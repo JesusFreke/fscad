@@ -174,6 +174,24 @@ class ExtrudeTest(test_utils.FscadTestCase):
         self.assertTrue(extrusion.bodies[0].brep.isSolid)
         extrusion.create_occurrence(create_children=True)
 
+    def test_extrude_to_with_offset(self):
+        rect = Rect(1, 1)
+
+        sphere = Sphere(5)
+        sphere.tz(10)
+
+        extrude = ExtrudeTo(rect, sphere.bodies[0], offset=1)
+        extrude.create_occurrence(True)
+
+    def test_extrude_to_with_negative_offset(self):
+        rect = Rect(1, 1)
+
+        sphere = Sphere(5)
+        sphere.tz(10)
+
+        extrude = ExtrudeTo(rect, sphere.bodies[0], offset=-1)
+        extrude.create_occurrence(True)
+
 
 from .test_utils import load_tests
 def run(context):
