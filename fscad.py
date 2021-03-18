@@ -3746,7 +3746,7 @@ class Threads(ComponentWithChildren):
             elif point[1] > max_y:
                 max_y = point[1]
 
-        extra_length = max_y
+        extra_length = math.ceil(max_y / pitch) * pitch
         turns = (length + extra_length)/pitch
 
         axis_copy = axis.copy()
