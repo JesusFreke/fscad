@@ -687,6 +687,8 @@ class Place(object):
             point = Point3D.create(other, other, other)
         elif isinstance(other, Place):
             point = other._point
+        elif isinstance(other, Point):
+            point = other.point
         else:
             raise ValueError("Unsupported type: %s" % type(other).__name__)
 
