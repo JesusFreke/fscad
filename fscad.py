@@ -1227,10 +1227,9 @@ class Component(BoundedEntity, ABC):
         if scale != 1:
             return self.copy().scale(scale, scale, scale).create_occurrence(create_children, 1)
 
-        occurrence = _create_component(root(), *self.bodies, name=self.name or self._default_name())
+        occurrence = self._create_component(root())
         if create_children:
-            for child in self.children():
-                child._create_occurrence(occurrence)
+            self._create_children(occurrence)
         for name in self._named_points.keys():
             construction_point_input = occurrence.component.constructionPoints.createInput()
             construction_point_input.setByPoint(self.named_point(name).point)
@@ -1238,17 +1237,29 @@ class Component(BoundedEntity, ABC):
             construction_point.name = name
         return occurrence
 
-    def _create_occurrence(self, parent_occurrence):
-        occurrence = _create_component(
-            parent_occurrence.component, *self.bodies, name=self.name or self._default_name())
-        occurrence.isLightBulbOn = False
-        for child in self.children():
-            child._create_occurrence(occurrence)
+    def _create_occurrence(self, parent_occurrence, hidden=True, create_children=True, scale=1):
+        if scale != 1:
+            return self.copy().scale(scale, scale, scale)._create_occurrence(
+                parent_occurrence, hidden, create_children, 1)
+
+        occurrence = self._create_component(parent_occurrence.component)
+        occurrence.isLightBulbOn = not hidden
+        if create_children:
+            self._create_children(occurrence)
         for name in self._named_points.keys():
             construction_point_input = occurrence.component.constructionPoints.createInput()
             construction_point_input.setByPoint(self.named_point(name).point)
             construction_point = occurrence.component.constructionPoints.add(construction_point_input)
             construction_point.name = name
+        return occurrence
+
+    def _create_component(self, parent_component):
+        return _create_component(
+            parent_component, *self.bodies, name=self.name or self._default_name())
+
+    def _create_children(self, occurrence):
+        for child in self.children():
+            child._create_occurrence(occurrence)
 
     def place(self, x: _vector_like = _null_vector, y: _vector_like = _null_vector,
               z: _vector_like = _null_vector):
@@ -2546,6 +2557,29 @@ class Group(Combination):
                 copy._hidden_children.append(child.copy())
 
         super()._copy_to(copy, copy_children)
+
+    def create_occurrence(self, create_children=False, scale=1) -> adsk.fusion.Occurrence:
+        occurrence = self._create_component(root())
+        for child in self._visible_children:
+            child._create_occurrence(occurrence, hidden=False, create_children=create_children, scale=scale)
+        if create_children:
+            for child in self._hidden_children:
+                child._create_occurrence(occurrence, hidden=True, create_children=create_children, scale=scale)
+        for name in self._named_points.keys():
+            construction_point_input = occurrence.component.constructionPoints.createInput()
+            construction_point_input.setByPoint(self.named_point(name).point)
+            construction_point = occurrence.component.constructionPoints.add(construction_point_input)
+            construction_point.name = name
+        return occurrence
+
+    def _create_component(self, parent_component):
+        return _create_component(parent_component, name=self.name or self._default_name())
+
+    def _create_children(self, occurrence):
+        for child in self._visible_children:
+            child._create_occurrence(occurrence, hidden=False)
+        for child in self._hidden_children:
+            child._create_occurrence(occurrence, hidden=True)
 
 
 class Loft(ComponentWithChildren):

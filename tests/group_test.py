@@ -24,8 +24,10 @@ from . import test_utils
 
 class GroupTest(test_utils.FscadTestCase):
     def validate_test(self):
-        if self._test_name == "components":
+        if self._test_name in ("components",
+                               "named_faces_on_children"):
             return
+        super().validate_test()
 
     def test_group(self):
         box1 = Box(1, 1, 1, "box1")
@@ -51,6 +53,14 @@ class GroupTest(test_utils.FscadTestCase):
         total_bounding_box = BoundingBox(bounding_box)
 
         void = Difference(total_bounding_box.make_box(), box1, box2)
+
+        box1_split_tool = box1.bounding_box.make_box()
+        box1_split_tool.place(
+            -box1_split_tool == ~box1,
+            ~box1_split_tool == ~box1,
+            ~box1_split_tool == ~box1)
+
+        box1 = Difference(box1, box1_split_tool)
 
         group = Group([box1, box2], [void])
         group.create_occurrence(False)
