@@ -1014,6 +1014,18 @@ class Point(BoundedEntity):
         """Returns the raw Point3D object that this class wraps."""
         return self._point.copy()
 
+    @property
+    def x(self) -> float:
+        return self._point.x
+
+    @property
+    def y(self) -> float:
+        return self._point.y
+
+    @property
+    def z(self) -> float:
+        return self._point.z
+
     def _calculate_bounding_box(self) -> 'BoundingBox3D':
         return BoundingBox3D.create(self._point, self._point)
 
