@@ -1134,13 +1134,14 @@ class Component(BoundedEntity, ABC):
     def _raw_bodies(self) -> Iterable[BRepBody]:
         raise NotImplementedError()
 
-    def copy(self, copy_children=True) -> 'Component':
+    def copy(self, copy_children=True, name=None) -> 'Component':
         """Makes a copy of this Component.
 
         Args:
             copy_children: If true, the entire Component hierarchy under this Component is also copied. If false,
                 only "visible" children are copied. Group is currently the only Component type that has visible
                 children.
+            name: If specified, set the name of the copy to name
 
         Returns: A new copy of this Component.
         """
@@ -1154,7 +1155,7 @@ class Component(BoundedEntity, ABC):
         copy._named_points = dict(self._named_points)
         copy._named_edges = dict(self._named_edges)
         copy._named_faces = dict(self._named_faces)
-        copy.name = self.name
+        copy.name = name or self.name
         self._copy_to(copy, copy_children)
         return copy
 
