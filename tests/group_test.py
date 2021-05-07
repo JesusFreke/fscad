@@ -141,6 +141,15 @@ class GroupTest(test_utils.FscadTestCase):
         self.assertEqual(group.find_children("box1", recursive=False)[0].named_faces("top")[0].mid().asArray(),
                          (10.5, .5, 1.0))
 
+    def test_nested_groups(self):
+        box1 = Box(1, 1, 1, name="box1")
+        box2 = Box(1, 1, 1, name="box2")
+        box2.tx(2)
+
+        inner_group = Group([box1], [box2])
+        outer_group = Group([inner_group])
+        outer_group.create_occurrence(create_children=True)
+
 
 from .test_utils import load_tests
 def run(context):

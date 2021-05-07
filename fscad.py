@@ -1225,25 +1225,22 @@ class Component(BoundedEntity, ABC):
                 then specify a scale value of .1 in the call to create_occurrence.
         Returns: The `Occurrence` that was created in the Fusion 360 document.
         """
-        if scale != 1:
-            return self.copy().scale(scale, scale, scale).create_occurrence(create_children, 1)
+        return self._create_occurrence(
+            parent_occurrence=None,
+            hidden=False,
+            create_children=create_children,
+            scale=scale)
 
-        occurrence = self._create_component(root())
-        if create_children:
-            self._create_children(occurrence)
-        for name in self._named_points.keys():
-            construction_point_input = occurrence.component.constructionPoints.createInput()
-            construction_point_input.setByPoint(self.named_point(name).point)
-            construction_point = occurrence.component.constructionPoints.add(construction_point_input)
-            construction_point.name = name
-        return occurrence
-
-    def _create_occurrence(self, parent_occurrence, hidden=True, create_children=True, scale=1):
+    def _create_occurrence(self, parent_occurrence=None, hidden=True, create_children=True, scale=1):
         if scale != 1:
             return self.copy().scale(scale, scale, scale)._create_occurrence(
                 parent_occurrence, hidden, create_children, 1)
 
-        occurrence = self._create_component(parent_occurrence.component)
+        if not parent_occurrence:
+            parent_component = root()
+        else:
+            parent_component = parent_occurrence.component
+        occurrence = self._create_component(parent_component)
         occurrence.isLightBulbOn = not hidden
         if create_children:
             self._create_children(occurrence)
@@ -2559,8 +2556,13 @@ class Group(Combination):
 
         super()._copy_to(copy, copy_children)
 
-    def create_occurrence(self, create_children=False, scale=1) -> adsk.fusion.Occurrence:
-        occurrence = self._create_component(root())
+    def _create_occurrence(self, parent_occurrence=None, hidden=True, create_children=False, scale=1) -> adsk.fusion.Occurrence:
+        if parent_occurrence:
+            parent_component = parent_occurrence.component
+        else:
+            parent_component = root()
+
+        occurrence = self._create_component(parent_component=parent_component)
         for child in self._visible_children:
             child._create_occurrence(occurrence, hidden=False, create_children=create_children, scale=scale)
         if create_children:
