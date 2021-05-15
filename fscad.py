@@ -2272,13 +2272,18 @@ def import_fusion_archive(filename, name="import"):
     """
     import_options = app().importManager.createFusionArchiveImportOptions(filename)
 
-    result = app().importManager.importToTarget2(import_options, root())
+    document = app().importManager.importToNewDocument(import_options)
+    imported_root = document.products[0].rootComponent
 
     bodies = []
-    for occurrence in result:
+
+    for body in imported_root.bRepBodies:
+        bodies.append(brep().copy(body))
+    for occurrence in imported_root.allOccurrences:
         for body in occurrence.bRepBodies:
             bodies.append(brep().copy(body))
-        occurrence.deleteMe()
+
+    document.close(saveChanges=False)
 
     return BRepComponent(*bodies, name=name)
 
