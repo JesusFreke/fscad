@@ -150,6 +150,13 @@ class GroupTest(test_utils.FscadTestCase):
         outer_group = Group([inner_group])
         outer_group.create_occurrence(create_children=True)
 
+    def test_as_hidden_child(self):
+        box1 = Box(1, 1, 1, name="box1")
+        box2 = Box(1, 1, 1, name="box2")
+        box2.tx(2)
+
+        Union(Group([box1], [box2])).create_occurrence(create_children=True)
+
 
 from .test_utils import load_tests
 def run(context):

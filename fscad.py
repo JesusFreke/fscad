@@ -2568,6 +2568,7 @@ class Group(Combination):
             parent_component = root()
 
         occurrence = self._create_component(parent_component=parent_component)
+        occurrence.isLightBulbOn = not hidden
         for child in self._visible_children:
             child._create_occurrence(occurrence, hidden=False, create_children=create_children, scale=scale)
         if create_children:
