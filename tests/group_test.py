@@ -157,6 +157,12 @@ class GroupTest(test_utils.FscadTestCase):
 
         Union(Group([box1], [box2])).create_occurrence(create_children=True)
 
+    def test_scaled_copy_as_child(self):
+        box1 = Box(1, 1, 1, name="box1")
+        box2 = Box(1, 1, 1, name="box2")
+        box2.tx(2)
+
+        Union(Group([box1.copy(), box2.copy()])).copy().scale(.1, .1, .1).create_occurrence(create_children=True)
 
 from .test_utils import load_tests
 def run(context):

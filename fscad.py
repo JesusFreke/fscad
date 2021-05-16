@@ -2553,13 +2553,16 @@ class Group(Combination):
         copy._hidden_children = []
         copy._plane = self._plane
 
-        if copy_children:
-            for child in self._visible_children:
-                copy._visible_children.append(child.copy(copy_children))
-            for child in self._hidden_children:
-                copy._hidden_children.append(child.copy())
+        super()._copy_to(copy, copy_children=False)
 
-        super()._copy_to(copy, copy_children)
+        copy._visible_children = [
+            child.copy() for child in self._visible_children]
+        copy._add_children(copy._visible_children)
+
+        if copy_children:
+            copy._hidden_children = [
+                child.copy() for child in self._hidden_children]
+            copy._add_children(copy._hidden_children)
 
     def _create_occurrence(self, parent_occurrence=None, hidden=True, create_children=False, scale=1) -> adsk.fusion.Occurrence:
         if parent_occurrence:
