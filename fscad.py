@@ -2565,6 +2565,10 @@ class Group(Combination):
             copy._add_children(copy._hidden_children)
 
     def _create_occurrence(self, parent_occurrence=None, hidden=True, create_children=False, scale=1) -> adsk.fusion.Occurrence:
+        if scale != 1:
+            return self.copy().scale(scale, scale, scale)._create_occurrence(
+                parent_occurrence, hidden, create_children, 1)
+
         if parent_occurrence:
             parent_component = parent_occurrence.component
         else:
@@ -2573,10 +2577,10 @@ class Group(Combination):
         occurrence = self._create_component(parent_component=parent_component)
         occurrence.isLightBulbOn = not hidden
         for child in self._visible_children:
-            child._create_occurrence(occurrence, hidden=False, create_children=create_children, scale=scale)
+            child._create_occurrence(occurrence, hidden=False, create_children=create_children, scale=1)
         if create_children:
             for child in self._hidden_children:
-                child._create_occurrence(occurrence, hidden=True, create_children=create_children, scale=scale)
+                child._create_occurrence(occurrence, hidden=True, create_children=create_children, scale=1)
         for name in self._named_points.keys():
             construction_point_input = occurrence.component.constructionPoints.createInput()
             construction_point_input.setByPoint(self.named_point(name).point)

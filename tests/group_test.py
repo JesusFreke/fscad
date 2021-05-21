@@ -164,6 +164,21 @@ class GroupTest(test_utils.FscadTestCase):
 
         Union(Group([box1.copy(), box2.copy()])).copy().scale(.1, .1, .1).create_occurrence(create_children=True)
 
+    def test_named_point_with_scaled_create_occurrence(self):
+        group = Group([Box(1, 1, 1)], name="group")
+
+        group.add_named_point("named_point", (.5, .5, .5))
+
+        box = Box(1, 1, 1, name="box2")
+        point = group.named_point("named_point")
+        box.place(
+            -box == point,
+            -box == point,
+            -box == point)
+
+        Group([group, box]).create_occurrence(scale=.1, create_children=True)
+
+
 from .test_utils import load_tests
 def run(context):
     import sys
