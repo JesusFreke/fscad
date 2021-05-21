@@ -1842,6 +1842,47 @@ class Component(BoundedEntity, ABC):
 
         return app().measureManager.getOrientedBoundingBox(self_body, axis, other_axis).length
 
+    def oriented_bounding_box(
+            self, x_axis: Vector3D, y_axis: Optional[Vector3D] = None, name: str = None) -> 'Box':
+        """Returns a bounding box oriented such that it's x and y axis' are the given vectors.
+
+        :param x_axis: The 'x' axis of the bounding box.
+        :param y_axis: The 'y' axis of the bounding box. This must be perpendicular to the x axis vector. This can
+        also be omitted, in which case a perpendicular vector will be chosen arbitrarily.
+        :return: A Box object oriented and located as the oriented bounding box
+        """
+        x_axis = x_axis.copy()
+        x_axis.normalize()
+        if not y_axis:
+            y_axis = _get_arbitrary_perpendicular_unit_vector(x_axis)
+        else:
+            y_axis = y_axis.copy()
+            y_axis.normalize()
+
+        self_body = _union_entities(self.bodies)
+        bounding_box = app().measureManager.getOrientedBoundingBox(self_body, x_axis, y_axis)
+
+        box = Box(
+            bounding_box.length,
+            bounding_box.width,
+            bounding_box.height,
+            name=name or "OrientedBoundingBox")
+
+        z_axis = x_axis.crossProduct(y_axis)
+        matrix = Matrix3D.create()
+        matrix.setToAlignCoordinateSystems(
+            Point3D.create(bounding_box.length / 2, bounding_box.width / 2, bounding_box.height/2),
+            Vector3D.create(1, 0, 0),
+            Vector3D.create(0, 1, 0),
+            Vector3D.create(0, 0, 1),
+            bounding_box.centerPoint,
+            x_axis,
+            y_axis,
+            z_axis)
+
+        box.transform(matrix)
+        return box
+
 
 class ComponentWithChildren(Component, ABC):
     def __init__(self, name):

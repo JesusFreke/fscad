@@ -37,6 +37,7 @@ test_modules = [
     "memoizable_design_test",
     "misc_test",
     "offset_edges_test",
+    "oriented_bounding_box_test",
     "place_test",
     "raw_thread_test",
     "revolve_test",
