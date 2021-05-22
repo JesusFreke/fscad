@@ -34,6 +34,7 @@ test_modules = [
     "import_test",
     "intersection_test",
     "loft_test",
+    "memoizable_design_test",
     "misc_test",
     "offset_edges_test",
     "place_test",

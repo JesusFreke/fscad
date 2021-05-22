@@ -4214,6 +4214,70 @@ class _SequenceIterator(object):
         raise StopIteration()
 
 
+class MemoizableDesign(object):
+    """
+    Serves as a base class for instance-scoped memoization of methods that return a Component
+
+    To use this, create a class that extends from MemoizableDesign, and then you can decorate any member functions
+    with @MemoizableDesign.MemoizeComponent. That method will be memoized at the containing instance level, and keyed
+    on any arguments passed to the method.
+
+    When the method is called a second time, on the same instance, with the same arguments, a separate copy of the
+    memoized component will be returned, using `Component.copy(copy_children=True)`
+
+    If the method has a 'name' argument, it is handled specially. The value of name argument is excluded from the
+    memoziation key, but is then passed to `Component.copy()` when making a copy of the memoized value, which ensures
+    the name of the returned Component is set to the provided name value.
+    """
+
+    def __init__(self):
+        self.__memoize_cache = {}
+
+    class MemoizeComponent(object):
+        def __init__(self, func):
+            self._func = func
+
+        # noinspection PyProtectedMember
+        def __call__(self, *args, **kwargs):
+            memoizable_instance = args[0]
+
+            try:
+                func_cache = memoizable_instance._MemoizableDesign__memoize_cache[self._func]
+            except KeyError:
+                func_cache = {}
+                memoizable_instance._MemoizableDesign__memoize_cache[self._func] = func_cache
+
+            def make_key(val):
+                # noinspection PyBroadException
+                try:
+                    return hash(val)
+                except:
+                    return id(val)
+
+            sig = inspect.signature(self._func)
+            bound_args = sig.bind(*args, **kwargs)
+            bound_args.apply_defaults()
+
+            key = tuple((item[0], make_key(item[1]))
+                   for item in tuple(bound_args.arguments.items())[1:] if item[0] != "name")
+
+            try:
+                value = func_cache[key]
+                if "name" in bound_args.arguments:
+                    return value.copy(copy_children=True, name=bound_args.arguments["name"])
+                else:
+                    return value.copy(copy_children=True)
+            except KeyError:
+                value = self._func(*args, **kwargs)
+                func_cache[key] = value
+                return value.copy(copy_children=True)
+
+        def __get__(self, obj, objtype=None):
+            if obj is None:
+                return self._func
+            return functools.partial(self, obj)
+
+
 def setup_document(document_name="fSCAD-Preview"):
     """Sets up a fresh document to run a script in.
 
@@ -4258,7 +4322,8 @@ def setup_document(document_name="fSCAD-Preview"):
     design().designType = adsk.fusion.DesignTypes.DirectDesignType
 
 
-def run_design(design_func, message_box_on_error=True, print_runtime=True, document_name=None):
+def run_design(design_func, message_box_on_error=True, print_runtime=True, document_name=None,
+               design_args=None, design_kwargs=None):
     """Utility method to handle the common setup tasks for a script
 
     This can be used in a script like this::
@@ -4273,6 +4338,8 @@ def run_design(design_func, message_box_on_error=True, print_runtime=True, docum
         print_runtime: If true, print the amount of time the design took to run
         document_name: The name of the document to create. If a document of the given name already exists, it will
             be forcibly closed and recreated.
+        design_args: If provided, passed as unpacked position arguments to design_func
+        design_kwargs: If provided, passed as unpacked named arguments to design_func
     """
     # noinspection PyBroadException
     try:
@@ -4283,7 +4350,7 @@ def run_design(design_func, message_box_on_error=True, print_runtime=True, docum
             filename = module.__file__
             document_name = pathlib.Path(filename).stem
         setup_document(document_name)
-        design_func()
+        design_func(*(design_args or ()), **(design_kwargs or {}))
         end = time.time()
         if print_runtime:
             print("Run time: %f" % (end-start))
