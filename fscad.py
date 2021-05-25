@@ -1054,22 +1054,22 @@ class BoundingBox(BoundedEntity):
         """Returns: a copy of the raw BoundingBox3D that this object wraps."""
         return self._bounding_box.copy()
 
-    def make_box(self) -> 'Box':
+    def make_box(self, name=None) -> 'Box':
         """Makes a Box component the same size and in the same location of this BoundingBox.
 
         Returns: The new Box component.
         """
 
         if self.size().x == 0:
-            box = Rect(self.size().z, self.size().y)
+            box = Rect(self.size().z, self.size().y, name=name)
             box.ry(90)
         elif self.size().y == 0:
-            box = Rect(self.size().x, self.size().z)
+            box = Rect(self.size().x, self.size().z, name=name)
             box.rx(90)
         elif self.size().z == 0:
-            box = Rect(self.size().x, self.size().y)
+            box = Rect(self.size().x, self.size().y, name=name)
         else:
-            box = Box(*self.size().asArray())
+            box = Box(*self.size().asArray(), name=name)
 
         box.place(
             ~box == ~self,
