@@ -13,28 +13,25 @@
 # limitations under the License.
 
 
-from fscad import *
-import fscad
-
-import adsk.core
 import adsk.fusion
+from adsk.core import Vector3D
 
 import math
 import random
 import unittest
 
-from . import test_utils
-import importlib
-importlib.reload(test_utils)
-from . import test_utils
+# note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
+from fscad.test_utils import FscadTestCase, load_tests
+from fscad.fscad import *
+import fscad.fscad
 
 
-class MiscTest(test_utils.FscadTestCase):
+class MiscTest(FscadTestCase):
     def validate_test(self):
         pass
 
     def _do_project_point_to_line_test(self, point: adsk.core.Point3D, line: adsk.core.InfiniteLine3D):
-        projection = fscad._project_point_to_line(point, line)
+        projection = fscad.fscad._project_point_to_line(point, line)
         self.assertTrue(projection.isEqualTo(point) or line.direction.isPerpendicularTo(projection.vectorTo(point)))
         self.assertTrue(projection.isEqualTo(line.origin) or
                         projection.vectorTo(line.origin).isParallelTo(line.direction))
@@ -114,9 +111,9 @@ class MiscTest(test_utils.FscadTestCase):
                 adsk.core.Point3D.create(100, 100, 100),
                 adsk.core.Vector3D.create(1, 1, 1)))
 
-    def test_get_arbitarary_perpedicular_unit_vector(self):
+    def test_get_arbitrary_perpendicular_unit_vector(self):
         vector = adsk.core.Vector3D.create(1, 2, 3)
-        perpendicular = fscad._get_arbitrary_perpendicular_unit_vector(vector)
+        perpendicular = fscad.fscad._get_arbitrary_perpendicular_unit_vector(vector)
         self.assertTrue(perpendicular.isPerpendicularTo(vector))
 
     def test_closest_points(self):
@@ -187,7 +184,7 @@ class MiscTest(test_utils.FscadTestCase):
         self.assertTrue(bounding_box.get_plane().isCoPlanarTo(circle1.get_plane()))
         self.assertEqual(bounding_box.size().asArray(), (4, 0, 2))
 
-from .test_utils import load_tests
+
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])

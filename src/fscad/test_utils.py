@@ -16,23 +16,15 @@ import adsk.core
 import adsk.fusion
 import os
 import inspect
-import sys
-import traceback
 import unittest
-import fscad
 
-from fscad import *
+from .fscad import *
 
-script_path = os.path.abspath(inspect.getfile(inspect.currentframe()))
-script_name = os.path.splitext(os.path.basename(script_path))[0]
-script_dir = os.path.dirname(script_path)
+#script_path = os.path.abspath(inspect.getfile(inspect.currentframe()))
+#script_name = os.path.splitext(os.path.basename(script_path))[0]
+#script_dir = os.path.dirname(script_path)
 
-# Enlarge the buffer, to ensure IDEA doesn't truncate long stack traces
-import _pydevd_bundle.pydevd_comm
-_pydevd_bundle.pydevd_comm.MAX_IO_MSG_SIZE = 131072
-
-
-class FscadWrapperMeta(type):
+class _FscadWrapperMeta(type):
     def __new__(mcs, class_name, bases, namespace):
 
         def wrap(func):
@@ -52,12 +44,18 @@ class FscadWrapperMeta(type):
                 if key.startswith("test_"):
                     namespace[key] = wrap(value)
 
-        return super(FscadWrapperMeta, mcs).__new__(mcs, class_name, bases, namespace)
+        return super(_FscadWrapperMeta, mcs).__new__(mcs, class_name, bases, namespace)
 
 
-class FscadTestCase(unittest.TestCase, metaclass=FscadWrapperMeta):
+class FscadTestCase(unittest.TestCase, metaclass=_FscadWrapperMeta):
 
-    def __init__(self, test_name, *args, **kwargs):
+    def __init__(self, test_name, results_directory=None, *args, **kwargs):
+
+        if not results_directory:
+            self._results_directory = os.path.dirname(os.path.realpath(inspect.getmodule(self).__file__))
+        else:
+            self._results_directory = results_directory
+
         self._test_name = test_name[5:]
         self._close_document = True
         super().__init__(test_name, *args, **kwargs)
@@ -67,16 +65,12 @@ class FscadTestCase(unittest.TestCase, metaclass=FscadWrapperMeta):
         if self._close_document:
             close_document(self._test_name)
 
-    @property
-    def script_dir(self):
-        return script_dir
-
     def _compare_occurrence(self, occurrence1, occurrence2, context):
         mycontext = list(context)
 
         mycontext.append(occurrence1.name)
         self.assertEqual(occurrence1.bRepBodies.count, occurrence2.bRepBodies.count,
-                    "%s: Body count doesn't match: %d != %d" % (
+                         "%s: Body count doesn't match: %d != %d" % (
                              context, occurrence1.bRepBodies.count, occurrence2.bRepBodies.count))
         bodies1 = list(occurrence1.bRepBodies)
         bodies2 = list(occurrence2.bRepBodies)
@@ -109,7 +103,7 @@ class FscadTestCase(unittest.TestCase, metaclass=FscadWrapperMeta):
 
         test_name = self._test_name
 
-        docname = "%s/%s/%s.f3d" % (script_dir, self.__class__.__name__, test_name)
+        docname = "%s/%s/%s.f3d" % (self._results_directory, self.__class__.__name__, test_name)
         import_options = None
         try:
             import_options = app().importManager.createFusionArchiveImportOptions(docname)
@@ -117,7 +111,7 @@ class FscadTestCase(unittest.TestCase, metaclass=FscadWrapperMeta):
             pass
 
         if import_options is None:
-            fallback = "%s/%s/%s.f3d" % (script_dir, self.__class__.__name__, self._test_name)
+            fallback = "%s/%s/%s.f3d" % (self._results_directory, self.__class__.__name__, self._test_name)
             try:
                 import_options = app().importManager.createFusionArchiveImportOptions(fallback)
             except RuntimeError:

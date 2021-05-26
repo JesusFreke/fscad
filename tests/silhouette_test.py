@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fscad import *
-
 import adsk.fusion
+from adsk.core import Point3D, Vector3D
+
 import unittest
-from . import test_utils
-import importlib
-importlib.reload(test_utils)
-from . import test_utils
+
+# note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
+from fscad.test_utils import FscadTestCase, load_tests
+from fscad.fscad import *
 
 
-class SilhouetteTest(test_utils.FscadTestCase):
+class SilhouetteTest(FscadTestCase):
     def test_orthogonal_face_silhouette(self):
         rect = Rect(1, 1)
         silhouette = Silhouette(rect.faces[0], adsk.core.Plane.create(
@@ -153,7 +153,6 @@ class SilhouetteTest(test_utils.FscadTestCase):
         self.assertEquals(len(silhouette.edges), 4)
 
 
-from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],

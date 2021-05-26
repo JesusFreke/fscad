@@ -12,19 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fscad import *
-
 import adsk.fusion
-import math
+from adsk.core import Vector3D
+
 import random
 import unittest
-from . import test_utils
-import importlib
-importlib.reload(test_utils)
-from . import test_utils
+
+# note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
+from fscad.test_utils import FscadTestCase, load_tests
+from fscad.fscad import *
 
 
-class OrientedBoundingBoxTest(test_utils.FscadTestCase):
+class OrientedBoundingBoxTest(FscadTestCase):
     def test_oriented_bounding_box(self):
         box = Box(1, 1, 1)
         box.translate(1, 1, 1)
@@ -49,8 +48,6 @@ class OrientedBoundingBoxTest(test_utils.FscadTestCase):
             name="test_bounding_box").create_occurrence()
 
 
-
-from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],

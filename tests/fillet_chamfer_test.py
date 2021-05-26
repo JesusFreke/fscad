@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fscad import *
-
 import adsk.fusion
-import unittest
-from . import test_utils
-import importlib
+from adsk.core import Vector3D
+
 import math
-importlib.reload(test_utils)
-from . import test_utils
+import unittest
+
+# note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
+from fscad.test_utils import FscadTestCase, load_tests
+from fscad.fscad import *
 
 
-class FilletChamferTest(test_utils.FscadTestCase):
+class FilletChamferTest(FscadTestCase):
     def test_basic_fillet(self):
         box = Box(1, 1, 1)
         fillet = Fillet(box.shared_edges(box.front, box.left), .25)
@@ -81,7 +81,7 @@ class FilletChamferTest(test_utils.FscadTestCase):
                 math.degrees(face.get_plane().normal.angleTo(Vector3D.create(0, 0, 1))),
                 45)
 
-from .test_utils import load_tests
+
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])

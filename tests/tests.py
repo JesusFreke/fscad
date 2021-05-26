@@ -51,6 +51,7 @@ test_modules = [
     "union_test",
 ]
 
+
 def run(context):
     test_suites = []
     for module_name in test_modules:

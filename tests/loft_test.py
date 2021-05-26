@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fscad import *
-
 import adsk.fusion
-import unittest
-from . import test_utils
-import importlib
-importlib.reload(test_utils)
+
 import math
-from . import test_utils
+import unittest
+
+# note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
+from fscad.test_utils import FscadTestCase, load_tests
+from fscad.fscad import *
 
 
-class LoftTest(test_utils.FscadTestCase):
+class LoftTest(FscadTestCase):
+
     def test_basic_loft(self):
         rect = Rect(1, 1)
         circle = Circle(1)
@@ -76,7 +76,6 @@ class LoftTest(test_utils.FscadTestCase):
         self.assertEqual(len(list(loft.sides)), 4)
 
 
-from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])

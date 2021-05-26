@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fscad import *
-
 import adsk.fusion
+
 import unittest
-from . import test_utils
-import importlib
-importlib.reload(test_utils)
-from . import test_utils
+
+# note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
+from fscad.test_utils import FscadTestCase, load_tests
+from fscad.fscad import *
 
 
-class Builder2DTest(test_utils.FscadTestCase):
+class Builder2DTest(FscadTestCase):
     def test_line_to(self):
         builder = Builder2D((0, 0))
         builder.line_to((0, 1))
@@ -52,7 +51,6 @@ class Builder2DTest(test_utils.FscadTestCase):
         builder.build().create_occurrence()
 
 
-from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],

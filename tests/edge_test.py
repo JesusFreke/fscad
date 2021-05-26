@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fscad import *
-
 import adsk.fusion
+
 import unittest
-from . import test_utils
-import importlib
-importlib.reload(test_utils)
-from . import test_utils
+
+# note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
+from fscad.test_utils import FscadTestCase, load_tests
+from fscad.fscad import *
 
 
-class EdgeTest(test_utils.FscadTestCase):
+class EdgeTest(FscadTestCase):
     def validate_test(self):
         pass
 
@@ -82,7 +81,6 @@ class EdgeTest(test_utils.FscadTestCase):
         self.assertEqual(edge.mid().asArray(), (2, .5, 1))
 
 
-from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],

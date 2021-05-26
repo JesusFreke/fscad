@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC
-from adsk.core import BoundingBox3D, Curve3D, Line3D, Matrix3D, NurbsCurve3D, ObjectCollection, OrientedBoundingBox3D,\
-    Point2D, Point3D, ValueInput, Vector3D
-from adsk.fusion import BRepBody, BRepBodyDefinition, BRepCoEdge, BRepEdge, BRepEdges, BRepFace, BRepFaceDefinition,\
-    BRepFaces, BRepLoop, BRepLoopDefinition, BRepWire, Occurrence,SketchCircle, SketchCurve, SketchEllipse
-from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple, List, TypeVar, overload, Any
-from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
+__all__ = ['app', 'root', 'ui', 'brep', 'design', 'Translation', 'Place', 'BoundedEntity', 'BRepEntity', 'Body', 'Loop',
+           'Face', 'Edge', 'Point', 'BoundingBox', 'Component', 'ComponentWithChildren', 'Shape', 'BRepComponent',
+           'PlanarShape', 'Box', 'Cylinder', 'Sphere', 'Torus', 'Rect', 'Circle', 'Builder2D', 'Polygon',
+           'RegularPolygon', 'import_fusion_archive', 'import_dxf', 'Combination', 'Union', 'Difference',
+           'Intersection', 'Group', 'Loft', 'Revolve', 'Sweep', 'ExtrudeBase', 'Extrude', 'ExtrudeTo', 'OffsetEdges',
+           'SplitFace', 'Silhouette', 'Hull', 'RawThreads', 'Threads', 'Fillet', 'Chamfer', 'Scale', 'Thicken',
+           'MemoizableDesign', 'setup_document', 'run_design', 'relative_import']
 
-import adsk.core
-import adsk.fusion
 import functools
 import importlib
 import inspect
@@ -33,6 +31,16 @@ import sys
 import time
 import traceback
 import types
+from abc import ABC
+from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple, List, TypeVar
+from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
+
+import adsk.core
+import adsk.fusion
+from adsk.core import BoundingBox3D, Curve3D, Line3D, Matrix3D, NurbsCurve3D, ObjectCollection, OrientedBoundingBox3D, \
+    Point2D, Point3D, ValueInput, Vector3D
+from adsk.fusion import BRepBody, BRepCoEdge, BRepEdge, BRepFace, BRepLoop, Occurrence, SketchCircle, SketchCurve, \
+    SketchEllipse
 
 # recursive type hints don't actually work yet, so let's expand the recursion a few levels and call it good
 _singular_face_selector_types = Onion['Component', 'Body', 'Face']
@@ -4407,17 +4415,12 @@ def run(_):
     This script can be set up to run as a Fusion 360 plugin on startup, so that the fscad module is automatically
     available for use by other scripts.
     """
+    fscad = types.ModuleType("fscad.fscad")
+    fscad.__path__ = [os.path.dirname(os.path.realpath(__file__))]
+    sys.modules['fscad.fscad'] = fscad
 
-    fscad = types.ModuleType("fscad")
-    sys.modules['fscad'] = fscad
-
-    for key, value in globals().items():
-        # noinspection PyArgumentList
-        if not callable(value):
-            continue
-        if key == "run" or key == "stop":
-            continue
-        fscad.__setattr__(key, value)
+    for key in __all__:
+        fscad.__setattr__(key, globals()[key])
 
 
 def relative_import(path):
@@ -4456,4 +4459,34 @@ def relative_import(path):
 
 def stop(_):
     """Callback from Fusion 360 for when this script is being stopped."""
-    del sys.modules['fscad']
+    if "fscad.fscad" in sys.modules:
+        del sys.modules["fscad.fscad"]
+
+
+def _check_all():
+    this_module = sys.modules[__name__]
+
+    importable_symbols = []
+
+    for key, value in globals().items():
+        # noinspection PyArgumentList
+        if not callable(value):
+            continue
+
+        if inspect.getmodule(value) != this_module:
+            continue
+
+        if key == "run" or key == "stop":
+            continue
+
+        if key.startswith("_"):
+            continue
+
+        importable_symbols.append(key)
+
+    if importable_symbols != __all__:
+        print("__all__ is likely missing some symbols. Expected value:")
+        print(importable_symbols)
+        raise Exception("__all__ is likely missing some symbols. Expected value: " + str(importable_symbols))
+
+_check_all()

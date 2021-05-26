@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fscad import *
-
 import adsk.fusion
+from adsk.core import Vector3D
+
 import unittest
-from . import test_utils
-import math
-import importlib
-importlib.reload(test_utils)
-from . import test_utils
+
+# note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
+from fscad.test_utils import FscadTestCase, load_tests
+from fscad.fscad import *
 
 
-class BasicGeometryTest(test_utils.FscadTestCase):
+class BasicGeometryTest(FscadTestCase):
     def test_box(self):
         box1 = Box(1, 2, 3, "box1")
 
@@ -279,7 +278,6 @@ class BasicGeometryTest(test_utils.FscadTestCase):
         torus.create_occurrence(True)
 
 
-from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(

@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fscad import *
-
 import adsk.fusion
+from adsk.core import Vector3D
+
 import unittest
-from . import test_utils
-import importlib
-importlib.reload(test_utils)
-from . import test_utils
+
+# note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
+from fscad.test_utils import FscadTestCase, load_tests
+from fscad.fscad import *
 
 
-class CopyTest(test_utils.FscadTestCase):
+class CopyTest(FscadTestCase):
     def test_box_copy(self):
         box = Box(1, 1, 1)
         box_copy = box.copy()
@@ -175,7 +175,6 @@ class CopyTest(test_utils.FscadTestCase):
         split3.create_occurrence()
 
 
-from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])

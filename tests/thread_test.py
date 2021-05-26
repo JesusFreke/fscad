@@ -13,16 +13,15 @@
 # limitations under the License.
 
 import adsk.fusion
+
 import unittest
-from . import test_utils
-import importlib
-importlib.reload(test_utils)
-from . import test_utils
 
-from fscad import *
+# note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
+from fscad.test_utils import FscadTestCase, load_tests
+from fscad.fscad import *
 
 
-class ThreadTest(test_utils.FscadTestCase):
+class ThreadTest(FscadTestCase):
     def test_square_external_thread(self):
         cyl = Cylinder(20, 5)
 
@@ -125,7 +124,6 @@ class ThreadTest(test_utils.FscadTestCase):
                 1).create_occurrence(True)
 
 
-from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],

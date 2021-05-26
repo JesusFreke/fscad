@@ -12,17 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fscad import *
-
 import adsk.fusion
+
 import unittest
-from . import test_utils
-import importlib
-importlib.reload(test_utils)
-from . import test_utils
+
+from fscad.test_utils import FscadTestCase, unordered_compare
+from fscad.fscad import *
 
 
-class FindEdgeTest(test_utils.FscadTestCase):
+class FindEdgeTest(FscadTestCase):
     def validate_test(self):
         pass
 
@@ -131,11 +129,10 @@ class FindEdgeTest(test_utils.FscadTestCase):
         edges = box.find_edges(finder)
 
         self.assertEqual(len(edges), 2)
-        test_utils.unordered_compare([edge.brep for edge in edges],
-                                     box.shared_edges(box.top, [box.back, box.right]))
+        unordered_compare([edge.brep for edge in edges],
+                          box.shared_edges(box.top, [box.back, box.right]))
 
 
-from .test_utils import load_tests
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
