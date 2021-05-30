@@ -3170,7 +3170,7 @@ class OffsetEdges(ComponentWithChildren):
         temp_face = _map_face(face, temp_occurrence.bRepBodies[0])
         temp_body = temp_face.body
 
-        sketch = temp_occurrence.component.sketches.addWithoutEdges(temp_face)
+        sketch = temp_occurrence.component.sketches.add(temp_face)
 
         to_offset = []
         for edge in edges:
@@ -3178,6 +3178,13 @@ class OffsetEdges(ComponentWithChildren):
 
         offset_sketch_curves: Sequence[SketchCurve] = sketch.offset(
             _collection_of(to_offset), sketch.modelToSketchSpace(face.brep.pointOnFace), -offset)
+
+        for curve in offset_sketch_curves:
+            if hasattr(curve, "endSketchPoint"):
+                if curve.endSketchPoint.connectedEntities.count == 1:
+                    curve.extend(curve.endSketchPoint.geometry, createConstraints=False)
+                if curve.startSketchPoint.connectedEntities.count == 1:
+                    curve.extend(curve.startSketchPoint.geometry, createConstraints=False)
 
         start_edge, end_edge, loop = _find_connected_edge_endpoints(edges, face)
 

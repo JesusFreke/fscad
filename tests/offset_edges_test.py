@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import adsk.core
 import adsk.fusion
 
 import unittest
@@ -157,10 +158,29 @@ class OffsetEdgesTest(FscadTestCase):
 
         OffsetEdges(assembly.faces[0], [edge_to_offset], -.1).create_occurrence(True)
 
+    def test_angled_lines(self):
+        builder = Builder2D((0, 0))
+
+        builder.line_to((0, 10))
+        builder.line_to((2.5, 12))
+        builder.line_to((5, 12))
+        builder.line_to((7.5, 10))
+        builder.line_to((7.5, 0))
+        builder.line_to((0, 0))
+
+        shape = builder.build()
+
+        OffsetEdges(
+            shape.faces[0],
+            [edge for edge in shape.faces[0].edges if not (
+                isinstance(edge.brep.geometry, adsk.core.Line3D) and
+                edge.brep.geometry.asInfiniteLine().direction.y < app().pointTolerance) and
+                edge.mid().x < shape.mid().x],
+            -.5).create_occurrence(scale=.1)
 
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],
-                                                                #pattern="positive_offset",
+                                                                #pattern="angled_lines",
                                                                 )
     unittest.TextTestRunner(failfast=True).run(test_suite)
