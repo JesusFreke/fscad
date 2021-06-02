@@ -958,7 +958,14 @@ class Face(BRepEntity):
     def get_plane(self) -> Optional[adsk.core.Plane]:
         """Returns: The plane that this Face lies in, or None if this is not a planar component."""
         if isinstance(self.brep.geometry, adsk.core.Plane):
-            return self.brep.geometry
+            if self.brep.isParamReversed:
+                normal = self.brep.geometry.normal.copy()
+                normal.scaleBy(-1)
+                return adsk.core.Plane.create(
+                    self.brep.geometry.origin,
+                    normal)
+            else:
+                return self.brep.geometry
         return None
 
     def make_component(self, name="Face") -> 'Component':

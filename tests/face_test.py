@@ -171,6 +171,16 @@ class FaceTest(FscadTestCase):
         Silhouette(outer_loop, box.top.get_plane()).create_occurrence(True)
         Silhouette(inner_loop, box.top.get_plane()).create_occurrence(True)
 
+    def test_reversed_normal(self):
+        rect = Rect(1, 1)
+        rect.create_occurrence(scale=.1)
+
+        extrude = Extrude(rect, 1)
+        extrude.create_occurrence(scale=.1)
+
+        self.assertTrue(extrude.start_faces[0].brep.isParamReversed)
+        self.assertGreater(extrude.start_faces[0].brep.geometry.normal.z, 0)
+        self.assertLess(extrude.start_faces[0].get_plane().normal.z, 0)
 
 
 def run(context):
