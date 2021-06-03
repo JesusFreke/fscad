@@ -84,7 +84,7 @@ class ThickenTest(FscadTestCase):
 
     def test_cylindrical_face(self):
         cylinder = Cylinder(1, 1)
-        Thicken(BRepComponent(cylinder.side.brep), 1).create_occurrence(create_children=True)
+        Thicken(cylinder.side.make_component(), 1).create_occurrence(create_children=True)
 
     def test_box_negative_thickness(self):
         box = Box(1, 1, 1)
@@ -92,18 +92,35 @@ class ThickenTest(FscadTestCase):
 
     def test_cylinder_face_large_negative_thickness(self):
         cylinder = Cylinder(1, 1)
-        Thicken(BRepComponent(cylinder.side.brep), -3).create_occurrence(create_children=True)
+        Thicken(cylinder.side, -3).create_occurrence(create_children=True)
 
     def test_cylinder_face_small_negative_thickness(self):
         cylinder = Cylinder(1, 1)
-        Thicken(BRepComponent(cylinder.side.brep), -.5).create_occurrence(create_children=True)
+        Thicken(cylinder.side, -.5).create_occurrence(create_children=True)
+
+    def test_thicken_body(self):
+        box = Box(1, 1, 1)
+        Thicken(box, 1).create_occurrence(create_children=True)
+
+    def test_multiple_components(self):
+        box1 = Box(1, 1, 1)
+        box2 = Box(1, 1, 1)
+        box2.place(
+            (-box2 == +box1) + .1,
+            ~box2 == ~box1,
+            ~box2 == ~box1)
+        Thicken((box1, box2), 1).create_occurrence(create_children=True)
+
+    def test_multiple_faces(self):
+        box = Box(1, 1, 1)
+        Thicken((box.front, box.top), 1).create_occurrence(create_children=True)
 
 
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(
         sys.modules[__name__]
-        #, pattern="translated_quarter_cylinder"
+        #, pattern="multiple_faces"
     )
 
     unittest.TextTestRunner(failfast=True).run(test_suite)

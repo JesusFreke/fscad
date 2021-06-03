@@ -4169,67 +4169,86 @@ class Scale(ComponentWithChildren):
 
 
 class Thicken(ComponentWithChildren):
-    """Adds thickness to a given face.
+    """Creates new bodies that consist of the given face(s) made thicker.
 
-    If the given face belongs to a solid body, the returned result will be an extension of the existing body.
-    Otherwise, if the given face is not solid, a new solid body will be created and returned.
+    This accepts any number of faces from any number of bodies or components. The resulting bodies will not include the
+    bodies that the faces are from.
 
+    A positive thickness
     If thickness is negative, the thickness will be added to the face opposite of its normal, and then unioned with
     the body that the face belongs to, if applicable.
 
     Args:
-        entity: The face to thicken. This can be a Face, a Body consisting of a single Face, or a Component consisting
-            of a single Face
-        thickness: How much thickness to add
+        entity: The face to thicken. This can be a Face, Body, Component, or an Iterable of any combination of these.
+          For any Body or Component, all faces will be included.
+        thickness: How much thickness to add. A positive thickness will add thickness to the front of the face (in
+            the direction of the normal), while a negative thickness will add thickness to the back of the face (in the
+            direction opposite of the normal)
         name: The name of the component"""
 
-    def __init__(self, entity: Onion[Component, Body, Face], thickness: float, name: str = None):
+    def __init__(self, entity: _face_selector_types, thickness: float, name: str = None):
         super().__init__(name)
 
-        target_component = None
-        target_body = None
-        target_face = None
-        if isinstance(entity, Component):
-            target_component = entity
-            component = entity
-            for body in component.bodies:
-                for face in body.faces:
-                    if target_face is not None:
-                        raise ValueError("Thicken can only be used with a single face")
-                    target_body = body
-                    target_face = face
-        elif isinstance(entity, Body):
-            for face in entity.faces:
-                if target_face is not None:
-                    raise ValueError("Thicken can only be used with a single face")
-                target_component = entity.component
-                target_body = entity
-                target_face = face
-        elif isinstance(entity, Face):
-            target_component = entity.component
-            target_body = entity.body
-            target_face = entity
-        else:
-            raise ValueError("Unsupported object type for thicken: %s" % entity.__class__.__name__)
+        bodies = []
+        body_faces = []
+        components = []
 
-        if target_face is None:
-            raise ValueError("No face found")
+        def get_body_index(item):
+            try:
+                return bodies.index(item)
+            except ValueError:
+                return -1
 
-        temp_occurrence = _create_component(root(), brep().copy(target_face.brep), name="temp")
+        def process_entity(item: _face_selector_types):
+            if isinstance(item, Face):
+                body_index = get_body_index(item.body)
+                if body_index < 0:
+                    bodies.append(item.body)
+                    body_faces.append([item])
+                    if item.component not in components:
+                        components.append(item.component)
+                else:
+                    if item not in body_faces[body_index]:
+                        body_faces[body_index].append(item)
+            elif isinstance(item, Body):
+                body_index = get_body_index(item)
+                if body_index < 0:
+                    bodies.append(item)
+                    body_faces.append(list(item.faces))
+                    if item.component not in components:
+                        components.append(item.component)
+                else:
+                    # there's no need to keep track of any faces that were added previously, since we're adding all
+                    # faces
+                    body_faces[body_index] = list(item.faces)
+            elif isinstance(item, Component):
+                for subitem in item.bodies:
+                    process_entity(subitem)
+            elif isinstance(item, Iterable):
+                for subitem in item:
+                    process_entity(subitem)
+            else:
+                raise ValueError("Unsupported object type for thicken: %s" % entity.__class__.__name__)
 
-        temp_face = None
-        for body in temp_occurrence.bRepBodies:
-            for face in body.faces:
-                if temp_face is not None:
-                    raise ValueError("Multiple faces unexpected found in temporary occurrence")
-                temp_face = face
+        process_entity(entity)
 
-        if not temp_face:
-            raise ValueError("Face unexpectedly not found in temporary occurrence")
+        temp_occurrence = _create_component(root(), name="temp")
+
+        temp_faces = []
+        for i, body in enumerate(bodies):
+            if body.brep.isSolid:
+                temp_body = temp_occurrence.component.bRepBodies.add(_union_entities(body_faces[i]))
+                temp_faces.extend(temp_body.faces)
+            else:
+                temp_body = temp_occurrence.component.bRepBodies.add(body.brep)
+                for face in body_faces[i]:
+                    temp_faces.append(_map_face(face, temp_body))
 
         temp_occurrence.activate()
+        result_bodies = []
+
         thicken_input = temp_occurrence.component.features.thickenFeatures.createInput(
-            _collection_of([temp_face]),
+            _collection_of(temp_faces),
             ValueInput.createByReal(thickness),
             False,
             adsk.fusion.FeatureOperations.JoinFeatureOperation,
@@ -4237,17 +4256,16 @@ class Thicken(ComponentWithChildren):
 
         feature = temp_occurrence.component.features.thickenFeatures.add(thicken_input)
 
-        self._add_children([target_component])
-
-        result_bodies = []
         feature_bodies = list(feature.bodies)
         # In some cases, the face being extruded is included in the bodies for some reason. If so, we want to
         # exclude it.
         for i, body in enumerate(feature_bodies):
             if body.isSolid:
-                result_bodies.append(brep().copy(body))
+                result_bodies.append(BRepComponent(body))
 
-        self._bodies = [_union_entities(target_body, *result_bodies)]
+        self._add_children(components)
+
+        self._bodies = [_union_entities(result_bodies)]
 
         temp_occurrence.deleteMe()
 
