@@ -152,10 +152,62 @@ class SilhouetteTest(FscadTestCase):
         self.assertEquals(silhouette.size().asArray(), rect.size().asArray())
         self.assertEquals(len(silhouette.edges), 4)
 
+    def test_named_edges(self):
+        box = Box(1, 1, 1)
+        silhouette = Silhouette(
+            box,
+            adsk.core.Plane.create(
+                Point3D.create(0, 0, -1),
+                Vector3D.create(0, 0, 1)),
+            named_edges={
+                "front": box.shared_edges(box.bottom, box.front),
+                "back": box.shared_edges(box.bottom, box.back),
+                "left": box.shared_edges(box.bottom, box.left),
+                "right": box.shared_edges(box.bottom, box.right)})
+        silhouette.create_occurrence(create_children=True)
+
+        edge_finder = Box(.1, .1, .1)
+        edge_finder.place(
+            ~edge_finder == ~silhouette,
+            -edge_finder == -silhouette,
+            ~edge_finder == ~silhouette)
+        found_edges = silhouette.find_edges(edge_finder)
+        named_edges = silhouette.named_edges("front")
+        self.assertEquals(len(found_edges), 1)
+        self.assertEquals(found_edges, named_edges)
+
+        edge_finder.place(
+            ~edge_finder == ~silhouette,
+            +edge_finder == +silhouette,
+            ~edge_finder == ~silhouette)
+        found_edges = silhouette.find_edges(edge_finder)
+        named_edges = silhouette.named_edges("back")
+        self.assertEquals(len(found_edges), 1)
+        self.assertEquals(found_edges, named_edges)
+
+        edge_finder.place(
+            +edge_finder == +silhouette,
+            ~edge_finder == ~silhouette,
+            ~edge_finder == ~silhouette)
+        found_edges = silhouette.find_edges(edge_finder)
+        named_edges = silhouette.named_edges("right")
+        self.assertEquals(len(found_edges), 1)
+        self.assertEquals(found_edges, named_edges)
+
+        edge_finder.place(
+            -edge_finder == -silhouette,
+            ~edge_finder == ~silhouette,
+            ~edge_finder == ~silhouette)
+        found_edges = silhouette.find_edges(edge_finder)
+        named_edges = silhouette.named_edges("left")
+        self.assertEquals(len(found_edges), 1)
+        self.assertEquals(found_edges, named_edges)
+
+
 
 def run(context):
     import sys
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__],
-                                                                #pattern="multiple_edges",
+                                                                #pattern="named_edges",
                                                                 )
     unittest.TextTestRunner(failfast=True).run(test_suite)

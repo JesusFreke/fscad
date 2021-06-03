@@ -32,7 +32,7 @@ import time
 import traceback
 import types
 from abc import ABC
-from typing import Callable, Iterable, Iterator, Optional, Sequence, Tuple, List, TypeVar
+from typing import Callable, Iterable, Iterator, Mapping, Optional, Sequence, Tuple, List, TypeVar
 from typing import Union as Onion  # Haha, why not? Prevents a conflict with our Union type
 
 import adsk.core
@@ -3403,16 +3403,85 @@ class Silhouette(ComponentWithChildren):
         entity: The faces to revolve. This can be a Face, a Body, a Component, an Edge, or an iterable of Faces or
             Edges.
         plane: The plane to project onto.
+        named_edges: An optional mapping of named edges. The edges will be projected onto the silhouette plane, and any
+            edges of the Silhouette that match any of the projects edges (similar to find_edges) will be added as a
+            named edge.
         name: The name of the component
     """
     def __init__(self, entity: Onion[Component, Body, Edge, Face, Loop, Iterable[Face], Iterable[Edge], Iterable[Loop]],
-                 plane: adsk.core.Plane, name: str = None):
+                 plane: adsk.core.Plane, named_edges: Optional[Mapping[str, Iterable[Edge]]] = None, name: str = None):
         super().__init__(name)
 
         temp_occurrence = _create_component(root(), name="temp")
-        entities_to_project = []
-        input_component = None
+        input_component, entities_to_project = self._import_entity_for_projection(temp_occurrence, entity)
 
+        construction_plane_input = temp_occurrence.component.constructionPlanes.createInput(temp_occurrence)
+        construction_plane_input.setByPlane(plane)
+        construction_plane = temp_occurrence.component.constructionPlanes.add(construction_plane_input)
+        sketch = temp_occurrence.component.sketches.add(construction_plane, temp_occurrence)
+
+        silhouette = None
+        for entity in entities_to_project:
+            projections = sketch.project(entity)
+
+            wires_body = None
+            for projection in projections:
+                if isinstance(projection.worldGeometry, Point3D):
+                    continue
+                wire_body, _ = brep().createWireFromCurves((projection.worldGeometry,), False)
+                if wires_body is None:
+                    wires_body = wire_body
+                else:
+                    brep().booleanOperation(wires_body, wire_body, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+            try:
+                face_silhouette = brep().createFaceFromPlanarWires([wires_body])
+            except:
+                continue
+            if silhouette is None:
+                silhouette = face_silhouette
+            else:
+                brep().booleanOperation(silhouette, face_silhouette, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+        if silhouette is None or silhouette.area == 0:
+            silhouette = _create_empty_body()
+
+        self._add_children((input_component,))
+
+        self._body = silhouette
+        self._plane = plane
+
+        if named_edges:
+            for name, edges in named_edges.items():
+                input_component, entities_to_project = self._import_entity_for_projection(temp_occurrence, edges)
+
+                projections = []
+                for entity_to_project in entities_to_project:
+                    projections.extend(sketch.project(entity_to_project))
+
+                wires_body = None
+                for projection in projections:
+                    if isinstance(projection.worldGeometry, Point3D):
+                        continue
+                    wire_body, _ = brep().createWireFromCurves((projection.worldGeometry,), False)
+                    if wires_body is None:
+                        wires_body = wire_body
+                    else:
+                        brep().booleanOperation(wires_body, wire_body, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+                wires_body = BRepComponent(wires_body)
+                found_edges = self.find_edges(wires_body.edges)
+                if found_edges:
+                    self.add_named_edges(name, *found_edges)
+
+        temp_occurrence.deleteMe()
+
+    @staticmethod
+    def _import_entity_for_projection(
+            temp_occurrence: Occurrence,
+            entity: Onion[Component, Body, Edge, Face, Loop, Iterable[Face], Iterable[Edge], Iterable[Loop]]):
+        input_component = None
+        entities_to_project = []
         if isinstance(entity, Component):
             input_component = entity
             for body in entity.bodies:
@@ -3458,43 +3527,7 @@ class Silhouette(ComponentWithChildren):
         else:
             raise ValueError("Invalid entity type: %s" % entity.__class__.__name__)
 
-        construction_plane_input = temp_occurrence.component.constructionPlanes.createInput(temp_occurrence)
-        construction_plane_input.setByPlane(plane)
-        construction_plane = temp_occurrence.component.constructionPlanes.add(construction_plane_input)
-        sketch = temp_occurrence.component.sketches.add(construction_plane, temp_occurrence)
-
-        silhouette = None
-        for entity in entities_to_project:
-            projections = sketch.project(entity)
-
-            wires_body = None
-            for projection in projections:
-                if isinstance(projection.worldGeometry, Point3D):
-                    continue
-                wire_body, _ = brep().createWireFromCurves((projection.worldGeometry,), False)
-                if wires_body is None:
-                    wires_body = wire_body
-                else:
-                    brep().booleanOperation(wires_body, wire_body, adsk.fusion.BooleanTypes.UnionBooleanType)
-
-            try:
-                face_silhouette = brep().createFaceFromPlanarWires([wires_body])
-            except:
-                continue
-            if silhouette is None:
-                silhouette = face_silhouette
-            else:
-                brep().booleanOperation(silhouette, face_silhouette, adsk.fusion.BooleanTypes.UnionBooleanType)
-
-        if silhouette is None or silhouette.area == 0:
-            silhouette = _create_empty_body()
-
-        temp_occurrence.deleteMe()
-
-        self._add_children((input_component,))
-
-        self._body = silhouette
-        self._plane = plane
+        return (input_component, entities_to_project)
 
     def get_plane(self) -> Optional[adsk.core.Plane]:
         return self._plane
