@@ -4375,13 +4375,13 @@ class MemoizableDesign(object):
             key = tuple((item[0], make_key(item[1]))
                    for item in tuple(bound_args.arguments.items())[1:] if item[0] != "name")
 
-            try:
+            if key in func_cache:
                 value = func_cache[key]
                 if "name" in bound_args.arguments:
                     return value.copy(copy_children=True, name=bound_args.arguments["name"])
                 else:
                     return value.copy(copy_children=True)
-            except KeyError:
+            else:
                 value = self._func(*args, **kwargs)
                 func_cache[key] = value
                 return value.copy(copy_children=True)
