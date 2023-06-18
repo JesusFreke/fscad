@@ -2692,7 +2692,7 @@ class Loft(ComponentWithChildren):
         loft_feature = occurrence.component.features.loftFeatures.add(loft_feature_input)
         self._bottom_index = _face_index(loft_feature.startFace)
         self._top_index = _face_index(loft_feature.endFace)
-        self._body = brep().copy(loft_feature.bodies[0])
+        self._body = brep().copy(loft_feature.bodies[loft_feature.bodies.count - 1])
         occurrence.deleteMe()
 
     def _raw_bodies(self) -> Iterable[BRepBody]:

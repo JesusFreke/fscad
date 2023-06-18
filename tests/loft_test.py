@@ -20,6 +20,7 @@ import unittest
 # note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
 from fscad.test_utils import FscadTestCase, load_tests
 from fscad.fscad import *
+import os
 
 
 class LoftTest(FscadTestCase):
@@ -74,6 +75,19 @@ class LoftTest(FscadTestCase):
         self.assertEqual(loft.bottom.brep.pointOnFace.z, 0)
         self.assertEqual(loft.top.brep.pointOnFace.z, 2)
         self.assertEqual(len(list(loft.sides)), 4)
+
+    def test_extruded_imported_profile(self):
+        # this seems to cause the Loft feature to contain the start and end bodies, as well as the lofted body
+
+        print(os.path.join(self._results_directory, "bottom_profile_simplified.dxf"))
+
+        template = import_dxf(os.path.join(self._results_directory, "LoftTest", "bottom_profile_simplified.dxf"))
+
+        lower = Extrude(Scale(template, 1.1, 1.1, 1), 1)
+        upper = Extrude(Scale(template, .9, .9, 1), 1)
+        upper.tz(10)
+
+        Loft(lower.start_faces[0].make_component(), upper.end_faces[0].make_component()).create_occurrence(scale=.1)
 
 
 def run(context):
