@@ -2733,7 +2733,8 @@ class Revolve(ComponentWithChildren):
     """
     _bodies = ...  # type: Sequence[BRepBody]
 
-    def __init__(self, entity: Onion[Component, Face, Iterable[Face]], axis: Onion[adsk.core.Line3D, Edge],
+    def __init__(self, entity: Onion[Component, Face, Iterable[Face]],
+                 axis: Onion[adsk.core.Line3D, adsk.core.InfiniteLine3D, Edge],
                  angle: float = 360.0, name: str = None):
         super().__init__(name)
 
@@ -2780,14 +2781,21 @@ class Revolve(ComponentWithChildren):
             if not isinstance(axis.brep.geometry, adsk.core.Line3D):
                 raise ValueError("Only linear edges may be used as an axis.")
             axis_line = axis.brep.geometry
+            axis_line = adsk.core.InfiniteLine3D.create(
+                axis_line.endPoint,
+                axis_line.startPoint.vectorTo(axis_line.endPoint))
         elif isinstance(axis, adsk.core.Line3D):
+            axis_line = axis
+            axis_line = adsk.core.InfiniteLine3D.create(
+                axis_line.endPoint,
+                axis_line.startPoint.vectorTo(axis_line.endPoint))
+        elif isinstance(axis, adsk.core.InfiniteLine3D):
             axis_line = axis
         else:
             raise ValueError("Unsupported axis type for revolve: %s" % axis.__class__.__name__)
 
         axis_input = temp_occurrence.component.constructionAxes.createInput()
-        axis_input.setByLine(
-            adsk.core.InfiniteLine3D.create(axis_line.endPoint, axis_line.startPoint.vectorTo(axis_line.endPoint)))
+        axis_input.setByLine(axis_line)
         axis_value = temp_occurrence.component.constructionAxes.add(axis_input)
 
         temp_bodies = list(temp_occurrence.bRepBodies)

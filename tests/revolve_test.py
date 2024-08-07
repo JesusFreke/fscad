@@ -32,6 +32,17 @@ class RevolveTest(FscadTestCase):
 
         self.assertEquals(len(revolve.faces), 4)
 
+    def test_infinite_line(self):
+        rect = Rect(1, 1)
+        rect.tx(1)
+
+        revolve = Revolve(
+            rect,
+            adsk.core.Line3D.create(Point3D.create(0, 0, 0), Point3D.create(0, 1, 0)).asInfiniteLine())
+        revolve.create_occurrence(True)
+
+        self.assertEquals(len(revolve.faces), 4)
+
     def test_partial_revolve(self):
         rect = Rect(1, 1)
         rect.tx(1)
