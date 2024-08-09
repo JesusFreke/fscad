@@ -22,6 +22,7 @@ test_modules = [
     "basic_geometry_test",
     "body_test",
     "builder2d_test",
+    "conical_thread_test",
     "copy_test",
     "difference_test",
     "edge_test",

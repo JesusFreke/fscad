@@ -17,8 +17,8 @@ __all__ = ['app', 'root', 'ui', 'brep', 'design', 'Translation', 'Place', 'Bound
            'PlanarShape', 'Box', 'Cylinder', 'Sphere', 'Torus', 'Rect', 'Circle', 'Builder2D', 'Polygon',
            'RegularPolygon', 'import_fusion_archive', 'import_dxf', 'Combination', 'Union', 'Difference',
            'Intersection', 'Group', 'Loft', 'Revolve', 'Sweep', 'ExtrudeBase', 'Extrude', 'ExtrudeTo', 'OffsetEdges',
-           'SplitFace', 'Silhouette', 'Hull', 'RawThreads', 'Threads', 'Fillet', 'Chamfer', 'Scale', 'Thicken',
-           'MemoizableDesign', 'setup_document', 'run_design', 'relative_import']
+           'SplitFace', 'Silhouette', 'Hull', 'RawThreads', 'Threads', 'ConicalThreads', 'Fillet', 'Chamfer', 'Scale',
+           'Thicken', 'MemoizableDesign', 'setup_document', 'run_design', 'relative_import']
 
 import functools
 import importlib
@@ -4008,6 +4008,232 @@ class Threads(ComponentWithChildren):
 
         self._bodies = [body.brep for body in result.bodies]
         self._add_children((cylindrical_face.component,))
+        thread_occurrence.deleteMe()
+
+    def _raw_bodies(self) -> Iterable[BRepBody]:
+        return self._bodies
+
+    def _copy_to(self, copy: 'ComponentWithChildren', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._bodies = list(self._bodies)
+
+
+class ConicalThreads(ComponentWithChildren):
+    """Represents the result of adding threads to a conical object/face.
+
+    E.g., to create a triangular thread profile with 45 degree upper and lower faces, and a pitch of 1mm::
+
+        cylinder = Cylinder(10, 1)
+        threaded_cylinder = Threads(cylinder,
+                                    [(0, 0), (.5, .5), (0, 1)],
+                                    1)
+
+    Args:
+        entity: The Component or Face to add threads to. If a Component is given, there must be exactly 1
+            conical face present in the Component. If a Face is given, it must be a conical face. In either
+            case, a partial conical face is acceptable.
+        thread_profile: The thread profile as a list of (x, y) tuples. (0, 0) is the "origin" of the thread profile,
+            while +x is a vector perpendicular and away from the face of the cylinder, and +y is a vector parallel with
+            the axis of the cylinder, pointing toward the top.
+        pitch:
+            The distance between each thread
+        reverse_axis:
+            In case of non-symmetric threads, the direction can be important. Set this to true to reverse the direction
+            of the threads, so the top is bottom, and vice versa. Note: This does not change the handed-ness of the
+            thread. To make a left-handed thread, you can apply a mirror operation afterward.
+        name: The name of the component
+    """
+    def __init__(self, entity: Onion[Component, Face], thread_profile: Iterable[Tuple[float, float]],
+                 pitch: float, reverse_axis=False, name: str = None):
+        super().__init__(name)
+
+        if isinstance(entity, Component):
+            conical_face = None
+            for body in entity.bodies:
+                for face in body.faces:
+                    if isinstance(face.brep.geometry, adsk.core.Cone):
+                        if conical_face is None:
+                            conical_face = face
+                        else:
+                            raise ValueError("Found multiple conical faces in component.")
+            if conical_face is None:
+                raise ValueError("Could not find conical face in component.")
+        elif isinstance(entity, Face):
+            conical_face = entity
+        else:
+            raise ValueError("Invalid entity type: %s" % entity.__class__.__name__)
+
+        cone = conical_face.brep.geometry
+        axis = cone.axis
+        axis.normalize()
+
+        halfAngle = cone.halfAngle
+
+        face_brep = conical_face.brep
+
+        _, thread_start_point = face_brep.evaluator.getPointAtParameter(face_brep.evaluator.parametricRange().minPoint)
+        _, end_point = face_brep.evaluator.getPointAtParameter(face_brep.evaluator.parametricRange().maxPoint)
+
+        axis_copy = axis.copy()
+        axis_copy.scaleBy(axis.dotProduct(cone.origin.vectorTo(thread_start_point)))
+        start_midpoint = cone.origin.copy()
+        start_midpoint.translateBy(axis_copy)
+        start_radius = thread_start_point.distanceTo(start_midpoint)
+
+        axis_copy = axis.copy()
+        axis_copy.scaleBy(axis.dotProduct(cone.origin.vectorTo(end_point)))
+        end_midpoint = cone.origin.copy()
+        end_midpoint.translateBy(axis_copy)
+        end_radius = end_point.distanceTo(end_midpoint)
+
+        # the halfAngle (sometimes?) isn't negative for an inverted cone, as stated in the docs
+        if end_radius > start_radius and halfAngle > 0:
+            halfAngle = -halfAngle
+
+        length = end_midpoint.distanceTo(start_midpoint)
+
+        if reverse_axis:
+            axis_temp = axis.copy()
+            axis_temp.scaleBy(-1)
+            axis = axis_temp
+
+            start_midpoint, end_midpoint = end_midpoint, start_midpoint
+
+            halfAngle = -halfAngle
+            thread_start_point, end_point = end_point, thread_start_point
+
+        axis_rotation_axis = start_midpoint.vectorTo(thread_start_point).crossProduct(axis)
+        axis_rotation_matrix = Matrix3D.create()
+        axis_rotation_matrix.setToRotation(halfAngle, axis_rotation_axis, thread_start_point)
+        thread_y_axis = axis.copy()
+        thread_y_axis.transformBy(axis_rotation_matrix)
+        thread_y_axis.normalize()
+
+        thread_x_axis = thread_y_axis.crossProduct(axis.crossProduct(thread_y_axis))
+        thread_x_axis.normalize()
+        if halfAngle < 0:
+            thread_x_axis.scaleBy(-1)
+
+        start_point_vector = cone.origin.vectorTo(thread_start_point)
+        start_point_vector = axis.crossProduct(axis.crossProduct(start_point_vector))
+        start_point_vector.scaleBy(-1)
+        start_point_vector.normalize()
+
+        origin = cone.origin
+
+        max_y = None
+        max_x = None
+        for point in thread_profile:
+            if max_x is None:
+                max_x = point[0]
+            elif point[0] > max_x:
+                max_x = point[0]
+            if max_y is None:
+                max_y = point[1]
+            elif point[1] > max_y:
+                max_y = point[1]
+
+        extra_length = math.ceil(max_y / pitch) * pitch
+        turns = (length + extra_length)/pitch
+
+        axis_copy = thread_y_axis.copy()
+        axis_copy.scaleBy(-1 * extra_length)
+        thread_start_point.translateBy(axis_copy)
+
+        # axis is the "y" axis and start_point_vector is the "x" axis, with thread_start_point as the origin
+        helixes = []
+
+        # When the upper point of the thread profile is the same as the lower point of the next turn of the thread,
+        # we get an error when creating the ruled surface for the back face about the surface being self-intersecting.
+        # In order to avoid this, we split the back profile edge into 2, so that there are 2 separate ruled surfaces
+        # that aren't self-intersecting.
+        augmented_thread_profile = list(thread_profile)
+        augmented_thread_profile.append(((augmented_thread_profile[-1][0] + augmented_thread_profile[0][0]) / 2,
+                                         (augmented_thread_profile[-1][1] + augmented_thread_profile[0][1]) / 2))
+
+        for point in augmented_thread_profile:
+            start_point = thread_start_point.copy()
+            x_axis = thread_x_axis.copy()
+            x_axis.scaleBy(point[0])
+            y_axis = thread_y_axis.copy()
+            y_axis.scaleBy(point[1])
+            start_point.translateBy(x_axis)
+            start_point.translateBy(y_axis)
+            helix = brep().createHelixWire(origin, axis, start_point, pitch, turns, -halfAngle)
+            helixes.append(helix)
+
+        face_bodies = []
+        start_face_edges = []
+        end_face_edges = []
+        for i in range(-1, len(helixes)-1):
+            face_bodies.append(brep().createRuledSurface(helixes[i].wires[0], helixes[i+1].wires[0]))
+            start_face_edges.append(adsk.core.Line3D.create(
+                helixes[i].edges[0].startVertex.geometry,
+                helixes[i+1].edges[0].startVertex.geometry))
+            end_face_edges.append(adsk.core.Line3D.create(
+                helixes[i].edges[0].endVertex.geometry,
+                helixes[i+1].edges[0].endVertex.geometry))
+
+        start_face_wire, _ = brep().createWireFromCurves(start_face_edges)
+        end_face_wire, _ = brep().createWireFromCurves(end_face_edges)
+
+        face_bodies.append(brep().createFaceFromPlanarWires([start_face_wire]))
+        face_bodies.append(brep().createFaceFromPlanarWires([end_face_wire]))
+
+        cumulative_body = face_bodies[0]
+        for face_body in face_bodies[1:]:
+            brep().booleanOperation(cumulative_body, face_body, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+        surface_bodies = []
+        for face in cumulative_body.faces:
+            surface_bodies.append(brep().copy(face))
+
+        thread_occurrence = _create_component(root(), *surface_bodies, name="thread")
+
+        stitch_input = thread_occurrence.component.features.stitchFeatures.createInput(
+            _collection_of(thread_occurrence.bRepBodies),
+            adsk.core.ValueInput.createByReal(app().pointTolerance),
+            adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+
+        thread_occurrence.component.features.stitchFeatures.add(stitch_input)
+        cumulative_body = None
+        for body in thread_occurrence.bRepBodies:
+            if cumulative_body is None:
+                cumulative_body = brep().copy(body)
+            else:
+                brep().booleanOperation(cumulative_body, body, adsk.fusion.BooleanTypes.UnionBooleanType)
+
+        axis_line = adsk.core.InfiniteLine3D.create(cone.origin, cone.axis)
+
+        point_on_face = face_brep.pointOnFace
+        _, normal = face_brep.evaluator.getNormalAtPoint(point_on_face)
+        point_projection = _project_point_to_line(point_on_face, axis_line)
+
+        is_male_thread = point_on_face.vectorTo(point_projection).dotProduct(normal) < 0
+
+        if is_male_thread:
+            bounding_shell = Thicken(BRepComponent(face_brep), max_x).bodies[0].brep
+        else:
+            bounding_shell = Thicken(BRepComponent(face_brep), -max_x).bodies[0].brep
+
+        brep().booleanOperation(cumulative_body, bounding_shell, adsk.fusion.BooleanTypes.IntersectionBooleanType)
+
+        base_components = []
+        for body in conical_face.component.bodies:
+            base_components.append(BRepComponent(body.brep))
+        base_component = Union(*base_components)
+
+        thread_component = BRepComponent(cumulative_body)
+
+        if is_male_thread:
+            # face normal is outward, and we're adding threads onto the surface
+            result = Union(base_component, thread_component)
+        else:
+            # face normal is inward, and we're cutting threads into the surface
+            result = Difference(base_component, thread_component)
+
+        self._bodies = [body.brep for body in result.bodies]
+        self._add_children((conical_face.component,))
         thread_occurrence.deleteMe()
 
     def _raw_bodies(self) -> Iterable[BRepBody]:
