@@ -2151,12 +2151,21 @@ class Sphere(Shape):
         name: The name of the component
     """
     def __init__(self, radius: float, name: str = None):
+        self._radius = radius
         super().__init__(brep().createSphere(self._origin, radius), name=name)
+
+    def _copy_to(self, copy: 'Cylinder', copy_children: bool):
+        super()._copy_to(copy, copy_children)
+        copy._radius = self._radius
 
     @property
     def surface(self) -> Face:
         """Returns: the Face representing the surface of the sphere."""
         return self.bodies[0].faces[0]
+
+    @property
+    def radius(self) -> float:
+        return self._radius
 
 
 class Torus(Shape):
