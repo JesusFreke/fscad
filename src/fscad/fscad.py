@@ -2669,7 +2669,7 @@ class Loft(ComponentWithChildren):
     Currently, only a basic loft is supported. Support for center lines and guide rails, etc. is not yet implemented.
 
     Args:
-        *components: The Components to loft through. These must all be planar Components.
+        *components: The Components to loft through. These must all be Components consisting of a single face
         name: The name of the Component
     """
 
@@ -2679,8 +2679,6 @@ class Loft(ComponentWithChildren):
 
         def process_child(child: Component):
             nonlocal loft_sections
-            if child.get_plane() is None:
-                raise ValueError("Only planar geometry can be used with Loft")
 
             component_face = None
             for child_body in child.bodies:
