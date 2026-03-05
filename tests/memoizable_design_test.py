@@ -41,7 +41,7 @@ class MemoizableDesignTest(FscadTestCase):
         box2.tx(5)
         box1.create_occurrence()
         box2.create_occurrence()
-        self.assertEquals(times_called, 1)
+        self.assertEqual(times_called, 1)
 
     def test_called_twice_with_name_as_keyword(self):
 
@@ -62,7 +62,7 @@ class MemoizableDesignTest(FscadTestCase):
         box2.tx(5)
         box1.create_occurrence()
         box2.create_occurrence()
-        self.assertEquals(times_called, 1)
+        self.assertEqual(times_called, 1)
 
     def test_called_twice_with_name_as_positional(self):
 
@@ -83,7 +83,7 @@ class MemoizableDesignTest(FscadTestCase):
         box2.tx(5)
         box1.create_occurrence()
         box2.create_occurrence()
-        self.assertEquals(times_called, 1)
+        self.assertEqual(times_called, 1)
 
     def test_with_arguments(self):
 
@@ -107,7 +107,7 @@ class MemoizableDesignTest(FscadTestCase):
         box1.create_occurrence()
         box2.create_occurrence()
         box3.create_occurrence()
-        self.assertEquals(times_called, 2)
+        self.assertEqual(times_called, 2)
 
     def test_different_instances(self):
 
@@ -138,7 +138,7 @@ class MemoizableDesignTest(FscadTestCase):
         box2.create_occurrence()
         box3.create_occurrence()
         box4.create_occurrence()
-        self.assertEquals(times_called, 2)
+        self.assertEqual(times_called, 2)
 
 
 def run(context):

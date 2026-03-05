@@ -68,7 +68,7 @@ class EdgeTest(FscadTestCase):
             ~box2 == ~box1,
             ~box2 == ~box1)
 
-        self.assertEquals(len(Group([box1, box2]).edges), 24)
+        self.assertEqual(len(Group([box1, box2]).edges), 24)
 
     def test_edge_after_translate(self):
         box = Box(1, 1, 1)

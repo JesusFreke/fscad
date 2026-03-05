@@ -30,7 +30,7 @@ class RevolveTest(FscadTestCase):
         revolve = Revolve(rect, adsk.core.Line3D.create(Point3D.create(0, 0, 0), Point3D.create(0, 1, 0)))
         revolve.create_occurrence(True)
 
-        self.assertEquals(len(revolve.faces), 4)
+        self.assertEqual(len(revolve.faces), 4)
 
     def test_infinite_line(self):
         rect = Rect(1, 1)
@@ -41,7 +41,7 @@ class RevolveTest(FscadTestCase):
             adsk.core.Line3D.create(Point3D.create(0, 0, 0), Point3D.create(0, 1, 0)).asInfiniteLine())
         revolve.create_occurrence(True)
 
-        self.assertEquals(len(revolve.faces), 4)
+        self.assertEqual(len(revolve.faces), 4)
 
     def test_partial_revolve(self):
         rect = Rect(1, 1)
@@ -50,7 +50,7 @@ class RevolveTest(FscadTestCase):
         revolve = Revolve(rect, adsk.core.Line3D.create(Point3D.create(0, 0, 0), Point3D.create(0, 1, 0)), 180)
         revolve.create_occurrence(True)
 
-        self.assertEquals(len(revolve.faces), 6)
+        self.assertEqual(len(revolve.faces), 6)
 
     def test_partial_revolve_negative(self):
         rect = Rect(1, 1)
@@ -59,7 +59,7 @@ class RevolveTest(FscadTestCase):
         revolve = Revolve(rect, adsk.core.Line3D.create(Point3D.create(0, 0, 0), Point3D.create(0, 1, 0)), -180)
         revolve.create_occurrence(True)
 
-        self.assertEquals(len(revolve.faces), 6)
+        self.assertEqual(len(revolve.faces), 6)
 
     def test_revolve_off_axis(self):
         rect = Rect(1, 1)
@@ -68,7 +68,7 @@ class RevolveTest(FscadTestCase):
         revolve = Revolve(rect, adsk.core.Line3D.create(Point3D.create(0, 0, 0), Point3D.create(0, 1, 1)))
         revolve.create_occurrence(True)
 
-        self.assertEquals(len(revolve.faces), 4)
+        self.assertEqual(len(revolve.faces), 4)
 
     def test_revolve_around_edge(self):
         rect = Rect(1, 1)
@@ -77,7 +77,7 @@ class RevolveTest(FscadTestCase):
 
         revolve.create_occurrence(True)
 
-        self.assertEquals(len(revolve.faces), 3)
+        self.assertEqual(len(revolve.faces), 3)
 
     def test_revolve_face(self):
         box = Box(1, 1, 1)
@@ -123,7 +123,7 @@ class RevolveTest(FscadTestCase):
         revolve = Revolve(box.top, upper_right_edge, 180)
         revolve.create_occurrence(True)
 
-        self.assertEquals(revolve.size().asArray(), (box.size().x * 2, box.size().y, box.size().z*2))
+        self.assertEqual(revolve.size().asArray(), (box.size().x * 2, box.size().y, box.size().z*2))
 
 
 def run(context):
