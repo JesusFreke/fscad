@@ -49,6 +49,7 @@ test_modules = [
     "thicken_test",
     "thread_test",
     "transform_test",
+    "text_test",
     "union_test",
 ]
 
