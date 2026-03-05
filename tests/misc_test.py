@@ -22,6 +22,7 @@ import unittest
 
 # note: load_tests is required for the "pattern" test filtering functionality in loadTestsFromModule in run()
 from fscad.test_utils import FscadTestCase, load_tests
+import fscad.fscad
 from fscad.fscad import *
 import fscad.fscad
 
