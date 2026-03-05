@@ -15,7 +15,7 @@
 __all__ = ['app', 'root', 'ui', 'brep', 'design', 'Translation', 'Place', 'BoundedEntity', 'BRepEntity', 'Body', 'Loop',
            'Face', 'Edge', 'Point', 'BoundingBox', 'Component', 'ComponentWithChildren', 'Shape', 'BRepComponent',
            'PlanarShape', 'Box', 'Cylinder', 'Sphere', 'Torus', 'Rect', 'Circle', 'Builder2D', 'Polygon',
-           'RegularPolygon', 'import_fusion_archive', 'import_dxf', 'Combination', 'Union', 'Difference',
+           'RegularPolygon', 'Text', 'import_fusion_archive', 'import_dxf', 'Combination', 'Union', 'Difference',
            'Intersection', 'Group', 'Loft', 'Revolve', 'Sweep', 'ExtrudeBase', 'Extrude', 'ExtrudeTo', 'OffsetEdges',
            'SplitFace', 'Silhouette', 'Hull', 'RawThreads', 'Threads', 'ConicalThreads', 'Fillet', 'Chamfer', 'Scale',
            'Thicken', 'MemoizableDesign', 'setup_document', 'run_design', 'relative_import']
@@ -2324,6 +2324,74 @@ class RegularPolygon(Polygon):
                 -radius * math.cos(math.radians(angle)),
                 0))
         super().__init__(*points, name=name)
+
+
+class Text(Shape):
+    """Defines 2D text geometry suitable for extrusion.
+
+    Args:
+        text: The text string to create
+        height: The height of the text in cm
+        font: The font name to use. If None, uses the default font.
+        name: The name of the component
+    """
+    def __init__(self, text: str, height: float = 1.0, font: str = None, name: str = None):
+        root_comp = root()
+        occ = root_comp.occurrences.addNewComponent(Matrix3D.create())
+        sketch = occ.component.sketches.add(occ.component.xYConstructionPlane)
+
+        text_input = sketch.sketchTexts.createInput(text, height, Point3D.create(0, 0, 0))
+        if font is not None:
+            text_input.fontName = font
+        sketch_text = sketch.sketchTexts.add(text_input)
+        sketch_text.explode()
+
+        profiles = sketch.profiles
+        if profiles.count == 0:
+            occ.deleteMe()
+            super().__init__(name=name)
+            return
+
+        thin_depth = 0.01
+        extent = adsk.fusion.DistanceExtentDefinition.create(
+            adsk.core.ValueInput.createByReal(thin_depth))
+        for i in range(profiles.count):
+            profile = profiles.item(i)
+            extrude_input = occ.component.features.extrudeFeatures.createInput(
+                profile, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+            extrude_input.setOneSideExtent(
+                extent, adsk.fusion.ExtentDirections.PositiveExtentDirection,
+                adsk.core.ValueInput.createByReal(0))
+            occ.component.features.extrudeFeatures.add(extrude_input)
+
+        all_bodies = sorted(occ.bRepBodies, key=lambda b: b.volume, reverse=True)
+        kept_bodies = []
+        for body in all_bodies:
+            centroid = body.physicalProperties.centerOfMass
+            is_inner = False
+            for larger in kept_bodies:
+                bb = larger.boundingBox
+                if (bb.minPoint.x < centroid.x < bb.maxPoint.x and
+                        bb.minPoint.y < centroid.y < bb.maxPoint.y):
+                    is_inner = True
+                    break
+            if not is_inner:
+                kept_bodies.append(body)
+
+        planar_bodies = []
+        for body in kept_bodies:
+            for face in body.faces:
+                if isinstance(face.geometry, adsk.core.Plane) and face.geometry.normal.isParallelTo(self._pos_z):
+                    planar_bodies.append(brep().copy(face))
+                    break
+
+        occ.deleteMe()
+        super().__init__(*planar_bodies, name=name)
+
+    def get_plane(self) -> Optional[adsk.core.Plane]:
+        if not self._bodies:
+            return None
+        return adsk.core.Plane.create(Point3D.create(0, 0, 0), Vector3D.create(0, 0, 1))
 
 
 def import_fusion_archive(filename, name="import"):
