@@ -30,7 +30,7 @@ class SilhouetteTest(FscadTestCase):
             Vector3D.create(0, 0, 1)))
         silhouette.create_occurrence(True)
 
-        self.assertEquals(silhouette.size().asArray(), rect.size().asArray())
+        self.assertEqual(silhouette.size().asArray(), rect.size().asArray())
 
     def test_non_orthogonal_face_silhouette(self):
         rect = Rect(1, 1)
@@ -40,7 +40,7 @@ class SilhouetteTest(FscadTestCase):
             Vector3D.create(0, 0, 1)))
         silhouette.create_occurrence(True)
 
-        self.assertEquals(silhouette.size().asArray(), (rect.size().x, rect.size().y, 0))
+        self.assertEqual(silhouette.size().asArray(), (rect.size().x, rect.size().y, 0))
 
     def test_parallel_face_silhouette(self):
         rect = Rect(1, 1)
@@ -50,7 +50,7 @@ class SilhouetteTest(FscadTestCase):
             Vector3D.create(0, 0, 1)))
         silhouette.create_occurrence(True)
 
-        self.assertEquals(silhouette.size().asArray(), (0, 0, 0))
+        self.assertEqual(silhouette.size().asArray(), (0, 0, 0))
 
     def test_body_silhouette(self):
         box = Box(1, 1, 1)
@@ -60,7 +60,7 @@ class SilhouetteTest(FscadTestCase):
             Vector3D.create(0, 0, 1)))
         silhouette.create_occurrence(True)
 
-        self.assertEquals(silhouette.size().asArray(), (box.size().x, box.size().y, 0))
+        self.assertEqual(silhouette.size().asArray(), (box.size().x, box.size().y, 0))
 
     def test_component_silhouette(self):
         rect = Rect(1, 1)
@@ -70,7 +70,7 @@ class SilhouetteTest(FscadTestCase):
             Vector3D.create(0, 0, 1)))
         silhouette.create_occurrence(True)
 
-        self.assertEquals(silhouette.size().asArray(), (rect.size().x, rect.size().y, 0))
+        self.assertEqual(silhouette.size().asArray(), (rect.size().x, rect.size().y, 0))
 
     def test_multiple_disjoint_faces_silhouette(self):
         rect1 = Rect(1, 1)
@@ -88,7 +88,7 @@ class SilhouetteTest(FscadTestCase):
 
         self.assertTrue(abs(silhouette.size().x - assembly.size().x) < app().pointTolerance)
         self.assertTrue(abs(silhouette.size().y - assembly.size().y) < app().pointTolerance)
-        self.assertEquals(silhouette.size().z, 0)
+        self.assertEqual(silhouette.size().z, 0)
 
     def test_multiple_overlapping_faces_silhouette(self):
         rect1 = Rect(1, 1)
@@ -106,7 +106,7 @@ class SilhouetteTest(FscadTestCase):
 
         self.assertTrue(abs(silhouette.size().x - assembly.size().x) < app().pointTolerance)
         self.assertTrue(abs(silhouette.size().y - assembly.size().y) < app().pointTolerance)
-        self.assertEquals(silhouette.size().z, 0)
+        self.assertEqual(silhouette.size().z, 0)
 
     def test_cylinder_silhouette(self):
         cyl = Cylinder(1, 1)
@@ -115,7 +115,7 @@ class SilhouetteTest(FscadTestCase):
             Vector3D.create(0, 0, 1)))
         silhouette.create_occurrence(True)
 
-        self.assertEquals(silhouette.size().asArray(), (cyl.size().x, cyl.size().y, 0))
+        self.assertEqual(silhouette.size().asArray(), (cyl.size().x, cyl.size().y, 0))
 
     def test_single_edge(self):
         circle = Circle(1)
@@ -125,7 +125,7 @@ class SilhouetteTest(FscadTestCase):
             Vector3D.create(0, 0, 1)))
         silhouette.create_occurrence(True)
 
-        self.assertEquals(silhouette.size().asArray(), circle.size().asArray())
+        self.assertEqual(silhouette.size().asArray(), circle.size().asArray())
 
     def test_multiple_edges(self):
         rect = Rect(1, 1)
@@ -149,8 +149,8 @@ class SilhouetteTest(FscadTestCase):
 
         silhouette.create_occurrence(True)
 
-        self.assertEquals(silhouette.size().asArray(), rect.size().asArray())
-        self.assertEquals(len(silhouette.edges), 4)
+        self.assertEqual(silhouette.size().asArray(), rect.size().asArray())
+        self.assertEqual(len(silhouette.edges), 4)
 
     def test_named_edges(self):
         box = Box(1, 1, 1)
@@ -173,8 +173,8 @@ class SilhouetteTest(FscadTestCase):
             ~edge_finder == ~silhouette)
         found_edges = silhouette.find_edges(edge_finder)
         named_edges = silhouette.named_edges("front")
-        self.assertEquals(len(found_edges), 1)
-        self.assertEquals(found_edges, named_edges)
+        self.assertEqual(len(found_edges), 1)
+        self.assertEqual(found_edges, named_edges)
 
         edge_finder.place(
             ~edge_finder == ~silhouette,
@@ -182,8 +182,8 @@ class SilhouetteTest(FscadTestCase):
             ~edge_finder == ~silhouette)
         found_edges = silhouette.find_edges(edge_finder)
         named_edges = silhouette.named_edges("back")
-        self.assertEquals(len(found_edges), 1)
-        self.assertEquals(found_edges, named_edges)
+        self.assertEqual(len(found_edges), 1)
+        self.assertEqual(found_edges, named_edges)
 
         edge_finder.place(
             +edge_finder == +silhouette,
@@ -191,8 +191,8 @@ class SilhouetteTest(FscadTestCase):
             ~edge_finder == ~silhouette)
         found_edges = silhouette.find_edges(edge_finder)
         named_edges = silhouette.named_edges("right")
-        self.assertEquals(len(found_edges), 1)
-        self.assertEquals(found_edges, named_edges)
+        self.assertEqual(len(found_edges), 1)
+        self.assertEqual(found_edges, named_edges)
 
         edge_finder.place(
             -edge_finder == -silhouette,
@@ -200,8 +200,8 @@ class SilhouetteTest(FscadTestCase):
             ~edge_finder == ~silhouette)
         found_edges = silhouette.find_edges(edge_finder)
         named_edges = silhouette.named_edges("left")
-        self.assertEquals(len(found_edges), 1)
-        self.assertEquals(found_edges, named_edges)
+        self.assertEqual(len(found_edges), 1)
+        self.assertEqual(found_edges, named_edges)
 
 
 

@@ -129,7 +129,7 @@ class FaceTest(FscadTestCase):
             ~box2 == ~box1,
             ~box2 == ~box1)
 
-        self.assertEquals(len(Group([box1, box2]).faces), 12)
+        self.assertEqual(len(Group([box1, box2]).faces), 12)
 
     def test_face_after_translate(self):
         box = Box(1, 1, 1)
