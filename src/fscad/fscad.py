@@ -2697,8 +2697,14 @@ class Loft(ComponentWithChildren):
         for body in occurrence.bRepBodies:
             loft_feature_input.loftSections.add(body.faces[0])
         loft_feature = occurrence.component.features.loftFeatures.add(loft_feature_input)
-        self._bottom_index = _face_index(loft_feature.startFace)
-        self._top_index = _face_index(loft_feature.endFace)
+        if loft_feature.startFace is not None:
+            self._bottom_index = _face_index(loft_feature.startFace)
+        else:
+            self._bottom_index = -1
+        if loft_feature.endFace is not None:
+            self._top_index = _face_index(loft_feature.endFace)
+        else:
+            self._top_index = -1
         self._body = brep().copy(loft_feature.bodies[loft_feature.bodies.count - 1])
         occurrence.deleteMe()
 
