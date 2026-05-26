@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 
 import adsk.fusion
 from adsk.core import Vector3D
@@ -248,13 +249,33 @@ class BasicGeometryTest(FscadTestCase):
                 (0, 1)).create_occurrence(True)
 
     def test_regular_polygon_outer(self):
-        RegularPolygon(6, 1, True).create_occurrence(True)
+        polygon = RegularPolygon(6, 1, True)
+        polygon.create_occurrence(True)
+        self.assertEqual(polygon.circumradius, 1)
+        self.assertTrue(math.fabs(polygon.inradius - 0.8660254037844387) < 1e-14)
+        self.assertTrue(math.fabs(polygon.side_length - 1) < 1e-14)
+
 
     def test_regular_polygon_inner_even(self):
-        RegularPolygon(6, 1, False).create_occurrence(True)
+        polygon = RegularPolygon(6, 1, False)
+        polygon.create_occurrence(True)
+        self.assertEqual(polygon.inradius, 1)
+        self.assertTrue(math.fabs(polygon.circumradius - 1.154700538379251) < 1e-14)
+        self.assertTrue(math.fabs(polygon.side_length - 1.154700538379251) < 1e-14)
+
+    def test_regular_polygon_outer_odd(self):
+        polygon = RegularPolygon(7, 1, True)
+        polygon.create_occurrence(True)
+        self.assertTrue(math.fabs(polygon.inradius - 0.9009688679024191) < 1e-14)
+        self.assertEqual(polygon.circumradius, 1)
+        self.assertTrue(math.fabs(polygon.side_length - 0.8677674782351162) < 1e-14)
 
     def test_regular_polygon_inner_odd(self):
-        RegularPolygon(7, 1, False).create_occurrence(True)
+        polygon = RegularPolygon(7, 1, False)
+        polygon.create_occurrence(True)
+        self.assertEqual(polygon.inradius, 1)
+        self.assertTrue(math.fabs(polygon.circumradius - 1.1099162641747424) < 1e-14)
+        self.assertTrue(math.fabs(polygon.side_length - 0.9631492376150573) < 1e-14)
 
     def test_torus(self):
         torus = Torus(10, 1)

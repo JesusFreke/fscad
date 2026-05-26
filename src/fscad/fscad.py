@@ -2311,19 +2311,36 @@ class RegularPolygon(Polygon):
     def __init__(self, sides: int, radius: float, is_outer_radius: bool = True, name: str = None):
         step_angle = 360 / sides
         points = []
+        self._sides = sides
         if not is_outer_radius:
-            if sides % 2 == 0:
-                radius = radius / (math.cos(math.radians(180) / sides))
-            else:
-                radius = 2 * radius / (1 + math.cos(math.radians(180) / sides))
+            self._circumradius = radius / (math.cos(math.pi / sides))
+        else:
+            self._circumradius = radius
 
         for i in range(0, sides):
             angle = step_angle / 2 + step_angle * i
             points.append(Point3D.create(
-                radius * math.sin(math.radians(angle)),
-                -radius * math.cos(math.radians(angle)),
+                self._circumradius * math.sin(math.radians(angle)),
+                -self._circumradius * math.cos(math.radians(angle)),
                 0))
         super().__init__(*points, name=name)
+        self.add_named_point("center", (0, 0, 0))
+
+    @property
+    def sides(self):
+        return self._sides
+
+    @property
+    def circumradius(self):
+        return self._circumradius
+
+    @property
+    def inradius(self):
+        return self._circumradius * math.cos(math.pi / self._sides)
+
+    @property
+    def side_length(self):
+        return 2 * self._circumradius * math.sin(math.pi / self._sides)
 
 
 class Text(Shape):
@@ -2729,6 +2746,12 @@ class Group(Combination):
             child._create_occurrence(occurrence, hidden=False)
         for child in self._hidden_children:
             child._create_occurrence(occurrence, hidden=True)
+
+    def visible_children(self) -> Sequence['Component']:
+        return tuple(self._visible_children)
+
+    def hidden_children(self) -> Sequence['Component']:
+        return tuple(self._hidden_children)
 
 
 class Loft(ComponentWithChildren):
