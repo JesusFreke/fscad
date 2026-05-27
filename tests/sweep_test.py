@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 
 import adsk.fusion
-from adsk.core import Line3D, Point3D
+from adsk.core import Line3D, Point3D, Vector3D
 
 import unittest
 
@@ -135,6 +136,68 @@ class SweepTest(FscadTestCase):
                     Point3D.create(both.mid().x, both.mid().y, both.mid().z + 10))
             ],
             turns=1).create_occurrence(create_children=True)
+
+    def test_helical_sweep_without_guide(self):
+        profile = Rect(1, 1)
+
+        helix_radius = 10
+        profile.place(
+            -profile == helix_radius,
+            ~profile == 0,
+            -profile == 0)
+
+        helix_angle = 35
+
+        profile.rx(-helix_angle, center=(0, 0, 0))
+
+        helical_pitch = 2 * math.pi * helix_radius * math.tan(math.radians((90-helix_angle)))
+
+        helix = brep().createHelixWire(
+            axisPoint=Point3D.create(0, 0, 0),
+            axisVector=Vector3D.create(0, 0, 1),
+            startPoint=Point3D.create(helix_radius, 0, 0),
+            pitch=helical_pitch,
+            turns=2,
+            taperAngle=0)
+
+        # without a guide rail, the profile does a weird twist while it's sweeping, so it doesn't stay in the same
+        # orientation, relative to the surface of the cylinder the hexix circumscribes
+        Sweep(profile, [helix.edges[0].geometry]).create_occurrence(scale=.1)
+
+    def test_helical_sweep_with_guide(self):
+        profile = Rect(1, 1)
+
+        helix_radius = 10
+        profile.place(
+            -profile == helix_radius,
+            ~profile == 0,
+            -profile == 0)
+
+        helix_angle = 35
+
+        profile.rx(-helix_angle, center=(0, 0, 0))
+
+        helical_pitch = 2 * math.pi * helix_radius * math.tan(math.radians((90-helix_angle)))
+
+        helix = brep().createHelixWire(
+            axisPoint=Point3D.create(0, 0, 0),
+            axisVector=Vector3D.create(0, 0, 1),
+            startPoint=Point3D.create(helix_radius, 0, 0),
+            pitch=helical_pitch,
+            turns=2,
+            taperAngle=0)
+
+        guide_helix = brep().createHelixWire(
+            axisPoint=Point3D.create(0, 0, 0),
+            axisVector=Vector3D.create(0, 0, 1),
+            startPoint=Point3D.create(helix_radius + profile.size().x/2, 0, 0),
+            pitch=helical_pitch,
+            turns=2,
+            taperAngle=0)
+
+        # with a guide rail, the profile stays in the same orientation relative to the surface of the cylinder the
+        # helix circumscribes. This is useful for helical gears/threads, etc.
+        Sweep(profile, [helix.edges[0].geometry], [guide_helix.edges[0].geometry]).create_occurrence(scale=.1)
 
 
 def run(context):

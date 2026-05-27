@@ -2938,11 +2938,12 @@ class Revolve(ComponentWithChildren):
 
 
 class Sweep(ComponentWithChildren):
-    """Sweeps a planar face along a path, optionally with a twist.
+    """Sweeps a planar face along a path, optionally with a twist or with a guide rail.
 
     Args:
         entity: The object to twist. This can be a Face, an iterable of Faces, or a planar Component.
         path: The path to sweep the face along
+        guide: If given, a guide rail to use for the sweep
         turns: The number of turns to twist
         name: The name of the component
     """
@@ -2951,6 +2952,7 @@ class Sweep(ComponentWithChildren):
     def __init__(self,
                  entity: Onion[Component, Face, Iterable[Face]],
                  path: Sequence[Onion[adsk.core.Curve3D, Edge]],
+                 guide: Optional[Sequence[Onion[adsk.core.Curve3D, Edge]]] = None,
                  turns: float = 0,
                  name: str = None):
         super().__init__(name)
@@ -3021,10 +3023,26 @@ class Sweep(ComponentWithChildren):
             elif isinstance(item, Curve3D):
                 wire = _create_wire(item)
             else:
-                raise ValueError("Unsupported axis type for sweep: %s" % item.__class__.__name__)
+                raise ValueError("Unsupported path type for sweep: %s" % item.__class__.__name__)
 
             wire = temp_occurrence.component.bRepBodies.add(wire)
             edges.append(sketch.include(wire.edges[0])[0])
+            wire.deleteMe()
+
+        guide_edges = []
+        if guide:
+            for item in guide:
+                if isinstance(item, Edge):
+                    if item.component not in components:
+                        components.append(item.component)
+                    wire = brep().copy(item.brep)
+                elif isinstance(item, Curve3D):
+                    wire = _create_wire(item)
+                else:
+                    raise ValueError("Unsupported path type for guide rail: %s" % item.__class__.__name__)
+
+            wire = temp_occurrence.component.bRepBodies.add(wire)
+            guide_edges.append(sketch.include(wire.edges[0])[0])
             wire.deleteMe()
 
         path_object = temp_occurrence.component.features.createPath(
@@ -3035,6 +3053,12 @@ class Sweep(ComponentWithChildren):
             _collection_of(temp_faces),
             path_object,
             adsk.fusion.FeatureOperations.JoinFeatureOperation)
+
+        if guide:
+            guide_object = temp_occurrence.component.features.createPath(
+                _collection_of(guide_edges),
+                isChain=False)
+            sweep_input.guideRail = guide_object
 
         sweep_input.distanceOne = ValueInput.createByReal(1.0)
         sweep_input.twistAngle = ValueInput.createByReal(turns * math.pi * 2)
